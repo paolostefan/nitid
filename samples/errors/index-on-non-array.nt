@@ -1,0 +1,7 @@
+// expect-contains: Cannot index non-array type
+// Indexing is only valid on arrays
+
+fn main {
+    int x = 5;
+    printf("%d\n", x[0]);
+}

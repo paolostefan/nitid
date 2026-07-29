@@ -1,0 +1,5 @@
+// expect-contains: Unexpected token Let
+// error raised in src/parser.rs:793
+// 'let' is reserved but not valid syntax — use := instead
+
+let x = 5;

@@ -1,0 +1,4 @@
+// expect-contains: Undefined variable 'self'
+fn main {
+  x := self;
+}

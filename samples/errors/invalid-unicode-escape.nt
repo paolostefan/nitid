@@ -1,0 +1,6 @@
+// expect-contains: Invalid Unicode escape
+// error in src/lexer.rs for \uD800 (surrogate, not a valid Unicode scalar)
+
+fn main {
+    println("\uD800");
+}

@@ -1,0 +1,5 @@
+// expect-contains: Unknown type 'foo'
+// error raised in src/parser.rs:230
+// Valid types: int, float, double, i8..i256, u8..u256, f8..f64, bool, string, void
+
+foo x = 5;

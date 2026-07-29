@@ -1,0 +1,4 @@
+// expect-contains: Array element type mismatch
+// All elements in an array literal must have the same type
+
+a := {1, "hello"};

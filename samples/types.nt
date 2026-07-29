@@ -1,0 +1,71 @@
+package types;
+
+fn main {
+    // Type inference via :=  (integer → int, floating point literal → double)
+    a_ := -8;
+    b_ := 16;
+    c_ := 4.5;
+    printf("a_=%d, b_=%d, c_=%f\n", a_, b_, c_);
+
+    // Declare with initializers (narrowed types)
+    i8 a = 10;
+    i16 b = 20;
+    i64 c = 40;
+    i128 d = 40 000 000 000 000;
+    printf("i8=%d, i16=%d, i64=%ld, i128=%lld\n", a, b, c, d);
+
+    // Unsigned: declare with initializers
+    u8 f = 8;
+    u16 g = 16;
+    u32 h = 32;
+    printf("u8=%u, u16=%u, u32=%u\n", f, g, h);
+
+    // Floating point: declare with initializers
+    float i = 3.5;
+    f64 j = 4.5;
+    double k = 5.5;
+    printf("float=%f, double=%lf\n", i, k);
+
+    // String: declare with initializer
+    string s = "Hello folks";
+    printf("String: %s\n", s);
+
+    // Declare/assign string implicitly
+    t := "A wonderful string";
+    printf("String 2: %s\n", t);
+
+    // Boolean — init matches literal type
+    bool m = true;
+    bool n = false;
+    printf("true=%d, false=%d\n", m, n);
+
+    // Hex literals
+    i32 hex = 0xFF;
+    printf("0xFF=%d\n", hex);
+
+    // Char literal in u8 — init matches literal type
+    u8 ch = 'A';
+    printf("char='%c'\n", ch);
+
+    // Separate declarations (grouped decl without init is not allowed)
+    i32 x = 1;
+    i32 y = 2;
+    i32 z = 3;
+    printf("x+y+z=%d\n", x + y + z);
+
+    // Declare then assign
+    u8 u_8;
+    u16 u_16;
+    u32 u_32;
+    u64 u_64;
+    u128 u_128;
+
+    u_8 = ~0;
+    u_16 = ~0;
+    u_32 = ~0;
+    u_64 = ~0;
+    u_128 = ~0;
+
+    printf("~0 for different byte lengths is: %u, %u, %u, %lu, %llu",
+           u_8, u_16, u_32, u_64, u_128);
+}

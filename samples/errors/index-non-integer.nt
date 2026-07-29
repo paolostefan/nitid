@@ -1,0 +1,7 @@
+// expect-contains: Array index must be numeric
+// Index expression must be an integer
+
+fn main {
+    a := {1, 2, 3};
+    printf("%d\n", a["hello"]);
+}

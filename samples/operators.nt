@@ -1,0 +1,49 @@
+package operators;
+
+// Arithmetic
+int sum := 10 + 3;
+int diff := 10 - 3;
+int prod := 10 * 3;
+int quot := 10 / 3;
+int rem  := 10 % 3;
+
+printf("10+3=%d, 10-3=%d, 10*3=%d, 10/3=%d, 10%%3=%d\n",
+        sum, diff, prod, quot, rem);
+
+// Bitwise
+int band := 6 & 3;   // 2
+int bor  := 6 | 3;   // 7
+int bxor := 6 ^ 3;   // 5
+int shl  := 1 << 3;  // 8
+int shr  := 16 >> 2; // 4
+
+printf("6&3=%d, 6|3=%d, 6^3=%d, 1<<3=%d, 16>>2=%d\n",
+        band, bor, bxor, shl, shr);
+
+// Comparison
+bool eq := 5 == 5;
+bool ne := 5 != 5;
+bool lt := 3 < 5;
+bool gt := 5 > 3;
+bool le := 3 <= 5;
+bool ge := 5 >= 5;
+
+printf("5==5=%d, 5!=5=%d, 3<5=%d, 5>3=%d, 3<=5=%d, 5>=5=%d\n",
+        eq, ne, lt, gt, le, ge);
+
+// Logical
+and := 1 && 0; // should infer bool type
+or  := 1 || 0;
+
+printf("1&&0=%d, 1||0=%d\n", and, or);
+
+// Declaration and assignment
+int x = 42;
+printf("x=%d\n", x);
+
+// Unary
+neg := -x;
+bool not := !0;
+flip := ~x;
+
+printf("neg=%d, !0=%d, ~42=%d\n", neg, not, flip);

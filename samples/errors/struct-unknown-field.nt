@@ -1,0 +1,5 @@
+// expect-contains: has no field
+struct Point { x: i32; y: i32; };
+fn main {
+  p := Point{ x: 1, z: 2 };
+}

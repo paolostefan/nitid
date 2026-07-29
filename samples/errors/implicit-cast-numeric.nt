@@ -1,0 +1,4 @@
+// expect-contains: Value does not fit in 'x' of type I8
+// Integer literal that exceeds the target type range is rejected
+
+i8 x = 257;

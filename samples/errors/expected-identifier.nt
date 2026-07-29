@@ -1,0 +1,7 @@
+// expect-contains: Expected identifier, found IntLit("5")
+// error raised in src/parser.rs:130
+// Expected identifier after 'fn' — a literal is not a valid identifier
+
+fn 5 {
+    return 0;
+}

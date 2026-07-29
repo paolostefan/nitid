@@ -1,0 +1,7 @@
+// expect-contains: Expected type, found LBrace
+// error raised in src/parser.rs:237
+// Return type must follow ->, or omit -> for void
+
+fn foo -> {
+    return 0;
+}

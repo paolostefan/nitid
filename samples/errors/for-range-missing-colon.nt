@@ -1,0 +1,6 @@
+// expect-contains: Expected Colon, found Ident("a")
+// Range for requires : between variable and iterable
+
+fn main {
+    for (item a) { }
+}

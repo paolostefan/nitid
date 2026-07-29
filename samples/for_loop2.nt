@@ -1,0 +1,32 @@
+// C-style for loop variants: decl-assign init, expr init, empty init
+fn loop_decl_assign -> int {
+    sum := 0;
+    for (i := 0; i < 5; i++) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+fn loop_expr_init -> int {
+    sum := 0;
+    i := 0;
+    for (i = 0; i < 12; i++) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+fn loop_empty_init -> int {
+    sum := 0;
+    i := 0;
+    for (; i < 22; i++) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+fn main {
+    printf("decl_assign: %d\n", loop_decl_assign());
+    printf("expr_init: %d\n", loop_expr_init());
+    printf("empty_init: %d\n", loop_empty_init());
+}

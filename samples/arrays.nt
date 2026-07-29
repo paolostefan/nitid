@@ -1,0 +1,12 @@
+// SAmple illustrating base array use.
+
+fixed int a[3] = {10, 20, 30};
+printf("%d %d %d\n", a[0], a[1], a[2]);
+
+b := {1, 2, 3, 4, 5};
+printf("b[0]=%d; b[1]=%d b[4]=%d\n", b[0], b[1], b[4]);
+printf("b[-1]=%d\n", b[-1]);
+printf("b[-2]=%d\n", b[-2]);
+
+c := [10 int];
+

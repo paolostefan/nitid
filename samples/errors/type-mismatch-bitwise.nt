@@ -1,0 +1,5 @@
+// expect-contains: Type mismatch in bitwise op
+// error raised in src/sema.rs:186
+// Both operands of &, |, ^, <<, >> must have the same type
+
+x := 5 & "hello";

@@ -1,0 +1,9 @@
+// C-style for loop: sum 0..9
+fn main {
+    sum := 0;
+    max := 10;
+    for (i32 i = 0; i < max; i++) {
+        sum = sum + i;
+    }
+    printf("sum=%d\n", sum);
+}

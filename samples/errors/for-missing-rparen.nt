@@ -1,0 +1,6 @@
+// expect-contains: Expected RParen, found LBrace
+// Closing ) is missing before the body brace
+
+fn main {
+    for (i32 i = 0; i < 10; i++ { }
+}

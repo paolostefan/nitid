@@ -1,0 +1,6 @@
+// expect-contains: Type mismatch: 'x' is String32, initializer is I32
+// Non-string initializer for string32 variable
+
+fn main {
+    string32 x = 42;
+}

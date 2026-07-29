@@ -1,0 +1,5 @@
+// expect-contains: Expected Semicolon, found EOF
+// error raised in src/parser.rs:44
+// Every statement in YACL must end with a semicolon
+
+int x = 5

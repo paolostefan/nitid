@@ -1,0 +1,5 @@
+
+arr := {10, 20, 30, 40, 50};
+for (i, item : arr) {
+  printf("arr[%d]=%d\n", i, item);
+}

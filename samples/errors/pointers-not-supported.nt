@@ -1,0 +1,8 @@
+// expect-contains: Unexpected token Ampersand
+// error raised in src/parser.rs:primary
+// Pointers are not supported — type name cannot start an expression
+
+i128 a:= 12345679;
+
+// This is not valid in YACL
+i128 *b = &a;

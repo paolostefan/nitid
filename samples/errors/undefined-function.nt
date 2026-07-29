@@ -1,0 +1,7 @@
+// expect-contains: Undefined function 'foo'
+// error raised in src/sema.rs:171
+// Called function must be defined in the same package or imported
+
+fn main {
+    foo();
+}

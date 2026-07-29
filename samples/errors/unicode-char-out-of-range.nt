@@ -1,0 +1,6 @@
+// expect-contains: out of range for char
+// error in src/lexer.rs: \u0100 in a char literal (max is 0xFF)
+
+fn main {
+    c := '\u0100';
+}

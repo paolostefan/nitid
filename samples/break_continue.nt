@@ -1,0 +1,15 @@
+// break and continue in while loop
+fn main {
+    i := 0;
+    while (i < 10) {
+        i++;
+        if (i == 5) {
+            continue;
+        }
+        if (i == 8) {
+            break;
+        }
+        printf("%d\n", i);
+    }
+    printf("done %d\n", i);
+}

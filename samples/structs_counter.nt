@@ -1,0 +1,24 @@
+struct Counter {
+  value: i32;
+};
+
+impl Counter {
+  fn inc {
+    self.value = self.value + 1;
+  }
+
+  fn get -> i32 {
+    return self.value;
+  }
+
+  fn add(i32 n) {
+    self.value = self.value + n;
+  }
+};
+
+// main
+c := Counter{ value: 10 };
+c.inc();
+printf("after inc: %d\n", c.get());
+c.add(5);
+printf("after add: %d\n", c.get());

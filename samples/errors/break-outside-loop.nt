@@ -1,0 +1,4 @@
+// expect-contains: 'break' outside of loop
+// break is only valid inside a for or while loop
+
+break;

@@ -1,0 +1,5 @@
+// expect-contains: Invalid hex literal
+// error raised in src/parser.rs:752
+// After 0x, only valid hex digits (0-9, a-f, A-F) are allowed
+
+x := 0xGG;

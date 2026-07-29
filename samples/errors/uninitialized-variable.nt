@@ -1,0 +1,10 @@
+// expect-contains: Variable 'x' must be initialized
+// Variables declared without init must be assigned before scope exit
+
+fn main {
+    int x;
+    if true {
+        println("oh no");
+    }
+    // x is never assigned → error
+}

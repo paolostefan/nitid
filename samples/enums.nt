@@ -1,0 +1,32 @@
+// Basic untyped enum
+enum AccessMode {
+    ACCESS_NONE = 0,
+    READONLY,
+    WRITEONLY,
+    READWRITE
+};
+
+// Typed enum with u8
+enum ByteAccess : u8 {
+    BA_NONE,
+    BA_READ,
+    BA_WRITE,
+    BA_RW
+};
+
+// Typed enum with signed type and explicit values
+enum FileType : i16 {
+    FT_ERROR = -1,
+    FT_UNKNOWN,
+    FT_JPEG,
+    FT_PNG,
+    FT_TEXT = 0x1000,
+};
+
+// Using enums in code
+fn main() {
+    AccessMode mode = READONLY;
+    int x = mode;
+    printf("mode=%d, x=%d\n", mode, x);
+    printf("ba_none=%d, ft_error=%d\n", BA_NONE, FT_ERROR);
+}

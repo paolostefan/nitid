@@ -1,0 +1,5 @@
+// expect: Unexpected EOF
+// error raised in src/parser.rs:746
+// Expression after = is missing; every assignment needs a value
+
+int x =

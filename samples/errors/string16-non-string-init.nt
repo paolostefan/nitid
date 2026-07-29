@@ -1,0 +1,6 @@
+// expect-contains: Type mismatch: 'x' is String16, initializer is I32
+// Non-string initializer for string16 variable
+
+fn main {
+    string16 x = 42;
+}

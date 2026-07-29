@@ -1,0 +1,4 @@
+// expect-contains: Unknown struct type
+fn main {
+  p := NonExistent{ x: 1 };
+}

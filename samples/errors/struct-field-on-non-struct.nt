@@ -1,0 +1,5 @@
+// expect-contains: Cannot access field on non-struct type
+fn main {
+  x := 5;
+  y := x.foo;
+}

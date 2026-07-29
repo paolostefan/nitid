@@ -1,0 +1,5 @@
+// expect-contains: Unterminated string literal
+// error raised in src/lexer.rs:141
+// The opening " has no matching closing "
+
+s := "hello;

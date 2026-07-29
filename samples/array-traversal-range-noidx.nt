@@ -1,0 +1,6 @@
+arr := {10, 20, 30, 40, 50};
+sum := 0;
+for (item : arr) {
+  sum = sum + item;
+}
+printf("range without index sum=%d\n", sum);

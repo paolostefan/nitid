@@ -1,0 +1,73 @@
+package functions;
+
+// No args, no return
+fn greet {
+    println("Hello");
+}
+
+// No args, one return value
+fn getAnswer -> int {
+    return 42;
+}
+
+// No args, multiple return values
+fn getPair -> (int, int) {
+    return 10, 20;
+}
+
+// One arg, no return
+fn printInt(int x) {
+    printf("%d\n", x);
+}
+
+// One arg, one return
+fn twice(int x) -> int {
+    return x * 2;
+}
+
+// Multiple args of the same type (grouped)
+fn sum(int a, b, c) -> int {
+    return a + b + c;
+}
+
+// Multiple args of different types
+fn describe(int id, float value) {
+    printf("id=%d, value=%f\n", id, value);
+}
+
+// Multiple args, multi return
+fn swap(int x, y) -> (int, int) {
+    return y, x;
+}
+
+// Mixed grouped + solo params
+fn mixed(int a, b, float c) {
+    printf("a=%d, b=%d, c=%f\n", a, b, c);
+}
+
+fn main {
+    // No-arg calls
+    greet();
+    printf("answer=%d\n", getAnswer());
+
+    // Multi-return call
+    a, b := getPair();
+    printf("pair=%d,%d\n", a, b);
+
+    // One-arg calls
+    printInt(99);
+    printf("twice(7)=%d\n", twice(7));
+
+    // Grouped-arg call
+    printf("1+2+3=%d\n", sum(1, 2, 3));
+
+    // Different-type args
+    describe(1, 3.14);
+
+    // Multi-return from multi-arg
+    x, y := swap(1, 2);
+    printf("swap(1,2)=%d,%d\n", x, y);
+
+    // Mixed grouped + solo
+    mixed(10, 20, 1.5);
+}

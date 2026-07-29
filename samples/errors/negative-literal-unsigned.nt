@@ -1,0 +1,4 @@
+// expect-contains: Value does not fit in 'x' of type U8
+// Negative literal assigned to unsigned type is rejected
+
+u8 x = -1;

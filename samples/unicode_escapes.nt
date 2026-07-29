@@ -1,0 +1,22 @@
+fn main {
+    // \uXXXX (4 hex digits) in strings
+    println("\u0041");              // 'A'
+    println("\u00e9");              // 'é'
+    println("\u4e2d\u6587");        // '中文'
+    println("\u00a9 2026");         // '© 2026'
+
+    // \UXXXXXXXX (8 hex digits) in strings
+    println("\U0001F600");          // '😀'
+    println("\U0001F44D");          // '👍'
+
+    // Mix with regular escapes
+    println("hello \u0041\u00e9\n");
+
+    // \u in char literals (must be <= 0xFF).
+    // %c works only for ASCII (0x20-0x7E). Non-ASCII bytes (0x80-0xFF) are
+    // single bytes that don't form valid UTF-8 — print as hex to verify.
+    u8 a = '\u0041';
+    u8 e_acute = '\u00e9';
+    u8 dollar = '\u0024';
+    printf("chars: %c 0x%02x %c\n", a, e_acute, dollar);
+}

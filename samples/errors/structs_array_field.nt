@@ -1,0 +1,10 @@
+// expect-contains: Type mismatch for field 'data'
+struct Buffer {
+  data: [u8; 8];
+  len: u32;
+};
+
+fn main {
+  b := Buffer{ data: 0, len: 0 };
+  printf("len=%d\n", b.len);
+}

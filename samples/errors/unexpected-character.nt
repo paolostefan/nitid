@@ -1,0 +1,5 @@
+// expect-contains: Unexpected character '@'
+// error raised in src/lexer.rs:381
+// @ is not a valid token in the language
+
+x := 5 @ 3;

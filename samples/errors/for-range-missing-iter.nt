@@ -1,0 +1,6 @@
+// expect-contains: Unexpected token RParen
+// Range for must provide an iterable expression after :
+
+fn main {
+    for (item : ) { }
+}

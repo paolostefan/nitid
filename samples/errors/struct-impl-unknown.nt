@@ -1,0 +1,4 @@
+// expect-contains: Cannot define methods for unknown struct
+impl Foo {
+  fn bar { }
+}

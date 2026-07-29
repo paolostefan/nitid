@@ -1,0 +1,4 @@
+// expect-contains: Type mismatch: 'x' is TyArray(I32, Some(3)), initializer is I32
+// Explicit type says array, initializer is scalar
+
+fixed int x[3] = 42;

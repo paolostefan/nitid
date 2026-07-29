@@ -1,0 +1,5 @@
+// expect-contains: Type mismatch in arithmetic
+// error raised in src/sema.rs:179
+// Both operands of +, -, *, /, % must have the same type
+
+x := 5 + "hello";

@@ -1,0 +1,20 @@
+# IDE stuff
+.vscode/
+.idea/
+
+# BEGIN: Build dirs and related files
+# Transpiled stuff
+c_src/
+
+# Rust
+rust_out
+target/
+
+# C
+**/build/
+cmake-build-*/
+# END: Build dirs and related files
+
+# Python stuff
+**/.venv
+*.pyc

@@ -1,0 +1,5 @@
+// expect-contains: Undefined variable 'y'
+// error raised in src/sema.rs:154
+// All variables must be declared before use
+
+x := y + z;

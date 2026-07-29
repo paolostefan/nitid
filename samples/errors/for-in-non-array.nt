@@ -1,0 +1,8 @@
+// expect-contains: Cannot iterate over non-array type
+// For-in requires an array expression
+
+fn main {
+    int x = 5;
+    for (item : x) {
+    }
+}

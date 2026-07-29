@@ -1,0 +1,8 @@
+// expect-contains: Type mismatch in arithmetic
+// String concat (+) requires both operands to be the same string type
+
+fn main {
+    string s = "hello";
+    string16 s16 = "world";
+    string r = s + s16;
+}

@@ -1,0 +1,5 @@
+// expect-contains: Unterminated block comment
+// error raised in src/lexer.rs:287
+// /* must be closed with */
+
+/* this comment never ends

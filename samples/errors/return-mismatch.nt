@@ -1,0 +1,7 @@
+// expect-contains: Return 0 values but function expects 1
+// error raised in src/sema.rs:108
+// Returned value count must match function's declared return type
+
+fn foo -> int {
+    return;
+}

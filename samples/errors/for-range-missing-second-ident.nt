@@ -1,0 +1,6 @@
+// expect-contains: Expected identifier, found RParen
+// Range for with index expects a second variable name after ,
+
+fn main {
+    for (item, ) { }
+}

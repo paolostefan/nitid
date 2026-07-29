@@ -1,0 +1,6 @@
+// expect-contains: must use an integral type
+
+// Error: no float type allowed in enums
+enum Wrong : f64 {
+    One = 1,
+};

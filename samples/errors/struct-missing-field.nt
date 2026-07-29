@@ -1,0 +1,5 @@
+// expect-contains: fields but literal provides
+struct Point { x: i32; y: i32; };
+fn main {
+  p := Point{ x: 1 };
+}

@@ -1,0 +1,7 @@
+// expect-contains: does not fit in enum
+
+// 8-bit unsigned int overflow at the second value
+enum Wrong : u8 {
+    NONE = 255,
+    A_VALUE,
+};

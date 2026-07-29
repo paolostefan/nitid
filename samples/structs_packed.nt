@@ -1,0 +1,10 @@
+packed struct NetPacket {
+  flags: u8;
+  length: u16;
+  checksum: u32;
+};
+
+fn main {
+  p := NetPacket{ flags: 1, length: 256, checksum: 0 };
+  printf("flags=%d length=%d checksum=%d\n", p.flags, p.length, p.checksum);
+}

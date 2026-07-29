@@ -1,0 +1,19 @@
+
+align(64) struct CacheLine {
+  data: i32[64];
+};
+
+// Alternate array member syntax
+struct CacheLineAlt {
+  data: [64 u8];
+};
+
+
+// main
+c := CacheLine{ data: {0, 2} };
+
+printf("data[1] = %d\n", c.data[1]);
+
+c2 := CacheLineAlt{ data: {0, 255} };
+printf("data[1] = %d\n", c2.data[1]);
+

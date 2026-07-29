@@ -1,0 +1,8 @@
+align(64) struct Aligned {
+  val: u8;
+};
+
+fn main {
+  c := Aligned{ val: 42 };
+  printf("val=%d\n", c.val);
+}

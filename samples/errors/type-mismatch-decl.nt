@@ -1,0 +1,5 @@
+// expect-contains: Type mismatch: 'x' is I32, initializer is String
+// error raised in src/sema.rs:226
+// Explicit type and initializer must match
+
+int x = "hello";

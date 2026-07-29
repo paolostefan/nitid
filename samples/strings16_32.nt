@@ -1,0 +1,39 @@
+fn main {
+    // ── string16 (UTF-16) ─────────────────────────────────────
+    string16 s16 = "Hello 16-bit!";
+    println(s16);
+
+    // Unicode in string16 (multi-byte → UTF-16 surrogate pairs)
+    string16 emoji16 = "\U0001F600 \U0001F44D";  // 😀 👍
+    println(emoji16);
+
+    // Accented characters (single UTF-16 code unit)
+    string16 accented16 = "\u00E9 \u00FC \u00E7";  // é ü ç
+    println(accented16);
+
+    // ── string32 (UTF-32) ─────────────────────────────────────
+    string32 s32 = "Hello 32-bit!";
+    println(s32);
+
+    // Unicode in string32 (each codepoint is one element)
+    string32 emoji32 = "\U0001F600 \U0001F389 \u00E9";  // 😀 🎉 é
+    println(emoji32);
+
+    // ── Cross-type assignment ──────────────────────────────────
+    string16 t16 = s16;       // string16 = string16
+    println(t16);
+
+    string32 t32 = s32;       // string32 = string32
+    println(t32);
+
+    // String literal into any string type
+    string32 from_lit32 = "literal to string32";
+    string16 from_lit16 = "literal to string16";
+    println(from_lit32);
+    println(from_lit16);
+
+    // ── Regular string still works ────────────────────────────
+    string s = "Good old UTF-8";
+    println(s);
+}
+

@@ -1,0 +1,6 @@
+// expect-contains: Expected LParen, found Type("i32")
+// for requires parentheses around the loop header
+
+fn main {
+    for i32 i = 0; i < 10; i++ { }
+}

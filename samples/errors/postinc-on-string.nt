@@ -1,0 +1,5 @@
+// expect-contains: Cannot apply ++ or -- to non-numeric type String
+
+a := "A string literal";
+
+a++;

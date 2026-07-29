@@ -1,0 +1,5 @@
+// expect-contains: Expected closing ' in char literal
+// error raised in src/lexer.rs:192
+// The opening ' has no matching closing '
+
+c := 'x;

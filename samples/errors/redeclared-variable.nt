@@ -1,0 +1,8 @@
+// expect-contains: Variable 'x' already declared in this scope
+// error raised in src/sema.rs:29
+// Each variable can only be declared once per scope
+
+fn main {
+    int x = 1;
+    int x = 2;
+}

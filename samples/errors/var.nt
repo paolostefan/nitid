@@ -1,0 +1,5 @@
+// expect-contains: Unexpected token Var
+// error raised in src/parser.rs:793
+// 'var' is reserved but not valid syntax — omit it
+
+var y = x + z + 3;

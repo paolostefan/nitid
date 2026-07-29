@@ -1,0 +1,10 @@
+packed align(4) struct Header {
+  version: u8;
+  kind: u8;
+  size: u32;
+};
+
+fn main {
+  h := Header{ version: 1, kind: 2, size: 100 };
+  printf("version=%d kind=%d size=%d\n", h.version, h.kind, h.size);
+}

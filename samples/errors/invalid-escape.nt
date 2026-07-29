@@ -1,0 +1,5 @@
+// expect-contains: Invalid escape sequence
+// error raised in src/lexer.rs:182
+// Only valid escapes after \: n, t, r, \, ', ", 0
+
+c := '\x';

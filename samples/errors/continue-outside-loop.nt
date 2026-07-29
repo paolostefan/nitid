@@ -1,0 +1,4 @@
+// expect-contains: 'continue' outside of loop
+// continue is only valid inside a for or while loop
+
+continue;

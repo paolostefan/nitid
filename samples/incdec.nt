@@ -1,0 +1,11 @@
+// Postfix increment and decrement operators
+fn main {
+    x := 0;
+    printf("x=%d\n", x);
+    x++;
+    printf("after x++: %d\n", x);
+    x++;
+    printf("after x++: %d\n", x);
+    x--;
+    printf("after x--: %d\n", x);
+}
