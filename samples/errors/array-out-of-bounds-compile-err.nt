@@ -1,0 +1,7 @@
+// expect-contains: out of bounds
+// Positive indexes range 0..n-1, where n is the array size.
+
+fn main {
+    x := fixed [5 int];
+    printf("%d\n", x[5]);
+}

@@ -567,7 +567,26 @@ impl Sema {
                         span.file, span.line, span.col));
                 }
                 match target_type {
-                    Type::TyArray(elem, _) => Ok(*elem),
+                    // Fixed-size array: check compile-time known index bounds
+                    // Negative indices wrap from end (-1 → last element, -n → index 0)
+                    Type::TyArray(elem, size) => {
+                        if let Some(sz) = size {
+                            let index_val = extract_index_literal(index);
+                            if let Some(val) = index_val {
+                                if val < 0 {
+                                    let pos = (-val) as u64;
+                                    if pos > sz {
+                                        return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                                            span.file, span.line, span.col, val, sz));
+                                    }
+                                } else if (val as u64) >= sz {
+                                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                                        span.file, span.line, span.col, val, sz));
+                                }
+                            }
+                        }
+                        Ok(*elem)
+                    }
                     Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
                     _ => Err(format!("{}:{}:{}: Cannot index non-array type",
                         span.file, span.line, span.col)),
@@ -910,7 +929,26 @@ fn infer_expr_type_free(
                     span.file, span.line, span.col));
             }
             match target_type {
-                Type::TyArray(elem, _) => Ok(*elem),
+                // Fixed-size array: check compile-time known index bounds
+                // Negative indices wrap from end (-1 → last element, -n → index 0)
+                Type::TyArray(elem, size) => {
+                    if let Some(sz) = size {
+                        let index_val = extract_index_literal(index);
+                        if let Some(val) = index_val {
+                            if val < 0 {
+                                let pos = (-val) as u64;
+                                if pos > sz {
+                                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                                        span.file, span.line, span.col, val, sz));
+                                }
+                            } else if (val as u64) >= sz {
+                                return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                                    span.file, span.line, span.col, val, sz));
+                            }
+                        }
+                    }
+                    Ok(*elem)
+                }
                 Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
                 _ => Err(format!("{}:{}:{}: Cannot index non-array type",
                     span.file, span.line, span.col)),
@@ -1022,6 +1060,25 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, String> {
         }
         _ => Err(format!("{}:{}:{}: Enum variant value must be an integer literal",
             span.file, span.line, span.col)),
+    }
+}
+
+/// Extract a literal integer from an index expression, handling the
+/// parser's unary-minus desugaring (`-n` → `0 - n` → `-n`).
+///
+/// Returns `None` if the index is not a compile-time known literal.
+fn extract_index_literal(index: &Expr) -> Option<i128> {
+    match index {
+        Expr::IntLit(val, _) => Some(*val),
+        Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+            if let Expr::IntLit(0, _) = left.as_ref() {
+                if let Expr::IntLit(val, _) = right.as_ref() {
+                    return Some(-val);
+                }
+            }
+            None
+        }
+        _ => None,
     }
 }
 

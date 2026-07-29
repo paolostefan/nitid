@@ -20,7 +20,9 @@ languages, as:
 All this doesn't mean rejecting the C language: _au contraire_, Nitid **transpiles** the sources to valid C source files.
 These can in turn be compiled by any C compiler.
 
-The full language specs can be found at [language specification](docs/specs/1.nitid-language-specs.md) .
+## Comprehensive documentation
+
+The full docs, including language specs, can be found in the [docs/book](./docs/book/index.html) directory.
 
 ## Testing
 

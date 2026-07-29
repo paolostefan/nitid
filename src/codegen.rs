@@ -836,13 +836,12 @@ impl Codegen {
             }
             Expr::Index { target, index, .. } => {
                 let target_str = self.emit_expr(target, current_fn);
-                let index_str = self.emit_expr(index, current_fn);
                 // Check for string indexing → codepoint-aware at_cp
                 if let Some(t) = self.typeof_expr(target) {
                     match t {
-                        Type::String => return format!("nitid_string_at_cp(&{}, {})", target_str, index_str),
-                        Type::String16 => return format!("nitid_string16_at_cp(&{}, {})", target_str, index_str),
-                        Type::String32 => return format!("nitid_string32_at_cp(&{}, {})", target_str, index_str),
+                        Type::String => return format!("nitid_string_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
+                        Type::String16 => return format!("nitid_string16_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
+                        Type::String32 => return format!("nitid_string32_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
                         _ => {}
                     }
                 }
@@ -850,13 +849,16 @@ impl Codegen {
                     .map(|(_, sized)| sized)
                     .unwrap_or(false);
                 if is_sized {
+                    // Normalize negative literal indices to their wrapped positive form
+                    let index_str = self.normalize_literal_index(index, target)
+                        .unwrap_or_else(|| self.emit_expr(index, current_fn));
                     format!("{}[{}]", target_str, index_str)
                 } else {
                     let elem_type = self.infer_array_elem_type(target);
                     let suffix = self.array_type_suffix(&elem_type);
                     format!(
                         "nitid_array_get_{}({}, {})",
-                        suffix, target_str, index_str
+                        suffix, target_str, self.emit_expr(index, current_fn)
                     )
                 }
             }
@@ -924,6 +926,32 @@ impl Codegen {
                     .collect();
                 format!("({}){{ {} }}", struct_name, fields_str.join(", "))
             }
+        }
+    }
+
+    /// Normalise a literal index expression: negative values are
+    /// wrapped from the array end (`-1` → `size - 1`).  Returns
+    /// `None` when the index is not a compile-time literal.
+    fn normalize_literal_index(&self, index: &Expr, target: &Expr) -> Option<String> {
+        let sz = match self.typeof_expr(target) {
+            Some(Type::TyArray(_, Some(n))) => n,
+            _ => return None,
+        };
+        match index {
+            Expr::IntLit(val, _) if *val < 0 => {
+                let abs = (-val) as u64;
+                if abs <= sz { Some((sz - abs).to_string()) } else { None }
+            }
+            Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+                if let Expr::IntLit(0, _) = left.as_ref() {
+                    if let Expr::IntLit(val, _) = right.as_ref() {
+                        let abs = *val as u64;
+                        if abs <= sz { return Some((sz - abs).to_string()); }
+                    }
+                }
+                None
+            }
+            _ => None,
         }
     }
 

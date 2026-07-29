@@ -1,0 +1,7 @@
+// expect-contains: out of bounds
+// Negative indexes range -n..-1, where n is the array size
+
+fn main {
+    x := fixed [5 int];
+    printf("%d\n", x[-6]);
+}
