@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Builtins - Nitid Documentation</title>
+        <title>File by file breakdown - Nitid Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
-        <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-e96d0476.css">
-        <link rel="stylesheet" href="../css/chrome-d279d366.css">
-        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "../";
+            const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-65857b07.js";
+            window.path_to_searchindex_js = "searchindex-65857b07.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-303ef326.js"></script>
+        <script src="toc-303ef326.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">Nitid Documentation</h1>
 
                     <div class="right-buttons">
-                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
                         <a href="https://github.com/paolostefan/nitid" title="Git repository" aria-label="Git repository">
@@ -177,24 +177,276 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="printstring-s"><a class="header" href="#printstring-s">print(string s)</a></h2>
-<p>Outputs a string (its argument).</p>
-<h2 id="printlnstring-s"><a class="header" href="#printlnstring-s">println(string s)</a></h2>
-<p>Outputs a string (its argument), followed by a newline. Does not support formatting.</p>
-<h2 id="printfstring-fmt-any-args"><a class="header" href="#printfstring-fmt-any-args">printf(string fmt, any args[])</a></h2>
-<p>Exactly the same as C std library’s <code>printf()</code>.</p>
-
+                        <h1 id="file-by-file-breakdown"><a class="header" href="#file-by-file-breakdown">File-by-file breakdown</a></h1>
+<h2 id="srctypesrs--the-type-system"><a class="header" href="#srctypesrs--the-type-system"><code>src/types.rs</code> — The Type System</a></h2>
+<p><strong>What it does:</strong> Defines all the types that Nitid supports and how they map to C types.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum Type {
+  I8,
+  I16,
+  I32,
+  I64,
+  I128,     // signed integers
+  U8,
+  U16,
+  U32,
+  U64,
+  U128,     // unsigned integers
+  F32,
+  F64,      // floats
+  String,
+  String16,
+  String32, // strings
+  Bool,
+  Void,
+}
+<span class="boring">}</span></code></pre>
+<p>Two key methods:</p>
+<ul>
+<li><code>Type::from_str(s)</code> — converts <code>"i32"</code> or <code>"int"</code> into <code>Type::I32</code>. Used by the parser.</li>
+<li><code>type.c_str()</code> — converts <code>Type::I32</code> into <code>"int"</code> (the C equivalent). Used by the code generator.</li>
+</ul>
+<p><strong>Why it’s its own file:</strong> Both the parser (reading types), semantic analyzer (checking types), and codegen (writing C
+types) need these definitions. Shared single source of truth.</p>
+<hr>
+<h2 id="srcastrs--the-abstract-syntax-tree"><a class="header" href="#srcastrs--the-abstract-syntax-tree"><code>src/ast.rs</code> — The Abstract Syntax Tree</a></h2>
+<p><strong>What it does:</strong> Defines the data structures that represent parsed Nitid code as a tree. The parser produces one of
+these, the semantic analyzer walks it, and the code generator walks it again to produce C.</p>
+<p>Key structures:</p>
+<ul>
+<li><code>Span</code> — file/line/column location info, used for error messages</li>
+<li><code>Program</code> — the root node: a package name, list of imports, and list of declarations</li>
+<li><code>Decl</code> — either a function declaration (<code>FnDecl</code>) or a variable declaration (<code>VarDecl</code>)</li>
+<li><code>FnDecl</code> — function name, parameters, return types, body (a list of statements)</li>
+<li><code>Param</code> — a parameter type + one or more names (allows <code>int a, b, c</code>)</li>
+<li><code>VarDecl</code> — a variable declaration: optional type, names, optional initializer</li>
+<li><code>Stmt</code> — a statement: variable decl, expression, return, block, if/else, while</li>
+<li><code>Expr</code> — an expression: literals, identifiers, function calls, binary ops, assignments</li>
+<li><code>BinOp</code> — binary operators (add, sub, comparisons, logical, bitwise)</li>
+</ul>
+<p><strong>Why enums for Decl, Stmt, Expr:</strong> Because a “declaration” can only be one thing at a time — it’s either a function or
+a variable. Rust enums encode this perfectly: you can’t accidentally mix fields from both.</p>
+<p><strong>Rust concept – <code>Box</code>:</strong> <code>Expr::BinaryOp</code> has <code>left: Box&lt;Expr&gt;</code> and <code>right: Box&lt;Expr&gt;</code>. This is necessary because
+<code>Expr</code> is recursive (an expression can contain sub-expressions). Without <code>Box</code>, Rust wouldn’t know how much memory to
+allocate for an <code>Expr</code>.</p>
+<hr>
+<h2 id="srclexerrs--the-lexer"><a class="header" href="#srclexerrs--the-lexer"><code>src/lexer.rs</code> — The Lexer</a></h2>
+<p><strong>What it does:</strong> Turns raw source text (a string) into a stream of <code>Token</code>s.</p>
+<pre><code>"fn main() { return 42; }"
+    │
+    ▼
+[Fn, Ident("main"), LParen, RParen, LBrace, Return, IntLit("42"), Semicolon, RBrace]
+</code></pre>
+<p><strong>How it works:</strong></p>
+<ol>
+<li>The <code>Lexer</code> struct holds the input characters and a position cursor.</li>
+<li><code>tokenize()</code> loops through characters, skipping whitespace and comments.</li>
+<li>For each character, it decides what token to produce:
+<ul>
+<li>Single-char tokens (<code>;</code>, <code>(</code>, <code>+</code>, etc.) are matched directly.</li>
+<li>Two-char tokens (<code>==</code>, <code>!=</code>, <code>&lt;=</code>, <code>-&gt;</code>, <code>:=</code>, <code>&amp;&amp;</code>, <code>||</code>, etc.) peek ahead.</li>
+<li><code>"</code> starts a string literal (supports escape sequences like <code>\n</code>, <code>\t</code>).</li>
+<li><code>'</code> starts a char literal.</li>
+<li>Digits start a number (integer or float, decimal or hex).</li>
+<li>Letters/underscore start an identifier or keyword.</li>
+<li><code>//</code> starts a line comment, <code>/* */</code> starts a block comment.</li>
+</ul>
+</li>
+</ol>
+<p><strong>TokenKind enum</strong> — lists every possible token. Keywords (<code>fn</code>, <code>return</code>, <code>if</code>, <code>while</code>, <code>let</code>, <code>var</code>, <code>true</code>, <code>false</code>,
+<code>package</code>, <code>import</code>, <code>as</code>) are recognized by <code>is_keyword()</code>. Type names (<code>i32</code>, <code>string</code>, <code>bool</code>, etc.) are recognized
+by <code>is_type()</code> and produce <code>TokenKind::Type(s)</code> instead of <code>TokenKind::Ident(s)</code>.</p>
+<p><strong>Rust concept – <code>Vec&lt;T&gt;</code>:</strong> A growable array (like <code>std::vector</code> in C++ or <code>ArrayList</code> in Java). <code>Vec&lt;Token&gt;</code> is a list
+of tokens.</p>
+<hr>
+<h2 id="srcparserrs--the-parser"><a class="header" href="#srcparserrs--the-parser"><code>src/parser.rs</code> — The Parser</a></h2>
+<p><strong>What it does:</strong> Takes the flat list of tokens from the lexer and builds a tree structure (the AST).</p>
+<p><strong>Parsing approach: Recursive Descent</strong></p>
+<p>Each grammar rule becomes a function. Functions call each other recursively, following the language grammar:</p>
+<pre><code>parse_program()
+  ├── parse_import()       // import statements
+  ├── parse_fn_decl()      // function declarations
+  └── parse_stmt()         // statements (also top-level)
+        ├── parse_return_stmt()
+        ├── parse_if_stmt()
+        ├── parse_while_stmt()
+        └── parse_expr()
+              └── parse_assignment()
+                    └── parse_or()
+                          └── parse_and()
+                                └── parse_bit_or()
+                                      └── parse_bit_xor()
+                                            └── parse_bit_and()
+                                                  └── parse_equality()
+                                                        └── parse_comparison()
+                                                              └── parse_shift()
+                                                                    └── parse_term()
+                                                                          └── parse_factor()
+                                                                                └── parse_unary()
+                                                                                      └── parse_primary()
+</code></pre>
+<p>This chain <strong>encodes operator precedence</strong> — the deeper the function, the higher the precedence. So <code>parse_term()</code>
+(add/sub) calls <code>parse_factor()</code> (mul/div), which means <code>*</code> binds tighter than <code>+</code>. Exactly like the C expression
+precedence table.</p>
+<ul>
+<li><code>parse_unary()</code> handles <code>-expr</code>, <code>!expr</code>, <code>~expr</code> (unary minus, logical not, bitwise not).</li>
+<li><code>parse_primary()</code> handles literals, identifiers, function calls, and parenthesized expressions.</li>
+</ul>
+<p><strong>Lookahead for declarations:</strong> <code>parse_stmt()</code> has a tricky job — it needs to distinguish between:</p>
+<ul>
+<li><code>int x;</code> (variable declaration)</li>
+<li><code>int x = 5;</code> (variable declaration with init)</li>
+<li><code>x = 5;</code> (assignment)</li>
+<li><code>x := 5;</code> (declaration with type inference)</li>
+</ul>
+<p>It uses <strong>lookahead</strong> (saves position, reads ahead, restores position) to figure out which case it’s in.</p>
+<p><strong>Implicit main function:</strong> If there are statements at the top level that aren’t inside any function, the parser wraps
+them in an implicit <code>fn main(int argc, string argv) -&gt; int { ... }</code>. This means you can write scripts without declaring
+<code>main</code>.</p>
+<hr>
+<h2 id="srcsemars--semantic-analysis"><a class="header" href="#srcsemars--semantic-analysis"><code>src/sema.rs</code> — Semantic Analysis</a></h2>
+<p><strong>What it does:</strong> Walks the AST and checks rules that can’t be expressed in the grammar alone:</p>
+<ul>
+<li>Variables must be declared before use</li>
+<li>No duplicate variable names in the same scope</li>
+<li>Return values must match the function’s declared return types</li>
+<li>Type compatibility in assignments and binary operations</li>
+<li>Built-in functions <code>println</code> and <code>printf</code> are recognized</li>
+</ul>
+<p><strong>Scopes:</strong></p>
+<p>The <code>Scope</code> struct is a chain of hash maps, like nested blocks in C:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Scope {
+  vars: HashMap&lt;String, Type&gt;,
+  parent: Option&lt;Box&lt;Scope&gt;&gt;,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>Scope::new()</code> creates a root scope</li>
+<li><code>Scope::child(parent)</code> creates a nested scope — lookups check the current scope first, then walk up to parent</li>
+<li>When a block ends, the child scope is discarded (variables in it “go out of scope”)</li>
+</ul>
+<p><strong>What <code>analyze</code> checks:</strong></p>
+<p>For each function:</p>
+<ol>
+<li>Records parameter types and return types (builds a function signatures table)</li>
+<li>Creates a scope with parameter variables</li>
+<li>Analyzes each statement in the function body:
+<ul>
+<li><code>VarDecl</code> — checks type compatibility between declaration and initializer, declares variables in scope</li>
+<li><code>Expr</code> — infers the expression’s type (recursively)</li>
+<li><code>Return</code> — checks the count and (approximately) types of return values match</li>
+<li><code>If</code> / <code>While</code> — recursively analyzes sub-blocks (creating child scopes)</li>
+</ul>
+</li>
+</ol>
+<p><strong>Type inference:</strong> <code>infer_expr_type()</code> figures out what type an expression produces:</p>
+<ul>
+<li>Integer literal → <code>I32</code></li>
+<li>Float literal → <code>F64</code></li>
+<li>String literal → <code>String</code></li>
+<li><code>true</code>/<code>false</code> → <code>Bool</code></li>
+<li>Variable reference → the type it was declared with</li>
+<li>Binary op → result type depends on the operator (<code>==</code> gives <code>Bool</code>, <code>+</code> matches operands)</li>
+</ul>
+<p><strong><code>:=</code> (declare-and-assign):</strong> When you write <code>x := 42</code>, the type is inferred from the right-hand side. The analyzer
+prints a warning but doesn’t error.</p>
+<p><strong>Free functions:</strong> <code>analyze_var_decl_free</code> and <code>infer_expr_type_free</code> are standalone functions (not methods on <code>Sema</code>).
+They’re used for both global-level and function-level code. In Rust, you can have functions that are not attached to any
+struct — they’re just regular functions.</p>
+<hr>
+<h2 id="srccodegenrs--the-code-generator"><a class="header" href="#srccodegenrs--the-code-generator"><code>src/codegen.rs</code> — The Code Generator</a></h2>
+<p><strong>What it does:</strong> Walks the AST and produces C source code as a string. This is the final stage.</p>
+<p>Key methods:</p>
+<ul>
+<li>
+<p><code>generate(&amp;program)</code> — the main entry point. Produces:</p>
+<ul>
+<li>One <code>.c</code> file per input <code>.nt</code> file</li>
+<li>A <code>CMakeLists.txt</code> for building everything with CMake</li>
+<li>Copies runtime files (<code>nitid_string.h</code>, <code>nitid_string.c</code>)</li>
+</ul>
+</li>
+<li>
+<p><code>emit_fn_decl(f, ...)</code> — generates the C function signature. Special case: <code>main</code> gets the standard
+<code>int main(int argc, char **argv)</code> signature regardless of what the Nitid code said.</p>
+</li>
+</ul>
+<p><strong>Multi-return value handling:</strong></p>
+<p>Nitid functions can return multiple values (like Go or Python). C can’t do this natively, so the code generator uses
+<strong>output parameters</strong>:</p>
+<pre><code class="language-nitid">fn foo() -&gt; (int, int) { return 1, 2; }
+a, b := foo();
+</code></pre>
+<p>Becomes C:</p>
+<pre><code class="language-c">void foo(int *res0, int *res1) {
+    *res0 = 1;
+    *res1 = 2;
+}
+// caller:
+int a, b;
+foo(&amp;a, &amp;b);
+</code></pre>
+<p>The code generator tracks which functions have multi-return and handles this transparently.</p>
+<p><strong>Built-in functions:</strong></p>
+<ul>
+<li><code>println(s)</code> → <code>printf("%s\n", s)</code> or <code>printf("literal\n")</code></li>
+<li><code>printf(...)</code> → <code>printf(...)</code> (pass-through)</li>
+</ul>
+<p><strong>CMake generation:</strong> <code>emit_cmake()</code> produces a minimal <code>CMakeLists.txt</code> that compiles the output C file and the runtime
+string library together.</p>
+<p><strong>Type mapping:</strong> <code>infer_expr_type_str()</code> maps Nitid expression types to C type strings:</p>
+<ul>
+<li>Integer → <code>int</code></li>
+<li>Float → <code>double</code></li>
+<li>String → <code>nitid_string</code></li>
+<li>Char → <code>uint8_t</code></li>
+<li>Bool → <code>bool</code></li>
+</ul>
+<hr>
+<h2 id="srcmainrs--the-cli-entry-point"><a class="header" href="#srcmainrs--the-cli-entry-point"><code>src/main.rs</code> — The CLI Entry Point</a></h2>
+<p><strong>What it does:</strong> Ties the pipeline together and handles command-line arguments via the <code>clap</code> library.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Parser)]
+struct Cli {
+  files: Vec&lt;String&gt;,     // input .nt files
+  c_dir: String,          // output C directory (default: "c_src")
+  emit_c: bool,           // print generated C to stdout
+  run: bool,              // also compile and run
+  cc: Option&lt;String&gt;,     // C compiler to use
+  output: Option&lt;String&gt;, // output binary name
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Pipeline in <code>main()</code>:</strong></p>
+<ol>
+<li>Creates <code>c_src/runtime/</code> output directory</li>
+<li>For each input file:
+a. Read the file b. Parse it → AST c. Semantic analysis d. Code generation → C files</li>
+<li>Copies runtime library files (<code>nitid_string.h/.c</code>) into output</li>
+<li>Writes all <code>.c</code> files and <code>CMakeLists.txt</code></li>
+<li>If <code>--run</code> is passed:
+a. Runs <code>cmake -S c_src -B c_src/build</code>
+b. Runs <code>cmake --build c_src/build</code>
+c. Runs the resulting binary</li>
+</ol>
+<p><strong>Rust concept – <code>mod</code>:</strong> The <code>mod</code> declarations at the top (<code>mod ast; mod lexer; ...</code>) tell Rust to include each source
+file as a module. <code>main.rs</code> is the crate root.</p>
+<p><strong>Rust concept – <code>Result&lt;(), String&gt;</code>:</strong> The return type of <code>main</code>. <code>Ok(())</code> means success. <code>Err("message")</code> is an
+error, which Rust prints and exits with a non-zero code.</p>
+<p><strong>Rust concept – <code>clap::Parser</code>:</strong> A library that auto-generates CLI argument parsing from struct annotations.
+<code>#[arg(short = 'o')]</code> means the <code>--output</code> flag also accepts <code>-o</code>.</p>
+<hr>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../specs/21.module-layout.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="rust-concepts.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../rust-concepts.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -202,13 +454,10 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../specs/21.module-layout.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="rust-concepts.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../rust-concepts.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>
@@ -226,13 +475,13 @@
         </script>
 
 
-        <script src="../elasticlunr-ef4e11c1.min.js"></script>
-        <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-09f2665d.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
-        <script src="../clipboard-1626706a.min.js"></script>
-        <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-609e4cb8.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

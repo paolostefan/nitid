@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Builtins - Nitid Documentation</title>
+        <title>Rust concepts - Nitid Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
-        <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-e96d0476.css">
-        <link rel="stylesheet" href="../css/chrome-d279d366.css">
-        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "../";
+            const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-65857b07.js";
+            window.path_to_searchindex_js = "searchindex-65857b07.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-303ef326.js"></script>
+        <script src="toc-303ef326.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">Nitid Documentation</h1>
 
                     <div class="right-buttons">
-                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
                         <a href="https://github.com/paolostefan/nitid" title="Git repository" aria-label="Git repository">
@@ -177,22 +177,186 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="printstring-s"><a class="header" href="#printstring-s">print(string s)</a></h2>
-<p>Outputs a string (its argument).</p>
-<h2 id="printlnstring-s"><a class="header" href="#printlnstring-s">println(string s)</a></h2>
-<p>Outputs a string (its argument), followed by a newline. Does not support formatting.</p>
-<h2 id="printfstring-fmt-any-args"><a class="header" href="#printfstring-fmt-any-args">printf(string fmt, any args[])</a></h2>
-<p>Exactly the same as C std library’s <code>printf()</code>.</p>
+                        <h1 id="rust-concepts-for-non-rustaceans"><a class="header" href="#rust-concepts-for-non-rustaceans">Rust Concepts (for non-Rustaceans)</a></h1>
+<h2 id="quick-tour-of-rust-for-reading-this-codebase"><a class="header" href="#quick-tour-of-rust-for-reading-this-codebase">Quick Tour of Rust for reading this codebase</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>If you know…</th><th>This Rust concept</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int x = 5;</code></td><td><code>let x: i32 = 5;</code> (immutable by default)</td></tr>
+<tr><td><code>int x = 5;</code> (mutable)</td><td><code>let mut x: i32 = 5;</code></td></tr>
+<tr><td><code>const</code> function in C++</td><td><code>fn foo(&amp;self) -&gt; Type</code></td></tr>
+<tr><td><code>void</code> function in C++</td><td><code>fn foo(&amp;mut self)</code> (no return)</td></tr>
+<tr><td><code>std::vector&lt;int&gt;</code></td><td><code>Vec&lt;i32&gt;</code></td></tr>
+<tr><td><code>std::map&lt;K, V&gt;</code></td><td><code>HashMap&lt;K, V&gt;</code></td></tr>
+<tr><td><code>nullptr</code></td><td><code>None</code> (from <code>Option</code>)</td></tr>
+<tr><td><code>T*</code> (nullable)</td><td><code>Option&lt;Box&lt;T&gt;&gt;</code></td></tr>
+<tr><td><code>union</code> / <code>enum</code> + union</td><td><code>enum</code> with variants and data</td></tr>
+<tr><td><code>string</code> (C++ std::string)</td><td><code>String</code> (owned) or <code>&amp;str</code> (borrowed)</td></tr>
+<tr><td>Exceptions</td><td><code>Result&lt;T, E&gt;</code> with <code>?</code> operator</td></tr>
+<tr><td><code>static_cast&lt;int&gt;</code></td><td><code>as</code> keyword: <code>x as i32</code></td></tr>
+<tr><td><code>#include</code></td><td><code>mod</code> / <code>use</code></td></tr>
+<tr><td><code>// comment</code></td><td><code>// comment</code> (same)</td></tr>
+<tr><td><code>/* */</code> block comment</td><td><code>/* */</code> or <code>///</code> doc comment</td></tr>
+<tr><td><code>assert(x == 5)</code></td><td><code>assert_eq!(x, 5)</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="common-patterns-youll-see"><a class="header" href="#common-patterns-youll-see">Common patterns you’ll see</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Creating a new instance
+let mut lexer = Lexer::new(input, file);
+
+// Calling a method
+lexer.tokenize() ?;  // ? propagates errors
+
+// Pattern matching
+match value {
+Some(x) =&gt; do_something(x),
+None =&gt; handle_missing(),
+}
+
+// Destructuring a struct
+let Lexer { chars, pos,..} = lexer;
+
+// Iterating
+for token in &amp; tokens { /* ... */ }
+
+// Type ascription
+let x: Vec&lt;Token&gt; = Vec::new();
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="enum-rusts-tagged-union--sum-type"><a class="header" href="#enum-rusts-tagged-union--sum-type"><code>enum</code> (Rust’s tagged union / sum type)</a></h2>
+<p>Like a C enum on steroids. Each variant can carry data:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum TokenKind {
+  Ident(String),      // carries a String
+  IntLit(String),
+  Fn,                 // carries nothing (like a plain C enum)
+  Plus,
+  Semicolon,
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>You match on it with <code>match</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match token.kind {
+TokenKind::Ident(name) =&gt; { /* name is a String here */ }
+TokenKind::Fn =&gt; { /* this is just a marker */ }
+_ =&gt; { /* default case */ }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="struct"><a class="header" href="#struct"><code>struct</code></a></h2>
+<p>Like a C struct but with methods defined in an <code>impl</code> block:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Lexer {
+  chars: Vec&lt;char&gt;,
+  pos: usize,
+}
+
+impl Lexer {
+  fn new(input: &amp;str) -&gt; Self { /* constructor */ }
+  fn peek(&amp;self) -&gt; Option&lt;char&gt; { /* method */ }
+  fn advance(&amp;mut self) { /* mutating method */ }
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>&amp;self</code> = read-only reference to the struct (like a <code>const</code> method in C++)</li>
+<li><code>&amp;mut self</code> = mutable reference (can modify the struct)</li>
+<li><code>Self</code> = the type of the struct itself</li>
+</ul>
+<h2 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h2>
+<p>Rust’s way of saying “maybe there’s a value, maybe there isn’t” — like a nullable pointer but safer:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn peek(&amp;self) -&gt; Option&lt;char&gt; {
+  self.chars.get(self.pos).copied()
+}
+<span class="boring">}</span></code></pre>
+<p>Returns <code>Some(c)</code> if there’s a character, or <code>None</code> if we’re at the end.</p>
+<h2 id="resultt-e"><a class="header" href="#resultt-e"><code>Result&lt;T, E&gt;</code></a></h2>
+<p>Either a success value <code>Ok(T)</code> or an error <code>Err(E)</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn tokenize(&amp;mut self) -&gt; Result&lt;Vec&lt;Token&gt;, String&gt;
+<span class="boring">}</span></code></pre>
+<p>Callers propagate errors with <code>?</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let tokens = lexer.tokenize() ?;  // returns early if Err
+<span class="boring">}</span></code></pre>
+<h2 id="boxexpr"><a class="header" href="#boxexpr"><code>Box&lt;Expr&gt;</code></a></h2>
+<p>A pointer to heap-allocated data. Used for recursive types (like expressions containing sub-expressions):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum Expr {
+  BinaryOp {
+    left: Box&lt;Expr&gt;,   // points to another Expr on the heap
+    right: Box&lt;Expr&gt;,
+    op: BinOp,
+  },
+  IntLit(i128, Span),
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>If we didn’t use <code>Box</code>, the type would be infinitely large (it’d contain itself).</p>
+<h2 id="derivedebug-clone"><a class="header" href="#derivedebug-clone"><code>#[derive(Debug, Clone)]</code></a></h2>
+<p>Auto-implements debug printing and cloning for a type:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Debug, Clone)]
+struct Span {
+  file: String,
+  line: usize,
+  col: usize,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>Debug</code> lets you print it with <code>{:?}</code></li>
+<li><code>Clone</code> gives you a <code>.clone()</code> method to make a copy</li>
+</ul>
+<h2 id="hashmapk-v"><a class="header" href="#hashmapk-v"><code>HashMap&lt;K, V&gt;</code></a></h2>
+<p>A hash table (dictionary / map):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mut map: HashMap&lt;String, Type&gt; = HashMap::new();
+map.insert("x".to_string(), Type::I32);
+<span class="boring">}</span></code></pre>
+<h2 id="match"><a class="header" href="#match"><code>match</code></a></h2>
+<p>Like C <code>switch</code> but way more powerful — can destructure, bind variables, and must be exhaustive:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match c {
+'/' if self.peek_ahead(1) == Some('/') =&gt; { /* line comment */ }
+'/' if self.peek_ahead(1) == Some('*') =&gt; { /* block comment */ }
+'+' =&gt; { Token::new(TokenKind::Plus, self.span()) }
+c if c.is_ascii_digit() =&gt; self.read_number(c),
+_ =&gt; return Err("unexpected character"),
+}
+<span class="boring">}</span></code></pre>
+<h2 id="-and-mut-references"><a class="header" href="#-and-mut-references"><code>&amp;</code> and <code>&amp;mut</code> (references)</a></h2>
+<ul>
+<li><code>&amp;T</code> = immutable reference (read-only, borrow)</li>
+<li><code>&amp;mut T</code> = mutable reference</li>
+<li>Rust’s borrow checker enforces: either one <code>&amp;mut</code> OR many <code>&amp;</code>, never both at once. This prevents data races at compile
+time.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../specs/21.module-layout.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="specs/30.builtins.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../rust-concepts.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="file-by-file.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -202,11 +366,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../specs/21.module-layout.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="specs/30.builtins.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../rust-concepts.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="file-by-file.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -226,13 +390,13 @@
         </script>
 
 
-        <script src="../elasticlunr-ef4e11c1.min.js"></script>
-        <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-09f2665d.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
-        <script src="../clipboard-1626706a.min.js"></script>
-        <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-609e4cb8.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

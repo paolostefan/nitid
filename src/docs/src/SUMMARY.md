@@ -11,8 +11,5 @@
     - [Packages](specs/20.packages.md)
         - [Modules](specs/21.module-layout.md)
     - [Builtins](specs/30.builtins.md)
-
-## Icons used throughout these docs
-
-📝 **Draft** : sections marked with the _memo_ emoji are under active discussion or in draft status. This means
-that they aren't available yet, at least not in the `main` branch, and they are subject to changes.
+- [Rust concepts](rust-concepts.md)
+- [File by file breakdown](file-by-file.md)

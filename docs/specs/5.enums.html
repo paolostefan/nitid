@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fcf31854.js";
+            window.path_to_searchindex_js = "../searchindex-65857b07.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f02b78b5.js"></script>
+        <script src="../toc-303ef326.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,7 +178,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="enumerations"><a class="header" href="#enumerations">Enumerations</a></h1>
-<p>The <code>enum</code> keyword in Nitid works about the same way as in C++.</p>
+<p><code>enum</code>s in Nitid work about the same way as in C++.</p>
 <p>The name of both the <code>enum</code> and its members must follow the identifier names rules.</p>
 <p>Member values <strong>may be declared explicitly</strong>; if not declared, values start from <code>0</code> and are incremented by <code>1</code> at each
 step.</p>
@@ -209,8 +209,7 @@ enum FileType : i16 {
     Text = 0x1000,
 };
 </code></pre>
-<p>In both cases the <code>enum</code> values will be checked at compile time to make sure they fit in the <code>enum</code> type with no
-overflows.</p>
+<p>In both cases, the <code>enum</code> values are checked at compile time to make sure they fit in the <code>enum</code> type with no overflows.</p>
 <pre><code class="language-c++">// 8-bit unsigned int overflow at the second value 
 enum Wrong : u8 {
     NONE = 255,

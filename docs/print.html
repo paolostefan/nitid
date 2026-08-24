@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fcf31854.js";
+            window.path_to_searchindex_js = "searchindex-65857b07.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f02b78b5.js"></script>
+        <script src="toc-303ef326.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,6 +186,10 @@ equivalent C code, which you then compile with any C compiler (like <code>gcc</c
 <p>The project is written in <strong>Rust</strong>. If you don’t know Rust, don’t worry — this doc explains the Rust concepts you’ll
 encounter.</p>
 <hr>
+<h2 id="icons-used-throughout-the-docs"><a class="header" href="#icons-used-throughout-the-docs">Icons used throughout the docs</a></h2>
+<p>📝 <strong>Draft</strong> : sections marked with the <em>memo</em> emoji are under active discussion or in draft status. This means
+they aren’t available yet, at least not in the <code>main</code> branch, and they may be subject to radical changes, or discarded.</p>
+<hr>
 <h2 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h2>
 <pre><code>nitid/
 ├── Cargo.toml                  # Rust project config (package name, deps)
@@ -253,392 +257,6 @@ C files (.c) + CMakeLists.txt
 <p>Steps 3 and 4 operate on the <strong>AST</strong> (<code>ast.rs</code>), which is defined in its own file and used by the parser, semantic
 analyzer, and code generator.</p>
 <p>The <strong>type system</strong> (<code>types.rs</code>) is also shared across steps.</p>
-<hr>
-<h2 id="rust-concepts-for-non-rustaceans"><a class="header" href="#rust-concepts-for-non-rustaceans">Rust Concepts (for non-Rustaceans)</a></h2>
-<h3 id="enum-rusts-tagged-union--sum-type"><a class="header" href="#enum-rusts-tagged-union--sum-type"><code>enum</code> (Rust’s tagged union / sum type)</a></h3>
-<p>Like a C enum on steroids. Each variant can carry data:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum TokenKind {
-  Ident(String),      // carries a String
-  IntLit(String),
-  Fn,                 // carries nothing (like a plain C enum)
-  Plus,
-  Semicolon,
-  // ...
-}
-<span class="boring">}</span></code></pre>
-<p>You match on it with <code>match</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>match token.kind {
-TokenKind::Ident(name) =&gt; { /* name is a String here */ }
-TokenKind::Fn =&gt; { /* this is just a marker */ }
-_ =&gt; { /* default case */ }
-}
-<span class="boring">}</span></code></pre>
-<h3 id="struct"><a class="header" href="#struct"><code>struct</code></a></h3>
-<p>Like a C struct but with methods defined in an <code>impl</code> block:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Lexer {
-  chars: Vec&lt;char&gt;,
-  pos: usize,
-}
-
-impl Lexer {
-  fn new(input: &amp;str) -&gt; Self { /* constructor */ }
-  fn peek(&amp;self) -&gt; Option&lt;char&gt; { /* method */ }
-  fn advance(&amp;mut self) { /* mutating method */ }
-}
-<span class="boring">}</span></code></pre>
-<ul>
-<li><code>&amp;self</code> = read-only reference to the struct (like a <code>const</code> method in C++)</li>
-<li><code>&amp;mut self</code> = mutable reference (can modify the struct)</li>
-<li><code>Self</code> = the type of the struct itself</li>
-</ul>
-<h3 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h3>
-<p>Rust’s way of saying “maybe there’s a value, maybe there isn’t” — like a nullable pointer but safer:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn peek(&amp;self) -&gt; Option&lt;char&gt; {
-  self.chars.get(self.pos).copied()
-}
-<span class="boring">}</span></code></pre>
-<p>Returns <code>Some(c)</code> if there’s a character, or <code>None</code> if we’re at the end.</p>
-<h3 id="resultt-e"><a class="header" href="#resultt-e"><code>Result&lt;T, E&gt;</code></a></h3>
-<p>Either a success value <code>Ok(T)</code> or an error <code>Err(E)</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn tokenize(&amp;mut self) -&gt; Result&lt;Vec&lt;Token&gt;, String&gt;
-<span class="boring">}</span></code></pre>
-<p>Callers propagate errors with <code>?</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let tokens = lexer.tokenize() ?;  // returns early if Err
-<span class="boring">}</span></code></pre>
-<h3 id="boxexpr"><a class="header" href="#boxexpr"><code>Box&lt;Expr&gt;</code></a></h3>
-<p>A pointer to heap-allocated data. Used for recursive types (like expressions containing sub-expressions):</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum Expr {
-  BinaryOp {
-    left: Box&lt;Expr&gt;,   // points to another Expr on the heap
-    right: Box&lt;Expr&gt;,
-    op: BinOp,
-  },
-  IntLit(i128, Span),
-  // ...
-}
-<span class="boring">}</span></code></pre>
-<p>If we didn’t use <code>Box</code>, the type would be infinitely large (it’d contain itself).</p>
-<h3 id="derivedebug-clone"><a class="header" href="#derivedebug-clone"><code>#[derive(Debug, Clone)]</code></a></h3>
-<p>Auto-implements debug printing and cloning for a type:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[derive(Debug, Clone)]
-struct Span {
-  file: String,
-  line: usize,
-  col: usize,
-}
-<span class="boring">}</span></code></pre>
-<ul>
-<li><code>Debug</code> lets you print it with <code>{:?}</code></li>
-<li><code>Clone</code> gives you a <code>.clone()</code> method to make a copy</li>
-</ul>
-<h3 id="hashmapk-v"><a class="header" href="#hashmapk-v"><code>HashMap&lt;K, V&gt;</code></a></h3>
-<p>A hash table (dictionary / map):</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let mut map: HashMap&lt;String, Type&gt; = HashMap::new();
-map.insert("x".to_string(), Type::I32);
-<span class="boring">}</span></code></pre>
-<h3 id="match"><a class="header" href="#match"><code>match</code></a></h3>
-<p>Like C <code>switch</code> but way more powerful — can destructure, bind variables, and must be exhaustive:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>match c {
-'/' if self.peek_ahead(1) == Some('/') =&gt; { /* line comment */ }
-'/' if self.peek_ahead(1) == Some('*') =&gt; { /* block comment */ }
-'+' =&gt; { Token::new(TokenKind::Plus, self.span()) }
-c if c.is_ascii_digit() =&gt; self.read_number(c),
-_ =&gt; return Err("unexpected character"),
-}
-<span class="boring">}</span></code></pre>
-<h3 id="-and-mut-references"><a class="header" href="#-and-mut-references"><code>&amp;</code> and <code>&amp;mut</code> (references)</a></h3>
-<ul>
-<li><code>&amp;T</code> = immutable reference (read-only, borrow)</li>
-<li><code>&amp;mut T</code> = mutable reference</li>
-<li>Rust’s borrow checker enforces: either one <code>&amp;mut</code> OR many <code>&amp;</code>, never both at once. This prevents data races at compile
-time.</li>
-</ul>
-<hr>
-<h2 id="file-by-file-breakdown"><a class="header" href="#file-by-file-breakdown">File-by-file breakdown</a></h2>
-<h3 id="srctypesrs--the-type-system"><a class="header" href="#srctypesrs--the-type-system"><code>src/types.rs</code> — The Type System</a></h3>
-<p><strong>What it does:</strong> Defines all the types that Nitid supports and how they map to C types.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum Type {
-  I8,
-  I16,
-  I32,
-  I64,
-  I128,
-  I256,   // signed integers
-  U8,
-  U16,
-  U32,
-  U64,
-  U128,
-  U256,   // unsigned integers
-  F8,
-  F16,
-  F32,
-  F64,                // floats
-  String,
-  String16,
-  String32,       // strings
-  Bool,
-  Void,
-}
-<span class="boring">}</span></code></pre>
-<p>Two key methods:</p>
-<ul>
-<li><code>Type::from_str(s)</code> — converts <code>"i32"</code> or <code>"int"</code> into <code>Type::I32</code>. Used by the parser.</li>
-<li><code>type.c_str()</code> — converts <code>Type::I32</code> into <code>"int"</code> (the C equivalent). Used by the code generator.</li>
-</ul>
-<p><strong>Why it’s its own file:</strong> Both the parser (reading types), semantic analyzer (checking types), and codegen (writing C
-types) need these definitions. Shared single source of truth.</p>
-<hr>
-<h3 id="srcastrs--the-abstract-syntax-tree"><a class="header" href="#srcastrs--the-abstract-syntax-tree"><code>src/ast.rs</code> — The Abstract Syntax Tree</a></h3>
-<p><strong>What it does:</strong> Defines the data structures that represent parsed Nitid code as a tree. The parser produces one of
-these, the semantic analyzer walks it, and the code generator walks it again to produce C.</p>
-<p>Key structures:</p>
-<ul>
-<li><code>Span</code> — file/line/column location info, used for error messages</li>
-<li><code>Program</code> — the root node: a package name, list of imports, and list of declarations</li>
-<li><code>Decl</code> — either a function declaration (<code>FnDecl</code>) or a variable declaration (<code>VarDecl</code>)</li>
-<li><code>FnDecl</code> — function name, parameters, return types, body (a list of statements)</li>
-<li><code>Param</code> — a parameter type + one or more names (allows <code>int a, b, c</code>)</li>
-<li><code>VarDecl</code> — a variable declaration: optional type, names, optional initializer</li>
-<li><code>Stmt</code> — a statement: variable decl, expression, return, block, if/else, while</li>
-<li><code>Expr</code> — an expression: literals, identifiers, function calls, binary ops, assignments</li>
-<li><code>BinOp</code> — binary operators (add, sub, comparisons, logical, bitwise)</li>
-</ul>
-<p><strong>Why enums for Decl, Stmt, Expr:</strong> Because a “declaration” can only be one thing at a time — it’s either a function or
-a variable. Rust enums encode this perfectly: you can’t accidentally mix fields from both.</p>
-<p><strong>Rust concept – <code>Box</code>:</strong> <code>Expr::BinaryOp</code> has <code>left: Box&lt;Expr&gt;</code> and <code>right: Box&lt;Expr&gt;</code>. This is necessary because
-<code>Expr</code> is recursive (an expression can contain sub-expressions). Without <code>Box</code>, Rust wouldn’t know how much memory to
-allocate for an <code>Expr</code>.</p>
-<hr>
-<h3 id="srclexerrs--the-lexer"><a class="header" href="#srclexerrs--the-lexer"><code>src/lexer.rs</code> — The Lexer</a></h3>
-<p><strong>What it does:</strong> Turns raw source text (a string) into a stream of <code>Token</code>s.</p>
-<pre><code>"fn main() { return 42; }"
-    │
-    ▼
-[Fn, Ident("main"), LParen, RParen, LBrace, Return, IntLit("42"), Semicolon, RBrace]
-</code></pre>
-<p><strong>How it works:</strong></p>
-<ol>
-<li>The <code>Lexer</code> struct holds the input characters and a position cursor.</li>
-<li><code>tokenize()</code> loops through characters, skipping whitespace and comments.</li>
-<li>For each character, it decides what token to produce:
-<ul>
-<li>Single-char tokens (<code>;</code>, <code>(</code>, <code>+</code>, etc.) are matched directly.</li>
-<li>Two-char tokens (<code>==</code>, <code>!=</code>, <code>&lt;=</code>, <code>-&gt;</code>, <code>:=</code>, <code>&amp;&amp;</code>, <code>||</code>, etc.) peek ahead.</li>
-<li><code>"</code> starts a string literal (supports escape sequences like <code>\n</code>, <code>\t</code>).</li>
-<li><code>'</code> starts a char literal.</li>
-<li>Digits start a number (integer or float, decimal or hex).</li>
-<li>Letters/underscore start an identifier or keyword.</li>
-<li><code>//</code> starts a line comment, <code>/* */</code> starts a block comment.</li>
-</ul>
-</li>
-</ol>
-<p><strong>TokenKind enum</strong> — lists every possible token. Keywords (<code>fn</code>, <code>return</code>, <code>if</code>, <code>while</code>, <code>let</code>, <code>var</code>, <code>true</code>, <code>false</code>,
-<code>package</code>, <code>import</code>, <code>as</code>) are recognized by <code>is_keyword()</code>. Type names (<code>i32</code>, <code>string</code>, <code>bool</code>, etc.) are recognized
-by <code>is_type()</code> and produce <code>TokenKind::Type(s)</code> instead of <code>TokenKind::Ident(s)</code>.</p>
-<p><strong>Rust concept – <code>Vec&lt;T&gt;</code>:</strong> A growable array (like <code>std::vector</code> in C++ or <code>ArrayList</code> in Java). <code>Vec&lt;Token&gt;</code> is a list
-of tokens.</p>
-<hr>
-<h3 id="srcparserrs--the-parser"><a class="header" href="#srcparserrs--the-parser"><code>src/parser.rs</code> — The Parser</a></h3>
-<p><strong>What it does:</strong> Takes the flat list of tokens from the lexer and builds a tree structure (the AST).</p>
-<p><strong>Parsing approach: Recursive Descent</strong></p>
-<p>Each grammar rule becomes a function. Functions call each other recursively, following the language grammar:</p>
-<pre><code>parse_program()
-  ├── parse_import()       // import statements
-  ├── parse_fn_decl()      // function declarations
-  └── parse_stmt()         // statements (also top-level)
-        ├── parse_return_stmt()
-        ├── parse_if_stmt()
-        ├── parse_while_stmt()
-        └── parse_expr()
-              └── parse_assignment()
-                    └── parse_or()
-                          └── parse_and()
-                                └── parse_bit_or()
-                                      └── parse_bit_xor()
-                                            └── parse_bit_and()
-                                                  └── parse_equality()
-                                                        └── parse_comparison()
-                                                              └── parse_shift()
-                                                                    └── parse_term()
-                                                                          └── parse_factor()
-                                                                                └── parse_unary()
-                                                                                      └── parse_primary()
-</code></pre>
-<p>This chain <strong>encodes operator precedence</strong> — the deeper the function, the higher the precedence. So <code>parse_term()</code>
-(add/sub) calls <code>parse_factor()</code> (mul/div), which means <code>*</code> binds tighter than <code>+</code>. Exactly like the C expression
-precedence table.</p>
-<ul>
-<li><code>parse_unary()</code> handles <code>-expr</code>, <code>!expr</code>, <code>~expr</code> (unary minus, logical not, bitwise not).</li>
-<li><code>parse_primary()</code> handles literals, identifiers, function calls, and parenthesized expressions.</li>
-</ul>
-<p><strong>Lookahead for declarations:</strong> <code>parse_stmt()</code> has a tricky job — it needs to distinguish between:</p>
-<ul>
-<li><code>int x;</code> (variable declaration)</li>
-<li><code>int x = 5;</code> (variable declaration with init)</li>
-<li><code>x = 5;</code> (assignment)</li>
-<li><code>x := 5;</code> (declaration with type inference)</li>
-</ul>
-<p>It uses <strong>lookahead</strong> (saves position, reads ahead, restores position) to figure out which case it’s in.</p>
-<p><strong>Implicit main function:</strong> If there are statements at the top level that aren’t inside any function, the parser wraps
-them in an implicit <code>fn main(int argc, string argv) -&gt; int { ... }</code>. This means you can write scripts without declaring
-<code>main</code>.</p>
-<hr>
-<h3 id="srcsemars--semantic-analysis"><a class="header" href="#srcsemars--semantic-analysis"><code>src/sema.rs</code> — Semantic Analysis</a></h3>
-<p><strong>What it does:</strong> Walks the AST and checks rules that can’t be expressed in the grammar alone:</p>
-<ul>
-<li>Variables must be declared before use</li>
-<li>No duplicate variable names in the same scope</li>
-<li>Return values must match the function’s declared return types</li>
-<li>Type compatibility in assignments and binary operations</li>
-<li>Built-in functions <code>println</code> and <code>printf</code> are recognized</li>
-</ul>
-<p><strong>Scopes:</strong></p>
-<p>The <code>Scope</code> struct is a chain of hash maps, like nested blocks in C:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Scope {
-  vars: HashMap&lt;String, Type&gt;,
-  parent: Option&lt;Box&lt;Scope&gt;&gt;,
-}
-<span class="boring">}</span></code></pre>
-<ul>
-<li><code>Scope::new()</code> creates a root scope</li>
-<li><code>Scope::child(parent)</code> creates a nested scope — lookups check the current scope first, then walk up to parent</li>
-<li>When a block ends, the child scope is discarded (variables in it “go out of scope”)</li>
-</ul>
-<p><strong>What <code>analyze</code> checks:</strong></p>
-<p>For each function:</p>
-<ol>
-<li>Records parameter types and return types (builds a function signatures table)</li>
-<li>Creates a scope with parameter variables</li>
-<li>Analyzes each statement in the function body:
-<ul>
-<li><code>VarDecl</code> — checks type compatibility between declaration and initializer, declares variables in scope</li>
-<li><code>Expr</code> — infers the expression’s type (recursively)</li>
-<li><code>Return</code> — checks the count and (approximately) types of return values match</li>
-<li><code>If</code> / <code>While</code> — recursively analyzes sub-blocks (creating child scopes)</li>
-</ul>
-</li>
-</ol>
-<p><strong>Type inference:</strong> <code>infer_expr_type()</code> figures out what type an expression produces:</p>
-<ul>
-<li>Integer literal → <code>I32</code></li>
-<li>Float literal → <code>F64</code></li>
-<li>String literal → <code>String</code></li>
-<li><code>true</code>/<code>false</code> → <code>Bool</code></li>
-<li>Variable reference → the type it was declared with</li>
-<li>Binary op → result type depends on the operator (<code>==</code> gives <code>Bool</code>, <code>+</code> matches operands)</li>
-</ul>
-<p><strong><code>:=</code> (declare-and-assign):</strong> When you write <code>x := 42</code>, the type is inferred from the right-hand side. The analyzer
-prints a warning but doesn’t error.</p>
-<p><strong>Free functions:</strong> <code>analyze_var_decl_free</code> and <code>infer_expr_type_free</code> are standalone functions (not methods on <code>Sema</code>).
-They’re used for both global-level and function-level code. In Rust, you can have functions that are not attached to any
-struct — they’re just regular functions.</p>
-<hr>
-<h3 id="srccodegenrs--the-code-generator"><a class="header" href="#srccodegenrs--the-code-generator"><code>src/codegen.rs</code> — The Code Generator</a></h3>
-<p><strong>What it does:</strong> Walks the AST and produces C source code as a string. This is the final stage.</p>
-<p>Key methods:</p>
-<ul>
-<li>
-<p><code>generate(&amp;program)</code> — the main entry point. Produces:</p>
-<ul>
-<li>One <code>.c</code> file per input <code>.nt</code> file</li>
-<li>A <code>CMakeLists.txt</code> for building everything with CMake</li>
-<li>Copies runtime files (<code>nitid_string.h</code>, <code>nitid_string.c</code>)</li>
-</ul>
-</li>
-<li>
-<p><code>emit_fn_decl(f, ...)</code> — generates the C function signature. Special case: <code>main</code> gets the standard
-<code>int main(int argc, char **argv)</code> signature regardless of what the Nitid code said.</p>
-</li>
-</ul>
-<p><strong>Multi-return value handling:</strong></p>
-<p>Nitid functions can return multiple values (like Go or Python). C can’t do this natively, so the code generator uses
-<strong>output parameters</strong>:</p>
-<pre><code class="language-nitid">fn foo() -&gt; (int, int) { return 1, 2; }
-a, b := foo();
-</code></pre>
-<p>Becomes C:</p>
-<pre><code class="language-c">void foo(int *res0, int *res1) {
-    *res0 = 1;
-    *res1 = 2;
-}
-// caller:
-int a, b;
-foo(&amp;a, &amp;b);
-</code></pre>
-<p>The code generator tracks which functions have multi-return and handles this transparently.</p>
-<p><strong>Built-in functions:</strong></p>
-<ul>
-<li><code>println(s)</code> → <code>printf("%s\n", s)</code> or <code>printf("literal\n")</code></li>
-<li><code>printf(...)</code> → <code>printf(...)</code> (pass-through)</li>
-</ul>
-<p><strong>CMake generation:</strong> <code>emit_cmake()</code> produces a minimal <code>CMakeLists.txt</code> that compiles the output C file and the runtime
-string library together.</p>
-<p><strong>Type mapping:</strong> <code>infer_expr_type_str()</code> maps Nitid expression types to C type strings:</p>
-<ul>
-<li>Integer → <code>int</code></li>
-<li>Float → <code>double</code></li>
-<li>String → <code>nitid_string</code></li>
-<li>Char → <code>uint8_t</code></li>
-<li>Bool → <code>bool</code></li>
-</ul>
-<hr>
-<h3 id="srcmainrs--the-cli-entry-point"><a class="header" href="#srcmainrs--the-cli-entry-point"><code>src/main.rs</code> — The CLI Entry Point</a></h3>
-<p><strong>What it does:</strong> Ties the pipeline together and handles command-line arguments via the <code>clap</code> library.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[derive(Parser)]
-struct Cli {
-  files: Vec&lt;String&gt;,           // input .nt files
-  c_dir: String,                // output C directory (default: "c_src")
-  emit_c: bool,                 // print generated C to stdout
-  run: bool,                    // also compile and run
-  cc: Option&lt;String&gt;,           // C compiler to use
-  output: Option&lt;String&gt;,       // output binary name
-}
-<span class="boring">}</span></code></pre>
-<p><strong>Pipeline in <code>main()</code>:</strong></p>
-<ol>
-<li>Creates <code>c_src/runtime/</code> output directory</li>
-<li>For each input file:
-a. Read the file b. Parse it → AST c. Semantic analysis d. Code generation → C files</li>
-<li>Copies runtime library files (<code>nitid_string.h/.c</code>) into output</li>
-<li>Writes all <code>.c</code> files and <code>CMakeLists.txt</code></li>
-<li>If <code>--run</code> is passed:
-a. Runs <code>cmake -S c_src -B c_src/build</code>
-b. Runs <code>cmake --build c_src/build</code>
-c. Runs the resulting binary</li>
-</ol>
-<p><strong>Rust concept – <code>mod</code>:</strong> The <code>mod</code> declarations at the top (<code>mod ast; mod lexer; ...</code>) tell Rust to include each source
-file as a module. <code>main.rs</code> is the crate root.</p>
-<p><strong>Rust concept – <code>Result&lt;(), String&gt;</code>:</strong> The return type of <code>main</code>. <code>Ok(())</code> means success. <code>Err("message")</code> is an
-error, which Rust prints and exits with a non-zero code.</p>
-<p><strong>Rust concept – <code>clap::Parser</code>:</strong> A library that auto-generates CLI argument parsing from struct annotations.
-<code>#[arg(short = 'o')]</code> means the <code>--output</code> flag also accepts <code>-o</code>.</p>
 <hr>
 <h2 id="build-instructions"><a class="header" href="#build-instructions">Build Instructions</a></h2>
 <h3 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h3>
@@ -736,57 +354,6 @@ cmake --build runtime/build
 <p>The <code>BUILD_TESTS=ON</code> flag is off by default — the runtime builds as a static library alone unless tests are explicitly
 enabled.</p>
 <hr>
-<h2 id="quick-tour-of-rust-for-reading-this-codebase"><a class="header" href="#quick-tour-of-rust-for-reading-this-codebase">Quick Tour of Rust for reading this codebase</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>If you know…</th><th>This Rust concept</th></tr>
-</thead>
-<tbody>
-<tr><td><code>int x = 5;</code></td><td><code>let x: i32 = 5;</code> (immutable by default)</td></tr>
-<tr><td><code>int x = 5;</code> (mutable)</td><td><code>let mut x: i32 = 5;</code></td></tr>
-<tr><td><code>const</code> function in C++</td><td><code>fn foo(&amp;self) -&gt; Type</code></td></tr>
-<tr><td><code>void</code> function in C++</td><td><code>fn foo(&amp;mut self)</code> (no return)</td></tr>
-<tr><td><code>std::vector&lt;int&gt;</code></td><td><code>Vec&lt;i32&gt;</code></td></tr>
-<tr><td><code>std::map&lt;K, V&gt;</code></td><td><code>HashMap&lt;K, V&gt;</code></td></tr>
-<tr><td><code>nullptr</code></td><td><code>None</code> (from <code>Option</code>)</td></tr>
-<tr><td><code>T*</code> (nullable)</td><td><code>Option&lt;Box&lt;T&gt;&gt;</code></td></tr>
-<tr><td><code>union</code> / <code>enum</code> + union</td><td><code>enum</code> with variants and data</td></tr>
-<tr><td><code>string</code> (C++ std::string)</td><td><code>String</code> (owned) or <code>&amp;str</code> (borrowed)</td></tr>
-<tr><td>Exceptions</td><td><code>Result&lt;T, E&gt;</code> with <code>?</code> operator</td></tr>
-<tr><td><code>static_cast&lt;int&gt;</code></td><td><code>as</code> keyword: <code>x as i32</code></td></tr>
-<tr><td><code>#include</code></td><td><code>mod</code> / <code>use</code></td></tr>
-<tr><td><code>// comment</code></td><td><code>// comment</code> (same)</td></tr>
-<tr><td><code>/* */</code> block comment</td><td><code>/* */</code> or <code>///</code> doc comment</td></tr>
-<tr><td><code>assert(x == 5)</code></td><td><code>assert_eq!(x, 5)</code></td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="common-patterns-youll-see"><a class="header" href="#common-patterns-youll-see">Common patterns you’ll see</a></h3>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Creating a new instance
-let mut lexer = Lexer::new(input, file);
-
-// Calling a method
-lexer.tokenize() ?;  // ? propagates errors
-
-// Pattern matching
-match value {
-Some(x) =&gt; do_something(x),
-None =&gt; handle_missing(),
-}
-
-// Destructuring a struct
-let Lexer { chars, pos,..} = lexer;
-
-// Iterating
-for token in &amp; tokens { /* ... */ }
-
-// Type ascription
-let x: Vec&lt;Token&gt; = Vec::new();
-<span class="boring">}</span></code></pre>
-<hr>
 <h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <div class="table-wrapper">
 <table>
@@ -834,7 +401,7 @@ bounds-checked access.</p>
 </table>
 </div>
 <hr>
-<h2 id="strings-handling"><a class="header" href="#strings-handling">Strings handling</a></h2>
+<h3 id="strings-handling"><a class="header" href="#strings-handling">Strings handling</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -867,7 +434,6 @@ bounds-checked access.</p>
 <p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files.</p>
 <hr>
 <h3 id="phase-2--memory-safety"><a class="header" href="#phase-2--memory-safety">Phase 2 — Memory Safety</a></h3>
-<p>Hardest features. RAII, null-pointer protection, and buffer overflows require runtime bookkeeping.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1453,7 +1019,7 @@ literals following the field type.</p>
 parsing, and code generation tools.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="enumerations"><a class="header" href="#enumerations">Enumerations</a></h1>
-<p>The <code>enum</code> keyword in Nitid works about the same way as in C++.</p>
+<p><code>enum</code>s in Nitid work about the same way as in C++.</p>
 <p>The name of both the <code>enum</code> and its members must follow the identifier names rules.</p>
 <p>Member values <strong>may be declared explicitly</strong>; if not declared, values start from <code>0</code> and are incremented by <code>1</code> at each
 step.</p>
@@ -1484,8 +1050,7 @@ enum FileType : i16 {
     Text = 0x1000,
 };
 </code></pre>
-<p>In both cases the <code>enum</code> values will be checked at compile time to make sure they fit in the <code>enum</code> type with no
-overflows.</p>
+<p>In both cases, the <code>enum</code> values are checked at compile time to make sure they fit in the <code>enum</code> type with no overflows.</p>
 <pre><code class="language-c++">// 8-bit unsigned int overflow at the second value 
 enum Wrong : u8 {
     NONE = 255,
@@ -1807,7 +1372,440 @@ without an explicit manifest entry remain a compile error, not a silent merge).<
 <p>Outputs a string (its argument), followed by a newline. Does not support formatting.</p>
 <h2 id="printfstring-fmt-any-args"><a class="header" href="#printfstring-fmt-any-args">printf(string fmt, any args[])</a></h2>
 <p>Exactly the same as C std library’s <code>printf()</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="rust-concepts-for-non-rustaceans"><a class="header" href="#rust-concepts-for-non-rustaceans">Rust Concepts (for non-Rustaceans)</a></h1>
+<h2 id="quick-tour-of-rust-for-reading-this-codebase"><a class="header" href="#quick-tour-of-rust-for-reading-this-codebase">Quick Tour of Rust for reading this codebase</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>If you know…</th><th>This Rust concept</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int x = 5;</code></td><td><code>let x: i32 = 5;</code> (immutable by default)</td></tr>
+<tr><td><code>int x = 5;</code> (mutable)</td><td><code>let mut x: i32 = 5;</code></td></tr>
+<tr><td><code>const</code> function in C++</td><td><code>fn foo(&amp;self) -&gt; Type</code></td></tr>
+<tr><td><code>void</code> function in C++</td><td><code>fn foo(&amp;mut self)</code> (no return)</td></tr>
+<tr><td><code>std::vector&lt;int&gt;</code></td><td><code>Vec&lt;i32&gt;</code></td></tr>
+<tr><td><code>std::map&lt;K, V&gt;</code></td><td><code>HashMap&lt;K, V&gt;</code></td></tr>
+<tr><td><code>nullptr</code></td><td><code>None</code> (from <code>Option</code>)</td></tr>
+<tr><td><code>T*</code> (nullable)</td><td><code>Option&lt;Box&lt;T&gt;&gt;</code></td></tr>
+<tr><td><code>union</code> / <code>enum</code> + union</td><td><code>enum</code> with variants and data</td></tr>
+<tr><td><code>string</code> (C++ std::string)</td><td><code>String</code> (owned) or <code>&amp;str</code> (borrowed)</td></tr>
+<tr><td>Exceptions</td><td><code>Result&lt;T, E&gt;</code> with <code>?</code> operator</td></tr>
+<tr><td><code>static_cast&lt;int&gt;</code></td><td><code>as</code> keyword: <code>x as i32</code></td></tr>
+<tr><td><code>#include</code></td><td><code>mod</code> / <code>use</code></td></tr>
+<tr><td><code>// comment</code></td><td><code>// comment</code> (same)</td></tr>
+<tr><td><code>/* */</code> block comment</td><td><code>/* */</code> or <code>///</code> doc comment</td></tr>
+<tr><td><code>assert(x == 5)</code></td><td><code>assert_eq!(x, 5)</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="common-patterns-youll-see"><a class="header" href="#common-patterns-youll-see">Common patterns you’ll see</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Creating a new instance
+let mut lexer = Lexer::new(input, file);
 
+// Calling a method
+lexer.tokenize() ?;  // ? propagates errors
+
+// Pattern matching
+match value {
+Some(x) =&gt; do_something(x),
+None =&gt; handle_missing(),
+}
+
+// Destructuring a struct
+let Lexer { chars, pos,..} = lexer;
+
+// Iterating
+for token in &amp; tokens { /* ... */ }
+
+// Type ascription
+let x: Vec&lt;Token&gt; = Vec::new();
+<span class="boring">}</span></code></pre>
+<hr>
+<h2 id="enum-rusts-tagged-union--sum-type"><a class="header" href="#enum-rusts-tagged-union--sum-type"><code>enum</code> (Rust’s tagged union / sum type)</a></h2>
+<p>Like a C enum on steroids. Each variant can carry data:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum TokenKind {
+  Ident(String),      // carries a String
+  IntLit(String),
+  Fn,                 // carries nothing (like a plain C enum)
+  Plus,
+  Semicolon,
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>You match on it with <code>match</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match token.kind {
+TokenKind::Ident(name) =&gt; { /* name is a String here */ }
+TokenKind::Fn =&gt; { /* this is just a marker */ }
+_ =&gt; { /* default case */ }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="struct"><a class="header" href="#struct"><code>struct</code></a></h2>
+<p>Like a C struct but with methods defined in an <code>impl</code> block:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Lexer {
+  chars: Vec&lt;char&gt;,
+  pos: usize,
+}
+
+impl Lexer {
+  fn new(input: &amp;str) -&gt; Self { /* constructor */ }
+  fn peek(&amp;self) -&gt; Option&lt;char&gt; { /* method */ }
+  fn advance(&amp;mut self) { /* mutating method */ }
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>&amp;self</code> = read-only reference to the struct (like a <code>const</code> method in C++)</li>
+<li><code>&amp;mut self</code> = mutable reference (can modify the struct)</li>
+<li><code>Self</code> = the type of the struct itself</li>
+</ul>
+<h2 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h2>
+<p>Rust’s way of saying “maybe there’s a value, maybe there isn’t” — like a nullable pointer but safer:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn peek(&amp;self) -&gt; Option&lt;char&gt; {
+  self.chars.get(self.pos).copied()
+}
+<span class="boring">}</span></code></pre>
+<p>Returns <code>Some(c)</code> if there’s a character, or <code>None</code> if we’re at the end.</p>
+<h2 id="resultt-e"><a class="header" href="#resultt-e"><code>Result&lt;T, E&gt;</code></a></h2>
+<p>Either a success value <code>Ok(T)</code> or an error <code>Err(E)</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn tokenize(&amp;mut self) -&gt; Result&lt;Vec&lt;Token&gt;, String&gt;
+<span class="boring">}</span></code></pre>
+<p>Callers propagate errors with <code>?</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let tokens = lexer.tokenize() ?;  // returns early if Err
+<span class="boring">}</span></code></pre>
+<h2 id="boxexpr"><a class="header" href="#boxexpr"><code>Box&lt;Expr&gt;</code></a></h2>
+<p>A pointer to heap-allocated data. Used for recursive types (like expressions containing sub-expressions):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum Expr {
+  BinaryOp {
+    left: Box&lt;Expr&gt;,   // points to another Expr on the heap
+    right: Box&lt;Expr&gt;,
+    op: BinOp,
+  },
+  IntLit(i128, Span),
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>If we didn’t use <code>Box</code>, the type would be infinitely large (it’d contain itself).</p>
+<h2 id="derivedebug-clone"><a class="header" href="#derivedebug-clone"><code>#[derive(Debug, Clone)]</code></a></h2>
+<p>Auto-implements debug printing and cloning for a type:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Debug, Clone)]
+struct Span {
+  file: String,
+  line: usize,
+  col: usize,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>Debug</code> lets you print it with <code>{:?}</code></li>
+<li><code>Clone</code> gives you a <code>.clone()</code> method to make a copy</li>
+</ul>
+<h2 id="hashmapk-v"><a class="header" href="#hashmapk-v"><code>HashMap&lt;K, V&gt;</code></a></h2>
+<p>A hash table (dictionary / map):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mut map: HashMap&lt;String, Type&gt; = HashMap::new();
+map.insert("x".to_string(), Type::I32);
+<span class="boring">}</span></code></pre>
+<h2 id="match"><a class="header" href="#match"><code>match</code></a></h2>
+<p>Like C <code>switch</code> but way more powerful — can destructure, bind variables, and must be exhaustive:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match c {
+'/' if self.peek_ahead(1) == Some('/') =&gt; { /* line comment */ }
+'/' if self.peek_ahead(1) == Some('*') =&gt; { /* block comment */ }
+'+' =&gt; { Token::new(TokenKind::Plus, self.span()) }
+c if c.is_ascii_digit() =&gt; self.read_number(c),
+_ =&gt; return Err("unexpected character"),
+}
+<span class="boring">}</span></code></pre>
+<h2 id="-and-mut-references"><a class="header" href="#-and-mut-references"><code>&amp;</code> and <code>&amp;mut</code> (references)</a></h2>
+<ul>
+<li><code>&amp;T</code> = immutable reference (read-only, borrow)</li>
+<li><code>&amp;mut T</code> = mutable reference</li>
+<li>Rust’s borrow checker enforces: either one <code>&amp;mut</code> OR many <code>&amp;</code>, never both at once. This prevents data races at compile
+time.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="file-by-file-breakdown"><a class="header" href="#file-by-file-breakdown">File-by-file breakdown</a></h1>
+<h2 id="srctypesrs--the-type-system"><a class="header" href="#srctypesrs--the-type-system"><code>src/types.rs</code> — The Type System</a></h2>
+<p><strong>What it does:</strong> Defines all the types that Nitid supports and how they map to C types.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum Type {
+  I8,
+  I16,
+  I32,
+  I64,
+  I128,     // signed integers
+  U8,
+  U16,
+  U32,
+  U64,
+  U128,     // unsigned integers
+  F32,
+  F64,      // floats
+  String,
+  String16,
+  String32, // strings
+  Bool,
+  Void,
+}
+<span class="boring">}</span></code></pre>
+<p>Two key methods:</p>
+<ul>
+<li><code>Type::from_str(s)</code> — converts <code>"i32"</code> or <code>"int"</code> into <code>Type::I32</code>. Used by the parser.</li>
+<li><code>type.c_str()</code> — converts <code>Type::I32</code> into <code>"int"</code> (the C equivalent). Used by the code generator.</li>
+</ul>
+<p><strong>Why it’s its own file:</strong> Both the parser (reading types), semantic analyzer (checking types), and codegen (writing C
+types) need these definitions. Shared single source of truth.</p>
+<hr>
+<h2 id="srcastrs--the-abstract-syntax-tree"><a class="header" href="#srcastrs--the-abstract-syntax-tree"><code>src/ast.rs</code> — The Abstract Syntax Tree</a></h2>
+<p><strong>What it does:</strong> Defines the data structures that represent parsed Nitid code as a tree. The parser produces one of
+these, the semantic analyzer walks it, and the code generator walks it again to produce C.</p>
+<p>Key structures:</p>
+<ul>
+<li><code>Span</code> — file/line/column location info, used for error messages</li>
+<li><code>Program</code> — the root node: a package name, list of imports, and list of declarations</li>
+<li><code>Decl</code> — either a function declaration (<code>FnDecl</code>) or a variable declaration (<code>VarDecl</code>)</li>
+<li><code>FnDecl</code> — function name, parameters, return types, body (a list of statements)</li>
+<li><code>Param</code> — a parameter type + one or more names (allows <code>int a, b, c</code>)</li>
+<li><code>VarDecl</code> — a variable declaration: optional type, names, optional initializer</li>
+<li><code>Stmt</code> — a statement: variable decl, expression, return, block, if/else, while</li>
+<li><code>Expr</code> — an expression: literals, identifiers, function calls, binary ops, assignments</li>
+<li><code>BinOp</code> — binary operators (add, sub, comparisons, logical, bitwise)</li>
+</ul>
+<p><strong>Why enums for Decl, Stmt, Expr:</strong> Because a “declaration” can only be one thing at a time — it’s either a function or
+a variable. Rust enums encode this perfectly: you can’t accidentally mix fields from both.</p>
+<p><strong>Rust concept – <code>Box</code>:</strong> <code>Expr::BinaryOp</code> has <code>left: Box&lt;Expr&gt;</code> and <code>right: Box&lt;Expr&gt;</code>. This is necessary because
+<code>Expr</code> is recursive (an expression can contain sub-expressions). Without <code>Box</code>, Rust wouldn’t know how much memory to
+allocate for an <code>Expr</code>.</p>
+<hr>
+<h2 id="srclexerrs--the-lexer"><a class="header" href="#srclexerrs--the-lexer"><code>src/lexer.rs</code> — The Lexer</a></h2>
+<p><strong>What it does:</strong> Turns raw source text (a string) into a stream of <code>Token</code>s.</p>
+<pre><code>"fn main() { return 42; }"
+    │
+    ▼
+[Fn, Ident("main"), LParen, RParen, LBrace, Return, IntLit("42"), Semicolon, RBrace]
+</code></pre>
+<p><strong>How it works:</strong></p>
+<ol>
+<li>The <code>Lexer</code> struct holds the input characters and a position cursor.</li>
+<li><code>tokenize()</code> loops through characters, skipping whitespace and comments.</li>
+<li>For each character, it decides what token to produce:
+<ul>
+<li>Single-char tokens (<code>;</code>, <code>(</code>, <code>+</code>, etc.) are matched directly.</li>
+<li>Two-char tokens (<code>==</code>, <code>!=</code>, <code>&lt;=</code>, <code>-&gt;</code>, <code>:=</code>, <code>&amp;&amp;</code>, <code>||</code>, etc.) peek ahead.</li>
+<li><code>"</code> starts a string literal (supports escape sequences like <code>\n</code>, <code>\t</code>).</li>
+<li><code>'</code> starts a char literal.</li>
+<li>Digits start a number (integer or float, decimal or hex).</li>
+<li>Letters/underscore start an identifier or keyword.</li>
+<li><code>//</code> starts a line comment, <code>/* */</code> starts a block comment.</li>
+</ul>
+</li>
+</ol>
+<p><strong>TokenKind enum</strong> — lists every possible token. Keywords (<code>fn</code>, <code>return</code>, <code>if</code>, <code>while</code>, <code>let</code>, <code>var</code>, <code>true</code>, <code>false</code>,
+<code>package</code>, <code>import</code>, <code>as</code>) are recognized by <code>is_keyword()</code>. Type names (<code>i32</code>, <code>string</code>, <code>bool</code>, etc.) are recognized
+by <code>is_type()</code> and produce <code>TokenKind::Type(s)</code> instead of <code>TokenKind::Ident(s)</code>.</p>
+<p><strong>Rust concept – <code>Vec&lt;T&gt;</code>:</strong> A growable array (like <code>std::vector</code> in C++ or <code>ArrayList</code> in Java). <code>Vec&lt;Token&gt;</code> is a list
+of tokens.</p>
+<hr>
+<h2 id="srcparserrs--the-parser"><a class="header" href="#srcparserrs--the-parser"><code>src/parser.rs</code> — The Parser</a></h2>
+<p><strong>What it does:</strong> Takes the flat list of tokens from the lexer and builds a tree structure (the AST).</p>
+<p><strong>Parsing approach: Recursive Descent</strong></p>
+<p>Each grammar rule becomes a function. Functions call each other recursively, following the language grammar:</p>
+<pre><code>parse_program()
+  ├── parse_import()       // import statements
+  ├── parse_fn_decl()      // function declarations
+  └── parse_stmt()         // statements (also top-level)
+        ├── parse_return_stmt()
+        ├── parse_if_stmt()
+        ├── parse_while_stmt()
+        └── parse_expr()
+              └── parse_assignment()
+                    └── parse_or()
+                          └── parse_and()
+                                └── parse_bit_or()
+                                      └── parse_bit_xor()
+                                            └── parse_bit_and()
+                                                  └── parse_equality()
+                                                        └── parse_comparison()
+                                                              └── parse_shift()
+                                                                    └── parse_term()
+                                                                          └── parse_factor()
+                                                                                └── parse_unary()
+                                                                                      └── parse_primary()
+</code></pre>
+<p>This chain <strong>encodes operator precedence</strong> — the deeper the function, the higher the precedence. So <code>parse_term()</code>
+(add/sub) calls <code>parse_factor()</code> (mul/div), which means <code>*</code> binds tighter than <code>+</code>. Exactly like the C expression
+precedence table.</p>
+<ul>
+<li><code>parse_unary()</code> handles <code>-expr</code>, <code>!expr</code>, <code>~expr</code> (unary minus, logical not, bitwise not).</li>
+<li><code>parse_primary()</code> handles literals, identifiers, function calls, and parenthesized expressions.</li>
+</ul>
+<p><strong>Lookahead for declarations:</strong> <code>parse_stmt()</code> has a tricky job — it needs to distinguish between:</p>
+<ul>
+<li><code>int x;</code> (variable declaration)</li>
+<li><code>int x = 5;</code> (variable declaration with init)</li>
+<li><code>x = 5;</code> (assignment)</li>
+<li><code>x := 5;</code> (declaration with type inference)</li>
+</ul>
+<p>It uses <strong>lookahead</strong> (saves position, reads ahead, restores position) to figure out which case it’s in.</p>
+<p><strong>Implicit main function:</strong> If there are statements at the top level that aren’t inside any function, the parser wraps
+them in an implicit <code>fn main(int argc, string argv) -&gt; int { ... }</code>. This means you can write scripts without declaring
+<code>main</code>.</p>
+<hr>
+<h2 id="srcsemars--semantic-analysis"><a class="header" href="#srcsemars--semantic-analysis"><code>src/sema.rs</code> — Semantic Analysis</a></h2>
+<p><strong>What it does:</strong> Walks the AST and checks rules that can’t be expressed in the grammar alone:</p>
+<ul>
+<li>Variables must be declared before use</li>
+<li>No duplicate variable names in the same scope</li>
+<li>Return values must match the function’s declared return types</li>
+<li>Type compatibility in assignments and binary operations</li>
+<li>Built-in functions <code>println</code> and <code>printf</code> are recognized</li>
+</ul>
+<p><strong>Scopes:</strong></p>
+<p>The <code>Scope</code> struct is a chain of hash maps, like nested blocks in C:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Scope {
+  vars: HashMap&lt;String, Type&gt;,
+  parent: Option&lt;Box&lt;Scope&gt;&gt;,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>Scope::new()</code> creates a root scope</li>
+<li><code>Scope::child(parent)</code> creates a nested scope — lookups check the current scope first, then walk up to parent</li>
+<li>When a block ends, the child scope is discarded (variables in it “go out of scope”)</li>
+</ul>
+<p><strong>What <code>analyze</code> checks:</strong></p>
+<p>For each function:</p>
+<ol>
+<li>Records parameter types and return types (builds a function signatures table)</li>
+<li>Creates a scope with parameter variables</li>
+<li>Analyzes each statement in the function body:
+<ul>
+<li><code>VarDecl</code> — checks type compatibility between declaration and initializer, declares variables in scope</li>
+<li><code>Expr</code> — infers the expression’s type (recursively)</li>
+<li><code>Return</code> — checks the count and (approximately) types of return values match</li>
+<li><code>If</code> / <code>While</code> — recursively analyzes sub-blocks (creating child scopes)</li>
+</ul>
+</li>
+</ol>
+<p><strong>Type inference:</strong> <code>infer_expr_type()</code> figures out what type an expression produces:</p>
+<ul>
+<li>Integer literal → <code>I32</code></li>
+<li>Float literal → <code>F64</code></li>
+<li>String literal → <code>String</code></li>
+<li><code>true</code>/<code>false</code> → <code>Bool</code></li>
+<li>Variable reference → the type it was declared with</li>
+<li>Binary op → result type depends on the operator (<code>==</code> gives <code>Bool</code>, <code>+</code> matches operands)</li>
+</ul>
+<p><strong><code>:=</code> (declare-and-assign):</strong> When you write <code>x := 42</code>, the type is inferred from the right-hand side. The analyzer
+prints a warning but doesn’t error.</p>
+<p><strong>Free functions:</strong> <code>analyze_var_decl_free</code> and <code>infer_expr_type_free</code> are standalone functions (not methods on <code>Sema</code>).
+They’re used for both global-level and function-level code. In Rust, you can have functions that are not attached to any
+struct — they’re just regular functions.</p>
+<hr>
+<h2 id="srccodegenrs--the-code-generator"><a class="header" href="#srccodegenrs--the-code-generator"><code>src/codegen.rs</code> — The Code Generator</a></h2>
+<p><strong>What it does:</strong> Walks the AST and produces C source code as a string. This is the final stage.</p>
+<p>Key methods:</p>
+<ul>
+<li>
+<p><code>generate(&amp;program)</code> — the main entry point. Produces:</p>
+<ul>
+<li>One <code>.c</code> file per input <code>.nt</code> file</li>
+<li>A <code>CMakeLists.txt</code> for building everything with CMake</li>
+<li>Copies runtime files (<code>nitid_string.h</code>, <code>nitid_string.c</code>)</li>
+</ul>
+</li>
+<li>
+<p><code>emit_fn_decl(f, ...)</code> — generates the C function signature. Special case: <code>main</code> gets the standard
+<code>int main(int argc, char **argv)</code> signature regardless of what the Nitid code said.</p>
+</li>
+</ul>
+<p><strong>Multi-return value handling:</strong></p>
+<p>Nitid functions can return multiple values (like Go or Python). C can’t do this natively, so the code generator uses
+<strong>output parameters</strong>:</p>
+<pre><code class="language-nitid">fn foo() -&gt; (int, int) { return 1, 2; }
+a, b := foo();
+</code></pre>
+<p>Becomes C:</p>
+<pre><code class="language-c">void foo(int *res0, int *res1) {
+    *res0 = 1;
+    *res1 = 2;
+}
+// caller:
+int a, b;
+foo(&amp;a, &amp;b);
+</code></pre>
+<p>The code generator tracks which functions have multi-return and handles this transparently.</p>
+<p><strong>Built-in functions:</strong></p>
+<ul>
+<li><code>println(s)</code> → <code>printf("%s\n", s)</code> or <code>printf("literal\n")</code></li>
+<li><code>printf(...)</code> → <code>printf(...)</code> (pass-through)</li>
+</ul>
+<p><strong>CMake generation:</strong> <code>emit_cmake()</code> produces a minimal <code>CMakeLists.txt</code> that compiles the output C file and the runtime
+string library together.</p>
+<p><strong>Type mapping:</strong> <code>infer_expr_type_str()</code> maps Nitid expression types to C type strings:</p>
+<ul>
+<li>Integer → <code>int</code></li>
+<li>Float → <code>double</code></li>
+<li>String → <code>nitid_string</code></li>
+<li>Char → <code>uint8_t</code></li>
+<li>Bool → <code>bool</code></li>
+</ul>
+<hr>
+<h2 id="srcmainrs--the-cli-entry-point"><a class="header" href="#srcmainrs--the-cli-entry-point"><code>src/main.rs</code> — The CLI Entry Point</a></h2>
+<p><strong>What it does:</strong> Ties the pipeline together and handles command-line arguments via the <code>clap</code> library.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Parser)]
+struct Cli {
+  files: Vec&lt;String&gt;,     // input .nt files
+  c_dir: String,          // output C directory (default: "c_src")
+  emit_c: bool,           // print generated C to stdout
+  run: bool,              // also compile and run
+  cc: Option&lt;String&gt;,     // C compiler to use
+  output: Option&lt;String&gt;, // output binary name
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Pipeline in <code>main()</code>:</strong></p>
+<ol>
+<li>Creates <code>c_src/runtime/</code> output directory</li>
+<li>For each input file:
+a. Read the file b. Parse it → AST c. Semantic analysis d. Code generation → C files</li>
+<li>Copies runtime library files (<code>nitid_string.h/.c</code>) into output</li>
+<li>Writes all <code>.c</code> files and <code>CMakeLists.txt</code></li>
+<li>If <code>--run</code> is passed:
+a. Runs <code>cmake -S c_src -B c_src/build</code>
+b. Runs <code>cmake --build c_src/build</code>
+c. Runs the resulting binary</li>
+</ol>
+<p><strong>Rust concept – <code>mod</code>:</strong> The <code>mod</code> declarations at the top (<code>mod ast; mod lexer; ...</code>) tell Rust to include each source
+file as a module. <code>main.rs</code> is the crate root.</p>
+<p><strong>Rust concept – <code>Result&lt;(), String&gt;</code>:</strong> The return type of <code>main</code>. <code>Ok(())</code> means success. <code>Err("message")</code> is an
+error, which Rust prints and exits with a non-zero code.</p>
+<p><strong>Rust concept – <code>clap::Parser</code>:</strong> A library that auto-generates CLI argument parsing from struct annotations.
+<code>#[arg(short = 'o')]</code> means the <code>--output</code> flag also accepts <code>-o</code>.</p>
+<hr>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
