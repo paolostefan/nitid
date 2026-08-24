@@ -902,6 +902,16 @@ impl Codegen {
                     }
                     all_args.extend(args_str);
                     format!("{}({})", mangled, all_args.join(", "))
+                } else if method == "size" {
+                    let var_type = match target.as_ref() {
+                        Expr::Ident(name, _) => self.lookup_var_type(name),
+                        _ => None,
+                    };
+                    match var_type {
+                        Some(Type::TyArray(_, Some(n))) => format!("({})", n),
+                        Some(Type::TyArray(_, None)) => format!("nitid_array_size({})", target_str),
+                        _ => format!("/* unknown method {}.{} */", target_str, method),
+                    }
                 } else {
                     format!("/* unknown method {}.{} */", target_str, method)
                 }

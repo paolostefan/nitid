@@ -658,6 +658,7 @@ impl Sema {
                             Ok(Type::Void) // multi-return in expression context
                         }
                     }
+                    Type::TyArray(..) => check_array_method(method, args, span),
                     _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
                         span.file, span.line, span.col)),
                 }
@@ -840,6 +841,21 @@ fn analyze_var_decl_free(
 /// Duplicates the logic in `Sema::infer_expr_type` but is a standalone
 /// function so it can be called from `analyze_var_decl_free` without
 /// borrowing issues.
+fn check_array_method(method: &str, args: &[Expr], span: &Span) -> Result<Type, String> {
+    if method == "size" {
+        if !args.is_empty() {
+            return Err(format!(
+                "{}:{}:{}: Array method 'size' expects 0 arguments, got {}",
+                span.file, span.line, span.col, args.len()
+            ));
+        }
+        Ok(Type::I32)
+    } else {
+        Err(format!("{}:{}:{}: Array type has no method '{}'",
+            span.file, span.line, span.col, method))
+    }
+}
+
 fn infer_expr_type_free(
     expr: &Expr,
     scope: &Scope,
@@ -978,8 +994,6 @@ fn infer_expr_type_free(
         }
         Expr::MethodCall { target, method, args, span } => {
             let target_type = infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
-            let _ = method;
-            let _ = span;
             match target_type {
                 Type::Struct(_) => {
                     for arg in args {
@@ -987,6 +1001,7 @@ fn infer_expr_type_free(
                     }
                     Ok(Type::Void)
                 }
+                Type::TyArray(..) => check_array_method(method, args, span),
                 _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
                     span.file, span.line, span.col)),
             }
