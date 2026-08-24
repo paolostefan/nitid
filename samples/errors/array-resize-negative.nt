@@ -1,0 +1,7 @@
+// expect-contains: non-negative size
+// Array sizes are unsigned; negative literals are rejected at compile time.
+
+fn main {
+    a := int[];
+    a.resize(-3);
+}

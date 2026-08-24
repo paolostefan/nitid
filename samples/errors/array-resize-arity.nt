@@ -1,0 +1,7 @@
+// expect-contains: 'resize' expects 1 argument, got 0
+// resize() requires exactly one size argument.
+
+fn main {
+    a := int[];
+    a.resize();
+}

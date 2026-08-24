@@ -1,0 +1,7 @@
+// expect-contains: Cannot resize fixed-size array
+// Fixed-size arrays cannot be resized; only dynamically-sized arrays can.
+
+fn main {
+    a := fixed int[5]{1, 2, 3, 4, 5};
+    a.resize(10);
+}
