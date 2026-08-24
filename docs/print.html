@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0554936a.js";
+            window.path_to_searchindex_js = "searchindex-fcf31854.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3bd8c48b.js"></script>
+        <script src="toc-f02b78b5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,54 +178,57 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="how-it-works"><a href="#how-it-works" class="header">How It Works</a></h1>
-<p>/e# Nitid Internals — A Developer’s Guide</p>
+                        <h1 id="nitid-internals--a-developers-guide"><a class="header" href="#nitid-internals--a-developers-guide">Nitid Internals — A Developer’s Guide</a></h1>
 <p><strong>Nitid</strong> is the name of both the language and its <strong>transpiler</strong>: it reads <code>.nt</code> source files and translates them into
 equivalent C code, which you then compile with any C compiler (like <code>gcc</code> or <code>clang</code>).</p>
 <p>Think of it as a source-to-source compiler.</p>
+<p>The language specifications are <a href="#language-specification">here</a>.</p>
 <p>The project is written in <strong>Rust</strong>. If you don’t know Rust, don’t worry — this doc explains the Rust concepts you’ll
 encounter.</p>
 <hr>
 <h2 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h2>
 <pre><code>nitid/
-├── Cargo.toml              # Rust project config (package name, deps)
-├── Makefile                # Convenience build targets (doc, serve, clean)
-├── src/
-│   ├── main.rs             # CLI entry, pipeline orchestrator
-│   ├── lib.rs              # Library root — public API for tests
-│   ├── ast.rs              # Abstract Syntax Tree
-│   ├── lexer.rs            # Lexer — source text → tokens
-│   ├── parser.rs           # Parser — tokens → AST
-│   ├── types.rs            # Type definitions (i8, i32, string, etc.)
-│   ├── sema.rs             # Semantic analysis — type / scope checks
-│   └── codegen.rs          # Code generator — AST → C output
-├── runtime/                # C runtime library shipped with generated code
-│   ├── CMakeLists.txt      # Static library build config
+├── Cargo.toml                  # Rust project config (package name, deps)
+├── Makefile                    # Convenience build targets (doc, serve, open, clean)
+├── src/                        # Rust sources (compiler crate)
+│   ├── main.rs                 # CLI entry, pipeline orchestrator
+│   ├── lib.rs                  # Library root — public API for tests
+│   ├── ast.rs                  # Abstract Syntax Tree
+│   ├── lexer.rs                # Lexer — source text → tokens
+│   ├── parser.rs               # Parser — tokens → AST
+│   ├── types.rs                # Type definitions (i8, i32, string, etc.)
+│   ├── sema.rs                 # Semantic analysis — type / scope checks
+│   ├── codegen.rs              # Code generator — AST → C output
+│   └── docs/                   # Documentation source (mdBook project)
+│       ├── book.toml           # mdBook configuration
+│       └── src/                # Markdown sources for the book
+│           ├── how-it-works.md # ← You are here
+│           ├── SUMMARY.md
+│           └── specs/          # Language spec chapters
+├── runtime/                    # C runtime library shipped with generated code
+│   ├── CMakeLists.txt          # Static library build config
 │   ├── nitid_array.{c,h}
 │   ├── nitid_string.{c,h}
 │   ├── nitid_string16.{c,h}
 │   ├── nitid_string32.{c,h}
-│   └── tests/              # C unit tests for runtime types
+│   └── tests/                  # C unit tests for runtime types
 │       ├── CMakeLists.txt
-│       ├── nitid_test.h    # Lightweight test harness (macros)
-│       ├── test_main.c     # Test runner entry
+│       ├── nitid_test.h        # Lightweight test harness (macros)
+│       ├── test_main.c         # Test runner entry
 │       ├── test_nitid_array.c
 │       ├── test_nitid_string.c
 │       ├── test_nitid_string16.c
 │       └── test_nitid_string32.c
-├── c_src/                  # Default output directory for generated C files
-├── samples/                # Example .nt programs
-│   └── errors/             # Error-sample test cases (expected failures)
-├── tests/                  # Rust integration tests (batch-compile all samples)
+├── c_src/                      # Default output directory for generated C files
+├── samples/                    # Example .nt programs
+│   └── errors/                 # Error-sample test cases (expected failures)
+├── tests/                      # Rust integration tests (batch-compile all samples)
+│   ├── common/                 # Shared test helpers
 │   ├── valid.rs
 │   └── errors.rs
-└── docs/
-    ├── book/               # mdBook output (generated; rebuild with `make`)
-    ├── src/                # Documentation source
-    │   ├── how-it-works.md # ← You are here
-    │   ├── SUMMARY.md
-    │   └── specs/
-    └── specs/              # Standalone language spec copies
+└── docs/                       # Generated documentation site (rebuild with `make`)
+    ├── index.html              # mdBook output (`mdbook build -d docs src/docs/`)
+    └── api/                    # Rust API docs (`cargo doc`, copied here by `make doc`)
 </code></pre>
 <hr>
 <h2 id="the-pipeline"><a class="header" href="#the-pipeline">The Pipeline</a></h2>
@@ -804,8 +807,146 @@ let x: Vec&lt;Token&gt; = Vec::new();
 <hr>
 <h2 id="rust-api-reference"><a class="header" href="#rust-api-reference">Rust API Reference</a></h2>
 <p>Full API documentation generated from <code>///</code> comments is available at
-<a href="api/nitid/index.html"><code>api/nitid/index.html</code></a>. Build it with <code>cargo doc --no-deps</code> and copy the result under the book
-output (see the <code>Makefile</code> at the project root).</p>
+<a href="api/nitid/index.html"><code>api/nitid/index.html</code></a>. Build it with <code>cargo doc --no-deps</code> and copy the result to <code>docs/api</code>
+(the <code>make doc</code> target does this for you — see the <code>Makefile</code> at the project root).</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="nitid-implementation-roadmap"><a class="header" href="#nitid-implementation-roadmap">Nitid Implementation Roadmap</a></h1>
+<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while,
+multi-return, <code>for</code> loops (C-style + range-based), <code>break</code>/<code>continue</code>, postfix <code>++</code>/<code>--</code>, source-span errors,
+no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based
+array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with
+bounds-checked access.</p>
+<hr>
+<h2 id="implemented-features"><a class="header" href="#implemented-features">Implemented features</a></h2>
+<h3 id="composite-types"><a class="header" href="#composite-types">Composite Types</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Arrays</strong></td><td><code>Type::TyArray(Box&lt;Type&gt;)</code>, <code>Expr::ArrayLit</code>, <code>Expr::Index</code>. Parser handles <code>Type[...]</code>, <code>fixed</code> keyword, declaration-level <code>[size]</code>. Sema validates element-type uniformity, non-array indexing, numeric index. Codegen emits <code>nitid_array_from_lit</code> / <code>nitid_array_get</code>. Runtime: <code>nitid_array</code> struct.</td></tr>
+<tr><td><strong>For-range iteration</strong></td><td><code>for (item : array)</code> → <code>Stmt::ForIn</code>, <code>for (idx, item : array)</code> → <code>Stmt::ForInIndex</code>. Sema checks iterable is array. Codegen emits counter loop with <code>nitid_array_size</code> / <code>nitid_array_get</code>.</td></tr>
+<tr><td><strong>Structs</strong></td><td><code>struct</code> keyword, parser for <code>struct Foo { field: Type, ... }</code>. AST: <code>Decl::StructDecl</code>, <code>ImplBlock</code>, <code>Expr::FieldAccess</code>, <code>Expr::MethodCall</code>, <code>Expr::StructLit</code>. Sema: field/method resolution, <code>self</code> injection. Codegen: C <code>struct</code> typedef, methods as <code>struct_method(&amp;obj, args)</code>.</td></tr>
+<tr><td><strong>Enums</strong></td><td><code>enum</code> keyword, <code>Decl::EnumDecl</code>, <code>Type::Enum</code>. Parser handles <code>enum Name : type { A = val, ... }</code>. Sema validates integral types, value overflow, auto-increment, duplicate variants. Codegen emits <code>typedef enum</code>.</td></tr>
+<tr><td><strong>Methods / dot-call syntax</strong></td><td><code>obj.method(args)</code> — parser, sema, and codegen handle <code>.</code> access, method lookup, <code>self</code> pointer receiver. Codegen emits <code>StructName_method(&amp;obj, args)</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="strings-handling"><a class="header" href="#strings-handling">Strings handling</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>UTF-8 validation &amp; Unicode escapes</strong></td><td>Lexer validates string literal bytes as well-formed UTF-8; rejects invalid sequences. Support <code>\uXXXX</code> and <code>\UXXXXXXXX</code> escape sequences (incl. surrogate rejection).</td></tr>
+<tr><td><strong>String16 / String32 runtime</strong></td><td>Full <code>nitid_string16</code> / <code>nitid_string32</code> C runtime with encoding conversion between all three UTF forms.</td></tr>
+<tr><td><strong>Encoding-safe string ops</strong></td><td>Code-point (not byte) indexing for all string types. Concatenation (<code>+</code>) and comparison (<code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>) operators codegen’d to runtime functions. Bounds-checked access on all three types.</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="features-to-be-implemented"><a class="header" href="#features-to-be-implemented">Features to be implemented</a></h2>
+<h3 id="phase-1--module-system"><a class="header" href="#phase-1--module-system">Phase 1 — Module System</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>1.1</td><td></td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find <code>Foo.nt</code> in search paths, tokenize + parse it, merge declarations into a package symbol table.</td></tr>
+<tr><td>1.2</td><td></td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
+<tr><td>1.3</td><td></td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
+<tr><td>1.4</td><td></td><td><strong>Multi-file compilation</strong></td><td>Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order.</td></tr>
+<tr><td>1.5</td><td></td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files.</p>
+<hr>
+<h3 id="phase-2--memory-safety"><a class="header" href="#phase-2--memory-safety">Phase 2 — Memory Safety</a></h3>
+<p>Hardest features. RAII, null-pointer protection, and buffer overflows require runtime bookkeeping.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
+<tr><td>2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
+<tr><td>2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
+<tr><td>2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> A dangling-pointer or out-of-bounds access produces a runtime panic instead of UB.</p>
+<hr>
+<h3 id="phase-3--concurrency"><a class="header" href="#phase-3--concurrency">Phase 3 — Concurrency</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>Approach</th></tr>
+</thead>
+<tbody>
+<tr><td>3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
+<tr><td>3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
+<tr><td>3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
+<tr><td>3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races.</p>
+<hr>
+<h3 id="phase-4--standard-library--polish"><a class="header" href="#phase-4--standard-library--polish">Phase 4 — Standard Library &amp; Polish</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
+<tr><td>4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
+<tr><td>4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
+<tr><td>4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
+<tr><td>4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
+<tr><td>4.5</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="phase-5--nice-to-have"><a class="header" href="#phase-5--nice-to-have">Phase 5 — Nice to have</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>5.1</td><td></td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="#tags">spec</a>.</td></tr>
+<tr><td>5.2</td><td></td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
+<tr><td>5.3</td><td></td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="key-architectural-decisions-to-make"><a class="header" href="#key-architectural-decisions-to-make">Key architectural decisions to make</a></h2>
+<ol>
+<li>
+<p><strong>Transpilation to multi-file C</strong> — currently everything goes to one <code>.c</code>. With imports and structs, need one <code>.c</code>
+per package.</p>
+</li>
+<li>
+<p><strong>Runtime library design</strong> — currently has <code>nitid_string</code> and <code>nitid_array</code> <code>.c/.h</code> pairs. Plan grows to:
+<code>nitid_i256</code>,
+<code>nitid_f16</code>, <code>nitid_string16/32</code>, <code>nitid_channel</code>, <code>nitid_mutex</code>, <code>nitid_ref</code>. Consider a single <code>nitid_runtime.h</code>
+umbrella header.</p>
+</li>
+<li>
+<p><strong><code>main</code> auto-wrap</strong> — currently best-effort. With packages and imports, this needs to be more deliberate (only wrap
+dangling code in the file that declares <code>package main</code> or has no <code>main</code> function).</p>
+</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="language-specification"><a href="#language-specification" class="header">Language Specification</a></h1>
 <p>Nitid syntax is largely borrowed from the C language, with a few notable exceptions:</p>
@@ -820,23 +961,25 @@ output (see the <code>Makefile</code> at the project root).</p>
 <li>boolean type: <code>bool</code></li>
 <li>signed integral types: <code>i8</code>, <code>i16</code>, <code>i32</code> (alias <code>int</code>), <code>i64</code>, <code>i128</code></li>
 <li>unsigned integral types: <code>u8</code>, <code>u16</code>, <code>u32</code> (alias <code>uint</code>), <code>u64</code>, <code>u128</code></li>
-<li>float types: f8,f16,f32 (alias float), f64 (alias double)</li>
-<li>string types: string (UTF-8 string),  string16 (UTF-16 strings), string32 (UTF-32 strings).</li>
+<li>float types: <code>f32</code> (alias <code>float</code>), <code>f64</code> (alias <code>double</code>)</li>
+<li>string types: <code>string</code> (UTF-8 string), <code>string16</code> (UTF-16 string), <code>string32</code> (UTF-32 string).</li>
 </ul>
 <h2 id="literals"><a class="header" href="#literals">Literals</a></h2>
 <h3 id="numbers"><a class="header" href="#numbers">Numbers</a></h3>
-<p>All the following are valid number literals in Nitid:</p>
+<p>All the following are valid <strong>Nitid</strong> number literals:</p>
 <pre><code>123
 1 000 000 000
 -2.34567
 -9.876e-10
 0x1000
 0XFFFFFFFF
+0xff ff ff ff
 </code></pre>
 <h2 id="identifier-names"><a class="header" href="#identifier-names">Identifier names</a></h2>
-<p>Identifier (variables, functions, packages) names must respect this regex:<br><code>[a-zA-Z_][a-zA-Z0-9_]*</code><br>That is: <strong>start</strong> with an ASCII letter or an underscore, optionally followed by ASCII letters, underscores and numbers.</p>
+<p>Identifiers (variable names, function names, package names) must respect this regex:<br><code>[a-zA-Z_][a-zA-Z0-9_]*</code></p>
+<p>That is: <strong>start</strong> with an ASCII letter or an underscore, optionally followed by ASCII letters, underscores and numbers.</p>
 <p>No punctuation marks, $,%,£,§.ç, accented letters or non-ASCII chars are allowed.</p>
-<p>Legal variable names:</p>
+<p>Legal variable name samples:</p>
 <ul>
 <li>_</li>
 <li>a</li>
@@ -845,7 +988,8 @@ output (see the <code>Makefile</code> at the project root).</p>
 <h2 id="variables"><a class="header" href="#variables">Variables</a></h2>
 <h3 id="declaration"><a class="header" href="#declaration">Declaration</a></h3>
 <p>Variables can be declared by specifying their type before their names, just as in C:</p>
-<pre><code class="language-c int v;">i128 largeInt;    
+<pre><code class="language-c">int v;   
+i128 largeInt;    
 </code></pre>
 <h3 id="assignment"><a class="header" href="#assignment">Assignment</a></h3>
 <p>Variables can be assigned a literal or the value of a variable of the same type:</p>
@@ -853,15 +997,18 @@ output (see the <code>Makefile</code> at the project root).</p>
 a = 123;     // Assign a    
 int b = 456; // Declare and assign b    
 </code></pre>
-<h3 id="both"><a class="header" href="#both">Both</a></h3>
-<p>If there’s no ambiguity, the type of a variable can be omitted when using <code>:=</code> to declare and assign value at once. Otherwise, the parser will emit a warning and default to the best guess depending on the context.</p>
-<pre><code class="language-go s := &quot;Hello world!&quot;; // UTF-8 string type">c := 'A';             // 8-bit char/int type    
-i := 12;              // warning: assuming 32-bit int type    
+<h3 id="declare-and-assign-at-once"><a class="header" href="#declare-and-assign-at-once">Declare and assign at once</a></h3>
+<p>If there’s no ambiguity, the variable type can be omitted when using <code>:=</code> to declare and assign value at once.
+Otherwise, the parser default to the best guess depending on the context.</p>
+<pre><code class="language-go">s := "Hello, world!"; // UTF-8 string type    
+c := 'A';             // 8-bit char/int type    
+i := 12;              // assuming 32-bit int type    
 precise_i := i64(12); // explicitly asking for a 64-bit int    
 j := precise_i;       // j is also a 64-bit int   
 </code></pre>
 <h2 id="ebnf-grammar"><a class="header" href="#ebnf-grammar">EBNF Grammar</a></h2>
-<p>The following EBNF describes the exact syntax accepted by the current parser implementation. Precedence climbs from low (top) to high (bottom) in the expression hierarchy.</p>
+<p>The following EBNF describes the exact syntax accepted by the current parser implementation. Precedence climbs from low
+(top) to high (bottom) in the expression hierarchy.</p>
 <pre><code class="language-ebnf">(* --- Top Level --- *)  
 Program     = PackageDecl , { Import } , { ( FnDecl | Stmt ) } .  
 PackageDecl = "package" , Ident , ";" .  
@@ -1144,7 +1291,8 @@ for (index,item : a){
 </ul>
 <h2 id="data-members"><a class="header" href="#data-members">Data members</a></h2>
 <p>A struct must contain at least one data member, any type is allowed.</p>
-<p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon (<code>;</code>).</p>
+<p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon
+(<code>;</code>).</p>
 <p>Members name must follow identifier syntax, so no initial numeric digits, no punctuation, etc.</p>
 <pre><code class="language-c++">struct Person {
   name: string;
@@ -1243,7 +1391,9 @@ still be accessed explicitly via its type name:</p>
 <h2 id="method-receiver"><a class="header" href="#method-receiver">Method Receiver</a></h2>
 <p>In Nitid, <code>self</code> is always a pointer to the receiving struct. No value receiver exists — this avoids implicit copies and
 makes mutation explicit by default.</p>
-<pre><code class="language-c++">struct Counter {
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Counter {
   value: i64;
 };
 
@@ -1256,7 +1406,7 @@ impl Counter {
     return self.value;
   }
 };
-</code></pre>
+<span class="boring">}</span></code></pre>
 <p>Pointer receiver means the method can modify the struct, and calling a method never copies the struct.</p>
 <pre><code class="language-c++">c := Counter{value: 10};
 c.inc();
@@ -1287,20 +1437,21 @@ between fields.</p>
   size: u32;
 };
 </code></pre>
-<h2 id="tags"><a class="header" href="#tags">Tags</a></h2>
+<h2 id="-tags"><a class="header" href="#-tags">📝 Tags</a></h2>
+<hr>
+<p><strong>PLEASE NOTE</strong>: struct tags are an unimplemented feature, still in draft status. <strong>Do not rely on it yet</strong>.</p>
+<hr>
 <p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
 literals following the field type.</p>
 <pre><code class="language-c++">struct User {
-  name: string "json:\"name\" xml:\"name\"";
-  email: string "json:\"email,omitempty\"";
-  age: u8    "json:\"age\" validate:\"min=0,max=150\"";
+  name:  string "json:'name' xml:'name'";
+  email: string "json:'email,omitempty'";
+  age:   u8     "json:'age' validate:'min=0,max=150'";
 };
 </code></pre>
 <p>Tags are not interpreted by the language. They are stored as metadata for serialization, validation, ORM mapping, form
 parsing, and code generation tools.</p>
-<hr>
-<p>⚠️ <strong>Not yet implemented.</strong> Tags are a post-1.0 feature. See the <a href="../ROADMAP.html">roadmap</a> for status.</p>
-<hr><div style="break-before: page; page-break-before: always;"></div>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="enumerations"><a class="header" href="#enumerations">Enumerations</a></h1>
 <p>The <code>enum</code> keyword in Nitid works about the same way as in C++.</p>
 <p>The name of both the <code>enum</code> and its members must follow the identifier names rules.</p>
@@ -1520,10 +1671,11 @@ println(s + t);                 // concatenates, prints temp, frees it
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="packages"><a class="header" href="#packages">Packages</a></h1>
 <p>Nitid code can be organized in <strong>packages</strong>, which closely resemble Go packages.</p>
-<p>A package is a collection of one or more source files containing functions, classes, structures, etc. sharing the same namespace and logical scope.</p>
-<p>There is no constraint as per the location of the files belonging to a package. It is left as a developer’s responsibility to place them under meaningful paths.</p>
+<p>A package is a collection of source files containing functions, structures, enumerations, etc. sharing the same logical
+scope.</p>
 <h3 id="defining-packages"><a class="header" href="#defining-packages">Defining packages</a></h3>
-<p>To indicate that a source file belongs to a specific package, the first non-comment line of that file must contain the <code>package</code> keyword followed by the package name and a semicolon.</p>
+<p>To indicate that a source file belongs to a specific package, the first non-comment line of that file must contain the
+<code>package</code> keyword followed by the package name and a semicolon.</p>
 <pre><code class="language-go">// The file can start with as many comments+whitespace as you like,
 // but no valid code must appear before the "package" keyword.
   
@@ -1532,23 +1684,121 @@ package Bubble; // This file belongs to the "Bubble" package.
 // ... your code  
 </code></pre>
 <h3 id="using-packages"><a class="header" href="#using-packages">Using packages</a></h3>
-<p>In order to use functions, variables etc. coming from a package, use the <code>import</code> keyword.
-Prepend the package name followed by a dot (<code>.</code>) to the package variables/functions.</p>
+<p>In order to make a specific package visible to the Nitid code, the package must be imported using the <code>import</code>
+keyword followed by the package name, just like this: <code>import PackageName;</code></p>
+<p>Then, everything in the package can be accessed by prepending the package name and a dot (<code>.</code>).</p>
 <pre><code class="language-go">import Bubble; // Make the Bubble package visible here  
-  
-// Call the toplevel "someFunction" function of the Bubble package  
-a := Bubble.someFunction();   
+
+// Call the "someFunction" function of the Bubble package  
+a := Bubble.someFunction();
+
+// Access the "someVar" variable of the Bubble package
+b := Bubble.someVar;
+
+// Access the "SOME_VALUE" variant of the someEnum enum of the Bubble package
+c := Bubble.someEnum.SOME_VALUE;
 </code></pre>
 <p>An imported package name can be aliased using the <code>as</code> keyword.</p>
 <pre><code class="language-go">import Bubble as b; // Make the Bubble package visible and alias it to "b"  
-  
-// Call the toplevel "someFunction" function of the Bubble package  
+
+// Call the toplevel "someFunction" function of the Bubble package
 a := b.someFunction();   
 
 // Error: Bubble is not available since it is aliased to "b"
-
 e := Bubble.someFunction();
 </code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="module-layout-and-resolution"><a class="header" href="#module-layout-and-resolution">Module Layout and Resolution</a></h1>
+<p>This document specifies how the compiler locates the source files that make up a package.</p>
+<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
+<p>A package is identified by the <code>package</code> declaration inside each source file, not by its directory. This gives maximum
+flexibility, but flexibility without any convention creates real costs:</p>
+<ul>
+<li><strong>Import paths become ambiguous.</strong> Without a filesystem convention, the compiler has no way to know where to look for
+a package’s files short of scanning the entire project tree on every build.</li>
+<li><strong>Boundaries are unclear.</strong> If a directory and its subdirectories can freely belong to the same or to different
+packages, the compiler needs an explicit rule to decide — otherwise it has to guess.</li>
+<li><strong>Name collisions are harder to spot.</strong> Two files named <code>utils.nt</code> contributing to the same package but sitting in
+unrelated directories are not obviously related when browsing the filesystem.</li>
+<li><strong>Incremental builds get more expensive.</strong> Dependency tracking has to account for a scattered set of inputs rather
+than a single directory scan.</li>
+<li><strong>Refactoring becomes non-local.</strong> Moving a file between directories can silently change which package it belongs to,
+or require updates to configuration living elsewhere.</li>
+</ul>
+<p>The goal is to keep the common case (one package, one directory, optionally with subdirectories)
+free of any extra ceremony, while still allowing a package to span multiple, non-contiguous directories when a project
+genuinely needs it.</p>
+<h2 id="resolution-rules"><a class="header" href="#resolution-rules">Resolution rules</a></h2>
+<p>Package membership is determined by combining the <code>package</code> declaration in each file with the following directory
+conventions, evaluated in order:</p>
+<h3 id="1-default-directory-implies-package"><a class="header" href="#1-default-directory-implies-package">1. Default: directory implies package</a></h3>
+<p>A directory containing <code>.nt</code> files is treated as home to the package (s) declared in those files. This is the common
+case and requires no additional configuration.</p>
+<h3 id="2-subdirectories-inherit-the-parent-package"><a class="header" href="#2-subdirectories-inherit-the-parent-package">2. Subdirectories inherit the parent package</a></h3>
+<p>A subdirectory that does not contain its own manifest file is considered part of the same package as its parent
+directory. This means a package can freely span a directory and its subdirectories without any explicit declaration —
+the “folder + subfolders” case works out of the box.</p>
+<pre><code>mypkg/
+  vector.nt      // package mypkg;
+  matrix.nt      // package mypkg;
+  internal/
+    helpers.nt   // package mypkg;  &lt;- inherited, no manifest needed
+</code></pre>
+<h3 id="-3-explicit-override-manifest-marks-a-package-boundary"><a class="header" href="#-3-explicit-override-manifest-marks-a-package-boundary">📝 3. Explicit override: manifest marks a package boundary</a></h3>
+<hr>
+<p><strong>PLEASE NOTE</strong>: this feature (manifest file, name and syntax) is still in draft status. <strong>Do not rely on it yet</strong>.</p>
+<hr>
+<p>A subdirectory containing its own manifest file (<code>nitid.toml</code>, or a lighter-weight marker such as
+<code>package.nt</code>) is promoted to an independent package boundary, regardless of what its parent declares. This makes package
+boundaries locally decidable: to know whether a directory is its own package, it is enough to look inside it — no need
+to inspect the rest of the tree.</p>
+<pre><code>mypkg/
+  vector.nt        // package mypkg;
+  submodule/
+    nitid.toml     // &lt;- presence of manifest makes this its own package
+    thing.nt       // package submodule;
+</code></pre>
+<h3 id="4-multi-directory-packages-explicit-declaration-only"><a class="header" href="#4-multi-directory-packages-explicit-declaration-only">4. Multi-directory packages: explicit declaration only</a></h3>
+<p>A package that spans multiple, non-contiguous directories is only allowed when declared explicitly in the project’s root
+manifest, listing the constituent paths or globs:</p>
+<pre><code class="language-toml">[package.mypkg]
+paths = ["src/mypkg", "vendor/legacy-mypkg", "generated/mypkg/**"]
+</code></pre>
+<p>This keeps the non-contiguous case possible without paying its cost in the common case: it is opt-in, explicit, and
+centrally visible in the manifest rather than inferred.</p>
+<h2 id="compiler-algorithm"><a class="header" href="#compiler-algorithm">Compiler algorithm</a></h2>
+<p>Given the rules above, package resolution proceeds as:</p>
+<ol>
+<li>Walk the project tree from the root, skipping directories that are covered by an explicit multi-directory declaration
+in the manifest (rule 4) unless reached as one of their declared paths.</li>
+<li>For each directory, determine its owning package: if it defines its own manifest, it starts a new package boundary
+(rule 3); otherwise it inherits its parent’s boundary (rule 2), with top-level directories defaulting to a package of
+their own (rule 1).</li>
+<li>For every <code>.nt</code> file, verify that its <code>package</code> declaration matches the package owning its directory (per steps 1–2),
+or the package it was explicitly assigned via a manifest path/glob (rule 4). A mismatch is a compile error.</li>
+<li>Group all files by resolved package for the purpose of import resolution, symbol scoping, and incremental build
+invalidation.</li>
+</ol>
+<h2 id="consequences-addressed"><a class="header" href="#consequences-addressed">Consequences addressed</a></h2>
+<ul>
+<li><strong>Import paths</strong> stay derivable from the filesystem for the default and inherited cases; only the explicit
+multi-directory case requires consulting the manifest.</li>
+<li><strong>Boundaries</strong> are locally decidable: the presence or absence of a manifest in a directory is sufficient to answer “is
+this its own package?”.</li>
+<li><strong>Name collisions</strong> across scattered files remain possible only within the explicitly-opted-in multi-directory case,
+where the manifest keeps the file set centrally visible.</li>
+<li><strong>Incremental builds</strong> only need to track a scattered input set for packages that declared themselves as such; the
+common case remains a plain directory scan.</li>
+<li><strong>Refactoring safety</strong>: moving a file within a directory tree that has no manifest boundaries cannot silently change
+its package. Moving a file across a manifest boundary is a visible, intentional action.</li>
+</ul>
+<h2 id="non-goals"><a class="header" href="#non-goals">Non-goals</a></h2>
+<p>This specification does not address:</p>
+<ul>
+<li>A remote package registry or version resolution (dependencies are path- or manifest-based only, for now).</li>
+<li>Automatic detection of accidental multi-directory packages (i.e. two directories declaring the same package name
+without an explicit manifest entry remain a compile error, not a silent merge).</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="builtins"><a href="#builtins" class="header">Builtins</a></h1>
 <h2 id="printstring-s"><a class="header" href="#printstring-s">print(string s)</a></h2>

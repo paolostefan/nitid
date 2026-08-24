@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0554936a.js";
+            window.path_to_searchindex_js = "../searchindex-fcf31854.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3bd8c48b.js"></script>
+        <script src="../toc-f02b78b5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -179,10 +179,11 @@
                     <main>
                         <h1 id="packages"><a class="header" href="#packages">Packages</a></h1>
 <p>Nitid code can be organized in <strong>packages</strong>, which closely resemble Go packages.</p>
-<p>A package is a collection of one or more source files containing functions, classes, structures, etc. sharing the same namespace and logical scope.</p>
-<p>There is no constraint as per the location of the files belonging to a package. It is left as a developer’s responsibility to place them under meaningful paths.</p>
+<p>A package is a collection of source files containing functions, structures, enumerations, etc. sharing the same logical
+scope.</p>
 <h3 id="defining-packages"><a class="header" href="#defining-packages">Defining packages</a></h3>
-<p>To indicate that a source file belongs to a specific package, the first non-comment line of that file must contain the <code>package</code> keyword followed by the package name and a semicolon.</p>
+<p>To indicate that a source file belongs to a specific package, the first non-comment line of that file must contain the
+<code>package</code> keyword followed by the package name and a semicolon.</p>
 <pre><code class="language-go">// The file can start with as many comments+whitespace as you like,
 // but no valid code must appear before the "package" keyword.
   
@@ -191,21 +192,27 @@ package Bubble; // This file belongs to the "Bubble" package.
 // ... your code  
 </code></pre>
 <h3 id="using-packages"><a class="header" href="#using-packages">Using packages</a></h3>
-<p>In order to use functions, variables etc. coming from a package, use the <code>import</code> keyword.
-Prepend the package name followed by a dot (<code>.</code>) to the package variables/functions.</p>
+<p>In order to make a specific package visible to the Nitid code, the package must be imported using the <code>import</code>
+keyword followed by the package name, just like this: <code>import PackageName;</code></p>
+<p>Then, everything in the package can be accessed by prepending the package name and a dot (<code>.</code>).</p>
 <pre><code class="language-go">import Bubble; // Make the Bubble package visible here  
-  
-// Call the toplevel "someFunction" function of the Bubble package  
-a := Bubble.someFunction();   
+
+// Call the "someFunction" function of the Bubble package  
+a := Bubble.someFunction();
+
+// Access the "someVar" variable of the Bubble package
+b := Bubble.someVar;
+
+// Access the "SOME_VALUE" variant of the someEnum enum of the Bubble package
+c := Bubble.someEnum.SOME_VALUE;
 </code></pre>
 <p>An imported package name can be aliased using the <code>as</code> keyword.</p>
 <pre><code class="language-go">import Bubble as b; // Make the Bubble package visible and alias it to "b"  
-  
-// Call the toplevel "someFunction" function of the Bubble package  
+
+// Call the toplevel "someFunction" function of the Bubble package
 a := b.someFunction();   
 
 // Error: Bubble is not available since it is aliased to "b"
-
 e := Bubble.someFunction();
 </code></pre>
 
@@ -217,7 +224,7 @@ e := Bubble.someFunction();
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../specs/30.builtins.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../specs/21.module-layout.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -231,7 +238,7 @@ e := Bubble.someFunction();
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../specs/30.builtins.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../specs/21.module-layout.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

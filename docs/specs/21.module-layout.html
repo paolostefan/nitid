@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Structs - Nitid Documentation</title>
+        <title>Modules - Nitid Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,187 +177,107 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="structs"><a class="header" href="#structs">Structs</a></h1>
-<p>There’s no real OOP in Nitid, but structs are as close as OOP objects as possible.</p>
-<p>Structs in Nitid work pretty much as Go structs.</p>
-<h2 id="reserved-keywords"><a class="header" href="#reserved-keywords">Reserved keywords</a></h2>
-<p>Here are the field and method names you must avoid:</p>
+                        <h1 id="module-layout-and-resolution"><a class="header" href="#module-layout-and-resolution">Module Layout and Resolution</a></h1>
+<p>This document specifies how the compiler locates the source files that make up a package.</p>
+<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
+<p>A package is identified by the <code>package</code> declaration inside each source file, not by its directory. This gives maximum
+flexibility, but flexibility without any convention creates real costs:</p>
 <ul>
-<li><code>self</code> refers to the struct which is calling a specific method (like in Python). No members can have this name.</li>
-<li><code>bytesize()</code> is a reserved method which calls C’s <code>sizeof()</code> to return the struct size in bytes.</li>
+<li><strong>Import paths become ambiguous.</strong> Without a filesystem convention, the compiler has no way to know where to look for
+a package’s files short of scanning the entire project tree on every build.</li>
+<li><strong>Boundaries are unclear.</strong> If a directory and its subdirectories can freely belong to the same or to different
+packages, the compiler needs an explicit rule to decide — otherwise it has to guess.</li>
+<li><strong>Name collisions are harder to spot.</strong> Two files named <code>utils.nt</code> contributing to the same package but sitting in
+unrelated directories are not obviously related when browsing the filesystem.</li>
+<li><strong>Incremental builds get more expensive.</strong> Dependency tracking has to account for a scattered set of inputs rather
+than a single directory scan.</li>
+<li><strong>Refactoring becomes non-local.</strong> Moving a file between directories can silently change which package it belongs to,
+or require updates to configuration living elsewhere.</li>
 </ul>
-<h2 id="data-members"><a class="header" href="#data-members">Data members</a></h2>
-<p>A struct must contain at least one data member, any type is allowed.</p>
-<p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon
-(<code>;</code>).</p>
-<p>Members name must follow identifier syntax, so no initial numeric digits, no punctuation, etc.</p>
-<pre><code class="language-c++">struct Person {
-  name: string;
-  age: u8;
-};
+<p>The goal is to keep the common case (one package, one directory, optionally with subdirectories)
+free of any extra ceremony, while still allowing a package to span multiple, non-contiguous directories when a project
+genuinely needs it.</p>
+<h2 id="resolution-rules"><a class="header" href="#resolution-rules">Resolution rules</a></h2>
+<p>Package membership is determined by combining the <code>package</code> declaration in each file with the following directory
+conventions, evaluated in order:</p>
+<h3 id="1-default-directory-implies-package"><a class="header" href="#1-default-directory-implies-package">1. Default: directory implies package</a></h3>
+<p>A directory containing <code>.nt</code> files is treated as home to the package (s) declared in those files. This is the common
+case and requires no additional configuration.</p>
+<h3 id="2-subdirectories-inherit-the-parent-package"><a class="header" href="#2-subdirectories-inherit-the-parent-package">2. Subdirectories inherit the parent package</a></h3>
+<p>A subdirectory that does not contain its own manifest file is considered part of the same package as its parent
+directory. This means a package can freely span a directory and its subdirectories without any explicit declaration —
+the “folder + subfolders” case works out of the box.</p>
+<pre><code>mypkg/
+  vector.nt      // package mypkg;
+  matrix.nt      // package mypkg;
+  internal/
+    helpers.nt   // package mypkg;  &lt;- inherited, no manifest needed
 </code></pre>
-<h3 id="array-members"><a class="header" href="#array-members">Array members</a></h3>
-<p>A struct can have any number of array members, declared in either of the following ways.</p>
-<pre><code class="language-c++">// C-style array member declaration
-struct CacheLine {
-  data: u8[64];
-};
-
-// Alternate array member declaration
-struct CacheLine {
-  data: [64 u8];
-};
-</code></pre>
-<p>Initialization of array struct members follows the usual way.</p>
-<pre><code class="language-c++">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
-</code></pre>
-<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
-<p>Structs in Nitid can have their own methods.</p>
+<h3 id="-3-explicit-override-manifest-marks-a-package-boundary"><a class="header" href="#-3-explicit-override-manifest-marks-a-package-boundary">📝 3. Explicit override: manifest marks a package boundary</a></h3>
 <hr>
-<p>ℹ️ <strong>Important</strong>: the <code>self</code> keyword denotes the struct which is calling the method, just as in Python. In Nitid, <code>self</code>
-needs not be declared in the method signature.</p>
+<p><strong>PLEASE NOTE</strong>: this feature (manifest file, name and syntax) is still in draft status. <strong>Do not rely on it yet</strong>.</p>
 <hr>
-<pre><code class="language-c++">struct Circle {
-  color: string;
-  radius: f32;
-};
-
-impl Circle {
-  fn greet() -&gt; string {
-    return "Hello, I'm " + self.color;
-  }
-    
-  fn area() -&gt; f32 {
-    return self.radius * self.radius * 3.14159;
-  }
-};
+<p>A subdirectory containing its own manifest file (<code>nitid.toml</code>, or a lighter-weight marker such as
+<code>package.nt</code>) is promoted to an independent package boundary, regardless of what its parent declares. This makes package
+boundaries locally decidable: to know whether a directory is its own package, it is enough to look inside it — no need
+to inspect the rest of the tree.</p>
+<pre><code>mypkg/
+  vector.nt        // package mypkg;
+  submodule/
+    nitid.toml     // &lt;- presence of manifest makes this its own package
+    thing.nt       // package submodule;
 </code></pre>
-<h2 id="instancing"><a class="header" href="#instancing">Instancing</a></h2>
-<p>Struct instances are declared just like scalar or array variables. Data members can be inlined in the declaration.</p>
-<pre><code class="language-c++">c := Circle{ color: "red", radius: 1.5 };
+<h3 id="4-multi-directory-packages-explicit-declaration-only"><a class="header" href="#4-multi-directory-packages-explicit-declaration-only">4. Multi-directory packages: explicit declaration only</a></h3>
+<p>A package that spans multiple, non-contiguous directories is only allowed when declared explicitly in the project’s root
+manifest, listing the constituent paths or globs:</p>
+<pre><code class="language-toml">[package.mypkg]
+paths = ["src/mypkg", "vendor/legacy-mypkg", "generated/mypkg/**"]
 </code></pre>
-<h2 id="accessing-members"><a class="header" href="#accessing-members">Accessing members</a></h2>
-<p>Members and methods are referenced using a dot (<code>.</code>) after the variable name.</p>
-<pre><code class="language-c++">r := c.radius; // r type is f32
-c.greet();     // returns "Hello, I'm red"
-c.area();      // returns 7.0685775
-</code></pre>
-<h2 id="composition--embedding"><a class="header" href="#composition--embedding">Composition / Embedding</a></h2>
-<p>A struct can embed another struct anonymously, promoting the inner struct’s fields and methods to the outer one
-(Go-style composition over inheritance).</p>
-<pre><code class="language-c++">struct Employee {
-  name: string;
-  id: u32;
-};
-
-impl Employee {
-  fn describe() -&gt; string {
-    return "Employee " + self.id + ": " + self.name;
-  }
-};
-
-struct Manager {
-  Employee;        // embedded — no field name
-  department: string;
-  directReports: u32;
-};
-
-impl Manager {
-  fn teamSize() -&gt; u32 {
-    return self.directReports;
-  }
-};
-</code></pre>
-<p>Fields and methods of the embedded type are accessed directly on the outer type:</p>
-<pre><code class="language-c++">m := Manager{
-  Employee: Employee{name: "Alice", id: 1001},
-  department: "Engineering",
-  directReports: 5,
-};
-
-m.name;       // "Alice" — promoted from Employee
-m.id;         // 1001   — promoted from Employee
-m.describe(); // "Employee 1001: Alice" — promoted method
-m.teamSize(); // 5
-</code></pre>
-<p>If the outer struct defines a field or method with the same name, it shadows the embedded one. The embedded field can
-still be accessed explicitly via its type name:</p>
-<pre><code class="language-c++">m.Employee.name; // explicit access, bypasses shadowing
-</code></pre>
-<p>Multiple embedding is allowed. Name conflicts between embedded types produce a compile error.</p>
-<h2 id="method-receiver"><a class="header" href="#method-receiver">Method Receiver</a></h2>
-<p>In Nitid, <code>self</code> is always a pointer to the receiving struct. No value receiver exists — this avoids implicit copies and
-makes mutation explicit by default.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Counter {
-  value: i64;
-};
-
-impl Counter {
-  fn inc() {
-    self.value = self.value + 1; // mutates through pointer
-  }
-
-  fn get() -&gt; i64 {
-    return self.value;
-  }
-};
-<span class="boring">}</span></code></pre>
-<p>Pointer receiver means the method can modify the struct, and calling a method never copies the struct.</p>
-<pre><code class="language-c++">c := Counter{value: 10};
-c.inc();
-c.inc();
-c.get(); // 12
-</code></pre>
-<p>Methods are statically resolved and desugared to plain function calls (<code>Counter_inc(&amp;c)</code>). No dynamic dispatch.</p>
-<h2 id="memory-layout"><a class="header" href="#memory-layout">Memory Layout</a></h2>
-<p>By default, struct layout follows C ABI rules: fields are aligned to their natural alignment and padding is inserted
-between fields.</p>
-<p>The <code>packed</code> keyword forces the struct to omit padding:</p>
-<pre><code class="language-c++">packed struct NetPacket {
-  flags: u8;
-  length: u16;     // adjacent to flags, no padding
-  checksum: u32;   // adjacent to length, no padding
-};
-</code></pre>
-<p>Useful for wire protocols, file formats, and hardware registers.</p>
-<p>The <code>align(N)</code> attribute sets minimum alignment of the struct as a whole:</p>
-<pre><code class="language-c++">align(64) struct CacheLine {
-  data: u8[64];
-};
-</code></pre>
-<p>Layout attributes compose:</p>
-<pre><code class="language-c++">packed align(4) struct Header {
-  version: u8;
-  kind: u8;
-  size: u32;
-};
-</code></pre>
-<h2 id="-tags"><a class="header" href="#-tags">📝 Tags</a></h2>
-<hr>
-<p><strong>PLEASE NOTE</strong>: struct tags are an unimplemented feature, still in draft status. <strong>Do not rely on it yet</strong>.</p>
-<hr>
-<p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
-literals following the field type.</p>
-<pre><code class="language-c++">struct User {
-  name:  string "json:'name' xml:'name'";
-  email: string "json:'email,omitempty'";
-  age:   u8     "json:'age' validate:'min=0,max=150'";
-};
-</code></pre>
-<p>Tags are not interpreted by the language. They are stored as metadata for serialization, validation, ORM mapping, form
-parsing, and code generation tools.</p>
+<p>This keeps the non-contiguous case possible without paying its cost in the common case: it is opt-in, explicit, and
+centrally visible in the manifest rather than inferred.</p>
+<h2 id="compiler-algorithm"><a class="header" href="#compiler-algorithm">Compiler algorithm</a></h2>
+<p>Given the rules above, package resolution proceeds as:</p>
+<ol>
+<li>Walk the project tree from the root, skipping directories that are covered by an explicit multi-directory declaration
+in the manifest (rule 4) unless reached as one of their declared paths.</li>
+<li>For each directory, determine its owning package: if it defines its own manifest, it starts a new package boundary
+(rule 3); otherwise it inherits its parent’s boundary (rule 2), with top-level directories defaulting to a package of
+their own (rule 1).</li>
+<li>For every <code>.nt</code> file, verify that its <code>package</code> declaration matches the package owning its directory (per steps 1–2),
+or the package it was explicitly assigned via a manifest path/glob (rule 4). A mismatch is a compile error.</li>
+<li>Group all files by resolved package for the purpose of import resolution, symbol scoping, and incremental build
+invalidation.</li>
+</ol>
+<h2 id="consequences-addressed"><a class="header" href="#consequences-addressed">Consequences addressed</a></h2>
+<ul>
+<li><strong>Import paths</strong> stay derivable from the filesystem for the default and inherited cases; only the explicit
+multi-directory case requires consulting the manifest.</li>
+<li><strong>Boundaries</strong> are locally decidable: the presence or absence of a manifest in a directory is sufficient to answer “is
+this its own package?”.</li>
+<li><strong>Name collisions</strong> across scattered files remain possible only within the explicitly-opted-in multi-directory case,
+where the manifest keeps the file set centrally visible.</li>
+<li><strong>Incremental builds</strong> only need to track a scattered input set for packages that declared themselves as such; the
+common case remains a plain directory scan.</li>
+<li><strong>Refactoring safety</strong>: moving a file within a directory tree that has no manifest boundaries cannot silently change
+its package. Moving a file across a manifest boundary is a visible, intentional action.</li>
+</ul>
+<h2 id="non-goals"><a class="header" href="#non-goals">Non-goals</a></h2>
+<p>This specification does not address:</p>
+<ul>
+<li>A remote package registry or version resolution (dependencies are path- or manifest-based only, for now).</li>
+<li>Automatic detection of accidental multi-directory packages (i.e. two directories declaring the same package name
+without an explicit manifest entry remain a compile error, not a silent merge).</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../specs/3.arrays.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../specs/20.packages.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../specs/5.enums.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../specs/30.builtins.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -367,11 +287,11 @@ parsing, and code generation tools.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../specs/3.arrays.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../specs/20.packages.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../specs/5.enums.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../specs/30.builtins.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

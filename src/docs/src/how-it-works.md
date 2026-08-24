@@ -1,9 +1,11 @@
-/e# Nitid Internals — A Developer's Guide
+# Nitid Internals — A Developer's Guide
 
 **Nitid** is the name of both the language and its **transpiler**: it reads `.nt` source files and translates them into
 equivalent C code, which you then compile with any C compiler (like `gcc` or `clang`).
 
 Think of it as a source-to-source compiler.
+
+The language specifications are [here](specs/1.nitid-language-specs.md).
 
 The project is written in **Rust**. If you don't know Rust, don't worry — this doc explains the Rust concepts you'll
 encounter.
@@ -14,44 +16,47 @@ encounter.
 
 ```
 nitid/
-├── Cargo.toml              # Rust project config (package name, deps)
-├── Makefile                # Convenience build targets (doc, serve, clean)
-├── src/
-│   ├── main.rs             # CLI entry, pipeline orchestrator
-│   ├── lib.rs              # Library root — public API for tests
-│   ├── ast.rs              # Abstract Syntax Tree
-│   ├── lexer.rs            # Lexer — source text → tokens
-│   ├── parser.rs           # Parser — tokens → AST
-│   ├── types.rs            # Type definitions (i8, i32, string, etc.)
-│   ├── sema.rs             # Semantic analysis — type / scope checks
-│   └── codegen.rs          # Code generator — AST → C output
-├── runtime/                # C runtime library shipped with generated code
-│   ├── CMakeLists.txt      # Static library build config
+├── Cargo.toml                  # Rust project config (package name, deps)
+├── Makefile                    # Convenience build targets (doc, serve, open, clean)
+├── src/                        # Rust sources (compiler crate)
+│   ├── main.rs                 # CLI entry, pipeline orchestrator
+│   ├── lib.rs                  # Library root — public API for tests
+│   ├── ast.rs                  # Abstract Syntax Tree
+│   ├── lexer.rs                # Lexer — source text → tokens
+│   ├── parser.rs               # Parser — tokens → AST
+│   ├── types.rs                # Type definitions (i8, i32, string, etc.)
+│   ├── sema.rs                 # Semantic analysis — type / scope checks
+│   ├── codegen.rs              # Code generator — AST → C output
+│   └── docs/                   # Documentation source (mdBook project)
+│       ├── book.toml           # mdBook configuration
+│       └── src/                # Markdown sources for the book
+│           ├── how-it-works.md # ← You are here
+│           ├── SUMMARY.md
+│           └── specs/          # Language spec chapters
+├── runtime/                    # C runtime library shipped with generated code
+│   ├── CMakeLists.txt          # Static library build config
 │   ├── nitid_array.{c,h}
 │   ├── nitid_string.{c,h}
 │   ├── nitid_string16.{c,h}
 │   ├── nitid_string32.{c,h}
-│   └── tests/              # C unit tests for runtime types
+│   └── tests/                  # C unit tests for runtime types
 │       ├── CMakeLists.txt
-│       ├── nitid_test.h    # Lightweight test harness (macros)
-│       ├── test_main.c     # Test runner entry
+│       ├── nitid_test.h        # Lightweight test harness (macros)
+│       ├── test_main.c         # Test runner entry
 │       ├── test_nitid_array.c
 │       ├── test_nitid_string.c
 │       ├── test_nitid_string16.c
 │       └── test_nitid_string32.c
-├── c_src/                  # Default output directory for generated C files
-├── samples/                # Example .nt programs
-│   └── errors/             # Error-sample test cases (expected failures)
-├── tests/                  # Rust integration tests (batch-compile all samples)
+├── c_src/                      # Default output directory for generated C files
+├── samples/                    # Example .nt programs
+│   └── errors/                 # Error-sample test cases (expected failures)
+├── tests/                      # Rust integration tests (batch-compile all samples)
+│   ├── common/                 # Shared test helpers
 │   ├── valid.rs
 │   └── errors.rs
-└── docs/
-    ├── book/               # mdBook output (generated; rebuild with `make`)
-    ├── src/                # Documentation source
-    │   ├── how-it-works.md # ← You are here
-    │   ├── SUMMARY.md
-    │   └── specs/
-    └── specs/              # Standalone language spec copies
+└── docs/                       # Generated documentation site (rebuild with `make`)
+    ├── index.html              # mdBook output (`mdbook build -d docs src/docs/`)
+    └── api/                    # Rust API docs (`cargo doc`, copied here by `make doc`)
 ```
 
 ---
@@ -715,5 +720,5 @@ let x: Vec<Token> = Vec::new();
 ## Rust API Reference
 
 Full API documentation generated from `///` comments is available at
-[`api/nitid/index.html`](api/nitid/index.html). Build it with `cargo doc --no-deps` and copy the result under the book
-output (see the `Makefile` at the project root).
+[`api/nitid/index.html`](api/nitid/index.html). Build it with `cargo doc --no-deps` and copy the result to `docs/api`
+(the `make doc` target does this for you — see the `Makefile` at the project root).

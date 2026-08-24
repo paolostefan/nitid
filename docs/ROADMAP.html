@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Structs - Nitid Documentation</title>
+        <title>Language roadmap - Nitid Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
-        <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-e96d0476.css">
-        <link rel="stylesheet" href="../css/chrome-d279d366.css">
-        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "../";
+            const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fcf31854.js";
+            window.path_to_searchindex_js = "searchindex-fcf31854.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f02b78b5.js"></script>
+        <script src="toc-f02b78b5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">Nitid Documentation</h1>
 
                     <div class="right-buttons">
-                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
                         <a href="https://github.com/paolostefan/nitid" title="Git repository" aria-label="Git repository">
@@ -177,187 +177,153 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="structs"><a class="header" href="#structs">Structs</a></h1>
-<p>There’s no real OOP in Nitid, but structs are as close as OOP objects as possible.</p>
-<p>Structs in Nitid work pretty much as Go structs.</p>
-<h2 id="reserved-keywords"><a class="header" href="#reserved-keywords">Reserved keywords</a></h2>
-<p>Here are the field and method names you must avoid:</p>
-<ul>
-<li><code>self</code> refers to the struct which is calling a specific method (like in Python). No members can have this name.</li>
-<li><code>bytesize()</code> is a reserved method which calls C’s <code>sizeof()</code> to return the struct size in bytes.</li>
-</ul>
-<h2 id="data-members"><a class="header" href="#data-members">Data members</a></h2>
-<p>A struct must contain at least one data member, any type is allowed.</p>
-<p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon
-(<code>;</code>).</p>
-<p>Members name must follow identifier syntax, so no initial numeric digits, no punctuation, etc.</p>
-<pre><code class="language-c++">struct Person {
-  name: string;
-  age: u8;
-};
-</code></pre>
-<h3 id="array-members"><a class="header" href="#array-members">Array members</a></h3>
-<p>A struct can have any number of array members, declared in either of the following ways.</p>
-<pre><code class="language-c++">// C-style array member declaration
-struct CacheLine {
-  data: u8[64];
-};
-
-// Alternate array member declaration
-struct CacheLine {
-  data: [64 u8];
-};
-</code></pre>
-<p>Initialization of array struct members follows the usual way.</p>
-<pre><code class="language-c++">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
-</code></pre>
-<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
-<p>Structs in Nitid can have their own methods.</p>
+                        <h1 id="nitid-implementation-roadmap"><a class="header" href="#nitid-implementation-roadmap">Nitid Implementation Roadmap</a></h1>
+<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while,
+multi-return, <code>for</code> loops (C-style + range-based), <code>break</code>/<code>continue</code>, postfix <code>++</code>/<code>--</code>, source-span errors,
+no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based
+array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with
+bounds-checked access.</p>
 <hr>
-<p>ℹ️ <strong>Important</strong>: the <code>self</code> keyword denotes the struct which is calling the method, just as in Python. In Nitid, <code>self</code>
-needs not be declared in the method signature.</p>
+<h2 id="implemented-features"><a class="header" href="#implemented-features">Implemented features</a></h2>
+<h3 id="composite-types"><a class="header" href="#composite-types">Composite Types</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Arrays</strong></td><td><code>Type::TyArray(Box&lt;Type&gt;)</code>, <code>Expr::ArrayLit</code>, <code>Expr::Index</code>. Parser handles <code>Type[...]</code>, <code>fixed</code> keyword, declaration-level <code>[size]</code>. Sema validates element-type uniformity, non-array indexing, numeric index. Codegen emits <code>nitid_array_from_lit</code> / <code>nitid_array_get</code>. Runtime: <code>nitid_array</code> struct.</td></tr>
+<tr><td><strong>For-range iteration</strong></td><td><code>for (item : array)</code> → <code>Stmt::ForIn</code>, <code>for (idx, item : array)</code> → <code>Stmt::ForInIndex</code>. Sema checks iterable is array. Codegen emits counter loop with <code>nitid_array_size</code> / <code>nitid_array_get</code>.</td></tr>
+<tr><td><strong>Structs</strong></td><td><code>struct</code> keyword, parser for <code>struct Foo { field: Type, ... }</code>. AST: <code>Decl::StructDecl</code>, <code>ImplBlock</code>, <code>Expr::FieldAccess</code>, <code>Expr::MethodCall</code>, <code>Expr::StructLit</code>. Sema: field/method resolution, <code>self</code> injection. Codegen: C <code>struct</code> typedef, methods as <code>struct_method(&amp;obj, args)</code>.</td></tr>
+<tr><td><strong>Enums</strong></td><td><code>enum</code> keyword, <code>Decl::EnumDecl</code>, <code>Type::Enum</code>. Parser handles <code>enum Name : type { A = val, ... }</code>. Sema validates integral types, value overflow, auto-increment, duplicate variants. Codegen emits <code>typedef enum</code>.</td></tr>
+<tr><td><strong>Methods / dot-call syntax</strong></td><td><code>obj.method(args)</code> — parser, sema, and codegen handle <code>.</code> access, method lookup, <code>self</code> pointer receiver. Codegen emits <code>StructName_method(&amp;obj, args)</code>.</td></tr>
+</tbody>
+</table>
+</div>
 <hr>
-<pre><code class="language-c++">struct Circle {
-  color: string;
-  radius: f32;
-};
-
-impl Circle {
-  fn greet() -&gt; string {
-    return "Hello, I'm " + self.color;
-  }
-    
-  fn area() -&gt; f32 {
-    return self.radius * self.radius * 3.14159;
-  }
-};
-</code></pre>
-<h2 id="instancing"><a class="header" href="#instancing">Instancing</a></h2>
-<p>Struct instances are declared just like scalar or array variables. Data members can be inlined in the declaration.</p>
-<pre><code class="language-c++">c := Circle{ color: "red", radius: 1.5 };
-</code></pre>
-<h2 id="accessing-members"><a class="header" href="#accessing-members">Accessing members</a></h2>
-<p>Members and methods are referenced using a dot (<code>.</code>) after the variable name.</p>
-<pre><code class="language-c++">r := c.radius; // r type is f32
-c.greet();     // returns "Hello, I'm red"
-c.area();      // returns 7.0685775
-</code></pre>
-<h2 id="composition--embedding"><a class="header" href="#composition--embedding">Composition / Embedding</a></h2>
-<p>A struct can embed another struct anonymously, promoting the inner struct’s fields and methods to the outer one
-(Go-style composition over inheritance).</p>
-<pre><code class="language-c++">struct Employee {
-  name: string;
-  id: u32;
-};
-
-impl Employee {
-  fn describe() -&gt; string {
-    return "Employee " + self.id + ": " + self.name;
-  }
-};
-
-struct Manager {
-  Employee;        // embedded — no field name
-  department: string;
-  directReports: u32;
-};
-
-impl Manager {
-  fn teamSize() -&gt; u32 {
-    return self.directReports;
-  }
-};
-</code></pre>
-<p>Fields and methods of the embedded type are accessed directly on the outer type:</p>
-<pre><code class="language-c++">m := Manager{
-  Employee: Employee{name: "Alice", id: 1001},
-  department: "Engineering",
-  directReports: 5,
-};
-
-m.name;       // "Alice" — promoted from Employee
-m.id;         // 1001   — promoted from Employee
-m.describe(); // "Employee 1001: Alice" — promoted method
-m.teamSize(); // 5
-</code></pre>
-<p>If the outer struct defines a field or method with the same name, it shadows the embedded one. The embedded field can
-still be accessed explicitly via its type name:</p>
-<pre><code class="language-c++">m.Employee.name; // explicit access, bypasses shadowing
-</code></pre>
-<p>Multiple embedding is allowed. Name conflicts between embedded types produce a compile error.</p>
-<h2 id="method-receiver"><a class="header" href="#method-receiver">Method Receiver</a></h2>
-<p>In Nitid, <code>self</code> is always a pointer to the receiving struct. No value receiver exists — this avoids implicit copies and
-makes mutation explicit by default.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Counter {
-  value: i64;
-};
-
-impl Counter {
-  fn inc() {
-    self.value = self.value + 1; // mutates through pointer
-  }
-
-  fn get() -&gt; i64 {
-    return self.value;
-  }
-};
-<span class="boring">}</span></code></pre>
-<p>Pointer receiver means the method can modify the struct, and calling a method never copies the struct.</p>
-<pre><code class="language-c++">c := Counter{value: 10};
-c.inc();
-c.inc();
-c.get(); // 12
-</code></pre>
-<p>Methods are statically resolved and desugared to plain function calls (<code>Counter_inc(&amp;c)</code>). No dynamic dispatch.</p>
-<h2 id="memory-layout"><a class="header" href="#memory-layout">Memory Layout</a></h2>
-<p>By default, struct layout follows C ABI rules: fields are aligned to their natural alignment and padding is inserted
-between fields.</p>
-<p>The <code>packed</code> keyword forces the struct to omit padding:</p>
-<pre><code class="language-c++">packed struct NetPacket {
-  flags: u8;
-  length: u16;     // adjacent to flags, no padding
-  checksum: u32;   // adjacent to length, no padding
-};
-</code></pre>
-<p>Useful for wire protocols, file formats, and hardware registers.</p>
-<p>The <code>align(N)</code> attribute sets minimum alignment of the struct as a whole:</p>
-<pre><code class="language-c++">align(64) struct CacheLine {
-  data: u8[64];
-};
-</code></pre>
-<p>Layout attributes compose:</p>
-<pre><code class="language-c++">packed align(4) struct Header {
-  version: u8;
-  kind: u8;
-  size: u32;
-};
-</code></pre>
-<h2 id="-tags"><a class="header" href="#-tags">📝 Tags</a></h2>
+<h2 id="strings-handling"><a class="header" href="#strings-handling">Strings handling</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>UTF-8 validation &amp; Unicode escapes</strong></td><td>Lexer validates string literal bytes as well-formed UTF-8; rejects invalid sequences. Support <code>\uXXXX</code> and <code>\UXXXXXXXX</code> escape sequences (incl. surrogate rejection).</td></tr>
+<tr><td><strong>String16 / String32 runtime</strong></td><td>Full <code>nitid_string16</code> / <code>nitid_string32</code> C runtime with encoding conversion between all three UTF forms.</td></tr>
+<tr><td><strong>Encoding-safe string ops</strong></td><td>Code-point (not byte) indexing for all string types. Concatenation (<code>+</code>) and comparison (<code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&gt;</code>) operators codegen’d to runtime functions. Bounds-checked access on all three types.</td></tr>
+</tbody>
+</table>
+</div>
 <hr>
-<p><strong>PLEASE NOTE</strong>: struct tags are an unimplemented feature, still in draft status. <strong>Do not rely on it yet</strong>.</p>
+<h2 id="features-to-be-implemented"><a class="header" href="#features-to-be-implemented">Features to be implemented</a></h2>
+<h3 id="phase-1--module-system"><a class="header" href="#phase-1--module-system">Phase 1 — Module System</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>1.1</td><td></td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find <code>Foo.nt</code> in search paths, tokenize + parse it, merge declarations into a package symbol table.</td></tr>
+<tr><td>1.2</td><td></td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
+<tr><td>1.3</td><td></td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
+<tr><td>1.4</td><td></td><td><strong>Multi-file compilation</strong></td><td>Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order.</td></tr>
+<tr><td>1.5</td><td></td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files.</p>
 <hr>
-<p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
-literals following the field type.</p>
-<pre><code class="language-c++">struct User {
-  name:  string "json:'name' xml:'name'";
-  email: string "json:'email,omitempty'";
-  age:   u8     "json:'age' validate:'min=0,max=150'";
-};
-</code></pre>
-<p>Tags are not interpreted by the language. They are stored as metadata for serialization, validation, ORM mapping, form
-parsing, and code generation tools.</p>
+<h3 id="phase-2--memory-safety"><a class="header" href="#phase-2--memory-safety">Phase 2 — Memory Safety</a></h3>
+<p>Hardest features. RAII, null-pointer protection, and buffer overflows require runtime bookkeeping.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
+<tr><td>2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
+<tr><td>2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
+<tr><td>2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> A dangling-pointer or out-of-bounds access produces a runtime panic instead of UB.</p>
+<hr>
+<h3 id="phase-3--concurrency"><a class="header" href="#phase-3--concurrency">Phase 3 — Concurrency</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>Approach</th></tr>
+</thead>
+<tbody>
+<tr><td>3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
+<tr><td>3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
+<tr><td>3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
+<tr><td>3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races.</p>
+<hr>
+<h3 id="phase-4--standard-library--polish"><a class="header" href="#phase-4--standard-library--polish">Phase 4 — Standard Library &amp; Polish</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Feature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
+<tr><td>4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
+<tr><td>4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
+<tr><td>4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
+<tr><td>4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
+<tr><td>4.5</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="phase-5--nice-to-have"><a class="header" href="#phase-5--nice-to-have">Phase 5 — Nice to have</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+</thead>
+<tbody>
+<tr><td>5.1</td><td></td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="specs/4.structs.html#tags">spec</a>.</td></tr>
+<tr><td>5.2</td><td></td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
+<tr><td>5.3</td><td></td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="key-architectural-decisions-to-make"><a class="header" href="#key-architectural-decisions-to-make">Key architectural decisions to make</a></h2>
+<ol>
+<li>
+<p><strong>Transpilation to multi-file C</strong> — currently everything goes to one <code>.c</code>. With imports and structs, need one <code>.c</code>
+per package.</p>
+</li>
+<li>
+<p><strong>Runtime library design</strong> — currently has <code>nitid_string</code> and <code>nitid_array</code> <code>.c/.h</code> pairs. Plan grows to:
+<code>nitid_i256</code>,
+<code>nitid_f16</code>, <code>nitid_string16/32</code>, <code>nitid_channel</code>, <code>nitid_mutex</code>, <code>nitid_ref</code>. Consider a single <code>nitid_runtime.h</code>
+umbrella header.</p>
+</li>
+<li>
+<p><strong><code>main</code> auto-wrap</strong> — currently best-effort. With packages and imports, this needs to be more deliberate (only wrap
+dangling code in the file that declares <code>package main</code> or has no <code>main</code> function).</p>
+</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../specs/3.arrays.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="how-it-works.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../specs/5.enums.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -367,11 +333,11 @@ parsing, and code generation tools.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../specs/3.arrays.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="how-it-works.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../specs/5.enums.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -391,13 +357,13 @@ parsing, and code generation tools.</p>
         </script>
 
 
-        <script src="../elasticlunr-ef4e11c1.min.js"></script>
-        <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-09f2665d.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
-        <script src="../clipboard-1626706a.min.js"></script>
-        <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-609e4cb8.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

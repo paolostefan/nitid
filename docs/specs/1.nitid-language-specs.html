@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0554936a.js";
+            window.path_to_searchindex_js = "../searchindex-fcf31854.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3bd8c48b.js"></script>
+        <script src="../toc-f02b78b5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -189,23 +189,25 @@
 <li>boolean type: <code>bool</code></li>
 <li>signed integral types: <code>i8</code>, <code>i16</code>, <code>i32</code> (alias <code>int</code>), <code>i64</code>, <code>i128</code></li>
 <li>unsigned integral types: <code>u8</code>, <code>u16</code>, <code>u32</code> (alias <code>uint</code>), <code>u64</code>, <code>u128</code></li>
-<li>float types: f8,f16,f32 (alias float), f64 (alias double)</li>
-<li>string types: string (UTF-8 string),  string16 (UTF-16 strings), string32 (UTF-32 strings).</li>
+<li>float types: <code>f32</code> (alias <code>float</code>), <code>f64</code> (alias <code>double</code>)</li>
+<li>string types: <code>string</code> (UTF-8 string), <code>string16</code> (UTF-16 string), <code>string32</code> (UTF-32 string).</li>
 </ul>
 <h2 id="literals"><a class="header" href="#literals">Literals</a></h2>
 <h3 id="numbers"><a class="header" href="#numbers">Numbers</a></h3>
-<p>All the following are valid number literals in Nitid:</p>
+<p>All the following are valid <strong>Nitid</strong> number literals:</p>
 <pre><code>123
 1 000 000 000
 -2.34567
 -9.876e-10
 0x1000
 0XFFFFFFFF
+0xff ff ff ff
 </code></pre>
 <h2 id="identifier-names"><a class="header" href="#identifier-names">Identifier names</a></h2>
-<p>Identifier (variables, functions, packages) names must respect this regex:<br><code>[a-zA-Z_][a-zA-Z0-9_]*</code><br>That is: <strong>start</strong> with an ASCII letter or an underscore, optionally followed by ASCII letters, underscores and numbers.</p>
+<p>Identifiers (variable names, function names, package names) must respect this regex:<br><code>[a-zA-Z_][a-zA-Z0-9_]*</code></p>
+<p>That is: <strong>start</strong> with an ASCII letter or an underscore, optionally followed by ASCII letters, underscores and numbers.</p>
 <p>No punctuation marks, $,%,£,§.ç, accented letters or non-ASCII chars are allowed.</p>
-<p>Legal variable names:</p>
+<p>Legal variable name samples:</p>
 <ul>
 <li>_</li>
 <li>a</li>
@@ -214,7 +216,8 @@
 <h2 id="variables"><a class="header" href="#variables">Variables</a></h2>
 <h3 id="declaration"><a class="header" href="#declaration">Declaration</a></h3>
 <p>Variables can be declared by specifying their type before their names, just as in C:</p>
-<pre><code class="language-c int v;">i128 largeInt;    
+<pre><code class="language-c">int v;   
+i128 largeInt;    
 </code></pre>
 <h3 id="assignment"><a class="header" href="#assignment">Assignment</a></h3>
 <p>Variables can be assigned a literal or the value of a variable of the same type:</p>
@@ -222,15 +225,18 @@
 a = 123;     // Assign a    
 int b = 456; // Declare and assign b    
 </code></pre>
-<h3 id="both"><a class="header" href="#both">Both</a></h3>
-<p>If there’s no ambiguity, the type of a variable can be omitted when using <code>:=</code> to declare and assign value at once. Otherwise, the parser will emit a warning and default to the best guess depending on the context.</p>
-<pre><code class="language-go s := &quot;Hello world!&quot;; // UTF-8 string type">c := 'A';             // 8-bit char/int type    
-i := 12;              // warning: assuming 32-bit int type    
+<h3 id="declare-and-assign-at-once"><a class="header" href="#declare-and-assign-at-once">Declare and assign at once</a></h3>
+<p>If there’s no ambiguity, the variable type can be omitted when using <code>:=</code> to declare and assign value at once.
+Otherwise, the parser default to the best guess depending on the context.</p>
+<pre><code class="language-go">s := "Hello, world!"; // UTF-8 string type    
+c := 'A';             // 8-bit char/int type    
+i := 12;              // assuming 32-bit int type    
 precise_i := i64(12); // explicitly asking for a 64-bit int    
 j := precise_i;       // j is also a 64-bit int   
 </code></pre>
 <h2 id="ebnf-grammar"><a class="header" href="#ebnf-grammar">EBNF Grammar</a></h2>
-<p>The following EBNF describes the exact syntax accepted by the current parser implementation. Precedence climbs from low (top) to high (bottom) in the expression hierarchy.</p>
+<p>The following EBNF describes the exact syntax accepted by the current parser implementation. Precedence climbs from low
+(top) to high (bottom) in the expression hierarchy.</p>
 <pre><code class="language-ebnf">(* --- Top Level --- *)  
 Program     = PackageDecl , { Import } , { ( FnDecl | Stmt ) } .  
 PackageDecl = "package" , Ident , ";" .  
@@ -333,7 +339,7 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../how-it-works.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../ROADMAP.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -347,7 +353,7 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../how-it-works.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../ROADMAP.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

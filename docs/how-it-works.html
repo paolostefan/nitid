@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0554936a.js";
+            window.path_to_searchindex_js = "searchindex-fcf31854.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3bd8c48b.js"></script>
+        <script src="toc-f02b78b5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -177,53 +177,57 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <p>/e# Nitid Internals — A Developer’s Guide</p>
+                        <h1 id="nitid-internals--a-developers-guide"><a class="header" href="#nitid-internals--a-developers-guide">Nitid Internals — A Developer’s Guide</a></h1>
 <p><strong>Nitid</strong> is the name of both the language and its <strong>transpiler</strong>: it reads <code>.nt</code> source files and translates them into
 equivalent C code, which you then compile with any C compiler (like <code>gcc</code> or <code>clang</code>).</p>
 <p>Think of it as a source-to-source compiler.</p>
+<p>The language specifications are <a href="specs/1.nitid-language-specs.html">here</a>.</p>
 <p>The project is written in <strong>Rust</strong>. If you don’t know Rust, don’t worry — this doc explains the Rust concepts you’ll
 encounter.</p>
 <hr>
 <h2 id="project-structure"><a class="header" href="#project-structure">Project Structure</a></h2>
 <pre><code>nitid/
-├── Cargo.toml              # Rust project config (package name, deps)
-├── Makefile                # Convenience build targets (doc, serve, clean)
-├── src/
-│   ├── main.rs             # CLI entry, pipeline orchestrator
-│   ├── lib.rs              # Library root — public API for tests
-│   ├── ast.rs              # Abstract Syntax Tree
-│   ├── lexer.rs            # Lexer — source text → tokens
-│   ├── parser.rs           # Parser — tokens → AST
-│   ├── types.rs            # Type definitions (i8, i32, string, etc.)
-│   ├── sema.rs             # Semantic analysis — type / scope checks
-│   └── codegen.rs          # Code generator — AST → C output
-├── runtime/                # C runtime library shipped with generated code
-│   ├── CMakeLists.txt      # Static library build config
+├── Cargo.toml                  # Rust project config (package name, deps)
+├── Makefile                    # Convenience build targets (doc, serve, open, clean)
+├── src/                        # Rust sources (compiler crate)
+│   ├── main.rs                 # CLI entry, pipeline orchestrator
+│   ├── lib.rs                  # Library root — public API for tests
+│   ├── ast.rs                  # Abstract Syntax Tree
+│   ├── lexer.rs                # Lexer — source text → tokens
+│   ├── parser.rs               # Parser — tokens → AST
+│   ├── types.rs                # Type definitions (i8, i32, string, etc.)
+│   ├── sema.rs                 # Semantic analysis — type / scope checks
+│   ├── codegen.rs              # Code generator — AST → C output
+│   └── docs/                   # Documentation source (mdBook project)
+│       ├── book.toml           # mdBook configuration
+│       └── src/                # Markdown sources for the book
+│           ├── how-it-works.md # ← You are here
+│           ├── SUMMARY.md
+│           └── specs/          # Language spec chapters
+├── runtime/                    # C runtime library shipped with generated code
+│   ├── CMakeLists.txt          # Static library build config
 │   ├── nitid_array.{c,h}
 │   ├── nitid_string.{c,h}
 │   ├── nitid_string16.{c,h}
 │   ├── nitid_string32.{c,h}
-│   └── tests/              # C unit tests for runtime types
+│   └── tests/                  # C unit tests for runtime types
 │       ├── CMakeLists.txt
-│       ├── nitid_test.h    # Lightweight test harness (macros)
-│       ├── test_main.c     # Test runner entry
+│       ├── nitid_test.h        # Lightweight test harness (macros)
+│       ├── test_main.c         # Test runner entry
 │       ├── test_nitid_array.c
 │       ├── test_nitid_string.c
 │       ├── test_nitid_string16.c
 │       └── test_nitid_string32.c
-├── c_src/                  # Default output directory for generated C files
-├── samples/                # Example .nt programs
-│   └── errors/             # Error-sample test cases (expected failures)
-├── tests/                  # Rust integration tests (batch-compile all samples)
+├── c_src/                      # Default output directory for generated C files
+├── samples/                    # Example .nt programs
+│   └── errors/                 # Error-sample test cases (expected failures)
+├── tests/                      # Rust integration tests (batch-compile all samples)
+│   ├── common/                 # Shared test helpers
 │   ├── valid.rs
 │   └── errors.rs
-└── docs/
-    ├── book/               # mdBook output (generated; rebuild with `make`)
-    ├── src/                # Documentation source
-    │   ├── how-it-works.md # ← You are here
-    │   ├── SUMMARY.md
-    │   └── specs/
-    └── specs/              # Standalone language spec copies
+└── docs/                       # Generated documentation site (rebuild with `make`)
+    ├── index.html              # mdBook output (`mdbook build -d docs src/docs/`)
+    └── api/                    # Rust API docs (`cargo doc`, copied here by `make doc`)
 </code></pre>
 <hr>
 <h2 id="the-pipeline"><a class="header" href="#the-pipeline">The Pipeline</a></h2>
@@ -802,15 +806,15 @@ let x: Vec&lt;Token&gt; = Vec::new();
 <hr>
 <h2 id="rust-api-reference"><a class="header" href="#rust-api-reference">Rust API Reference</a></h2>
 <p>Full API documentation generated from <code>///</code> comments is available at
-<a href="api/nitid/index.html"><code>api/nitid/index.html</code></a>. Build it with <code>cargo doc --no-deps</code> and copy the result under the book
-output (see the <code>Makefile</code> at the project root).</p>
+<a href="api/nitid/index.html"><code>api/nitid/index.html</code></a>. Build it with <code>cargo doc --no-deps</code> and copy the result to <code>docs/api</code>
+(the <code>make doc</code> target does this for you — see the <code>Makefile</code> at the project root).</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
 
-                            <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="ROADMAP.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -821,7 +825,7 @@ output (see the <code>Makefile</code> at the project root).</p>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
 
-                    <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="ROADMAP.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
