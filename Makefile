@@ -7,19 +7,19 @@ all: doc
 
 doc:
 	cargo doc --no-deps
-	mdbook build docs/
-	rm -rf docs/book/api
-	cp -r target/doc docs/book/api
+	mdbook build -d docs src/docs/
+	rm -rf docs/api
+	cp -r target/doc docs/api
 
 # Serve the full documentation site locally
 serve: doc
-	python3 -m http.server 8000 -d docs/book
+	python3 -m http.server 8000 -d docs
 
 # Rebuild and open in browser
 open: doc
-	xdg-open docs/book/index.html 2>/dev/null || open docs/book/index.html 2>/dev/null || true
+	xdg-open docs/index.html 2>/dev/null || open docs/index.html 2>/dev/null || true
 
 # Clean all generated documentation
 clean:
 	cargo clean
-	rm -rf docs/book
+	rm -rf docs/*

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BinOp","Decl","Expr","Stmt"],"struct":["EnumDecl","EnumVariant","FnDecl","ImplBlock","Import","Param","Program","Span","StructDecl","StructField","VarDecl"]};
