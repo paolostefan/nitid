@@ -3,7 +3,7 @@
 - [How It Works](how-it-works.md)
 - [Language Specification](specs/1.nitid-language-specs.md)
   - [Functions](specs/2.functions.md)
-  - [Arrays and for loops](specs/3.arrays-and-for-loops.md)
+  - [Arrays](specs/3.arrays.md)
   - [Structs](specs/4.structs.md) ✅
   - [Enums](specs/5.enums.md) ✅
   - [Strings](specs/6.strings.md)
