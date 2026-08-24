@@ -26,9 +26,15 @@ pub enum Type {
     String, String16, String32,
     Bool, Void,
     /// Array type: element type, and optional compile-time size.
-    /// When size is `Some(n)`, the codegen emits a plain C array `type[n]`
-    /// instead of a heap-allocated `nitid_array`.
+    ///
+    /// Dynamically-sized arrays are heap-allocated (`nitid_array`) and
+    /// can be resized at runtime with `.resize()`. A declared size is
+    /// only the initial length; the array still lives on the heap.
+    /// When size is `None` the length comes from the initializer.
     TyArray(Box<Type>, Option<u64>),
+    /// Fixed-size array (`fixed` keyword): emitted as a plain C array
+    /// `type[n]`. It cannot be resized.
+    TyFixedArray(Box<Type>, u64),
     /// Named struct type (user-defined).
     Struct(String),
     /// Named enum type (user-defined).
@@ -94,8 +100,8 @@ impl Type {
             Self::String32 => Cow::Borrowed("nitid_string32"),
             Self::Bool => Cow::Borrowed("bool"),
             Self::Void => Cow::Borrowed("void"),
-            Self::TyArray(_, None) => Cow::Borrowed("nitid_array"),
-            Self::TyArray(elem, Some(_)) => elem.c_str(),
+            Self::TyArray(..) => Cow::Borrowed("nitid_array"),
+            Self::TyFixedArray(elem, _) => elem.c_str(),
             Self::Struct(name) => Cow::Owned(name.clone()),
             Self::Enum(name) => Cow::Owned(name.clone()),
         }

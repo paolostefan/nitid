@@ -13,10 +13,10 @@ typedef struct {
 } nitid_array;
 
 #define NITID_ARRAY_FROM_LIT(typ, ctyp) \
-nitid_array nitid_array_from_lit_##typ(size_t count, ctyp values[])
+nitid_array nitid_array_from_lit_##typ(size_t count, const ctyp values[])
 
 #define NITID_ARRAY_FROM_LIT_IMPL(typ, ctyp) \
-  nitid_array nitid_array_from_lit_##typ(size_t count, ctyp values[]) {\
+  nitid_array nitid_array_from_lit_##typ(const size_t count, const ctyp values[]) {\
   nitid_array arr;\
   arr.data = malloc(count * sizeof(ctyp));\
   arr.length = count;\
@@ -71,5 +71,23 @@ NITID_ARRAY_GET(f64, double);
 NITID_ARRAY_GET(bool, bool);
 
 size_t nitid_array_size(nitid_array arr);
+
+/**
+ * Allocate a dynamically-sized array of `count` zero-initialized
+ * elements, each `elem_size` bytes wide.
+ */
+nitid_array nitid_array_zeros(size_t elem_size, size_t count);
+
+/**
+ * Resize a dynamic array in place to `new_len` elements.
+ *
+ * - Growing: the new tail elements are zero-filled.
+ * - Shrinking: the array is truncated to its first `new_len` elements.
+ * - Resizing to 0 frees the backing storage and resets the array.
+ *
+ * `arr` must have a valid `elem_size` (arrays declared without an
+ * initializer get it from their declared element type).
+ */
+void nitid_array_resize(nitid_array *arr, size_t new_len);
 
 #endif // NITID_ARRAY_H

@@ -271,7 +271,7 @@ impl Sema {
                 }
                 Decl::VarDecl(v) => {
                     analyze_var_decl_free(v, &mut self.globals, &fn_sigs, &mut self.warnings, &self.struct_defs, &self.enum_members)?;
-                    let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..))).unwrap_or(false);
+                    let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..))).unwrap_or(false);
                     if v.init.is_none() && !can_zero_init {
                         for name in &v.names {
                             return Err(format!(
@@ -318,7 +318,7 @@ impl Sema {
                 // Deferred init check: vars without init are tracked
                 // per scope and checked at scope exit.
                 // Array types can be zero-initialized so skip uninit tracking.
-                let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..))).unwrap_or(false);
+                let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..))).unwrap_or(false);
                 if v.init.is_none() && !can_zero_init {
                     for name in &v.names {
                         self.add_uninit(name, &v.span);
@@ -386,7 +386,7 @@ impl Sema {
             }
             Stmt::ForIn { var, iter, body, span } => {
                 let iter_type = self.analyze_expr(iter, scope, fn_sigs)?;
-                if !matches!(iter_type, Type::TyArray(..)) {
+                if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
                     return Err(format!(
                         "{}:{}:{}: Cannot iterate over non-array type",
                         span.file, span.line, span.col
@@ -405,7 +405,7 @@ impl Sema {
             }
             Stmt::ForInIndex { idx_var, item_var, iter, body, span } => {
                 let iter_type = self.analyze_expr(iter, scope, fn_sigs)?;
-                if !matches!(iter_type, Type::TyArray(..)) {
+                if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
                     return Err(format!(
                         "{}:{}:{}: Cannot iterate over non-array type",
                         span.file, span.line, span.col
@@ -567,26 +567,13 @@ impl Sema {
                         span.file, span.line, span.col));
                 }
                 match target_type {
-                    // Fixed-size array: check compile-time known index bounds
+                    // Fixed-size arrays: check compile-time known index bounds.
                     // Negative indices wrap from end (-1 → last element, -n → index 0)
-                    Type::TyArray(elem, size) => {
-                        if let Some(sz) = size {
-                            let index_val = extract_index_literal(index);
-                            if let Some(val) = index_val {
-                                if val < 0 {
-                                    let pos = (-val) as u64;
-                                    if pos > sz {
-                                        return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                                            span.file, span.line, span.col, val, sz));
-                                    }
-                                } else if (val as u64) >= sz {
-                                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                                        span.file, span.line, span.col, val, sz));
-                                }
-                            }
-                        }
-                        Ok(*elem)
-                    }
+                    Type::TyFixedArray(elem, sz) => check_index_bounds(&elem, Some(sz), index, span),
+                    // Dynamically-sized arrays can be resized at runtime, so
+                    // the declared size is not a compile-time bound; illegal
+                    // accesses are caught at runtime instead.
+                    Type::TyArray(elem, _) => Ok(*elem),
                     Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
                     _ => Err(format!("{}:{}:{}: Cannot index non-array type",
                         span.file, span.line, span.col)),
@@ -658,7 +645,8 @@ impl Sema {
                             Ok(Type::Void) // multi-return in expression context
                         }
                     }
-                    Type::TyArray(..) => check_array_method(method, args, span),
+                    Type::TyArray(..) | Type::TyFixedArray(..) => check_array_method(method, args, span, &target_type,
+                        |e| self.infer_expr_type(e, scope, fn_sigs)),
                     _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
                         span.file, span.line, span.col)),
                 }
@@ -689,7 +677,7 @@ impl Sema {
                             && literal_fits_target(field_expr, &decl_field.typ);
                         let ok = ok || {
                             // Array of numerics: check each element fits target element type.
-                            if let (Type::TyArray(init_elem, _), Type::TyArray(decl_elem, _)) = (&init_type, &decl_field.typ) {
+                            if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&decl_field.typ)) {
                                 if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
                                     if let Expr::ArrayLit(elems, _) = field_expr {
                                         elems.iter().all(|e| literal_fits_target(e, decl_elem))
@@ -800,7 +788,7 @@ fn analyze_var_decl_free(
                             v.span.file, v.span.line, v.span.col, name, typ
                         ));
                     }
-                } else if let (Type::TyArray(init_elem, _), Type::TyArray(decl_elem, _)) = (&init_type, &typ) {
+                } else if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&typ)) {
                     // Array of numerics: check each element literal fits target element type.
                     if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
                         if let Expr::ArrayLit(elems, _) = init {
@@ -841,18 +829,68 @@ fn analyze_var_decl_free(
 /// Duplicates the logic in `Sema::infer_expr_type` but is a standalone
 /// function so it can be called from `analyze_var_decl_free` without
 /// borrowing issues.
-fn check_array_method(method: &str, args: &[Expr], span: &Span) -> Result<Type, String> {
-    if method == "size" {
-        if !args.is_empty() {
-            return Err(format!(
-                "{}:{}:{}: Array method 'size' expects 0 arguments, got {}",
-                span.file, span.line, span.col, args.len()
-            ));
+/// Check a method call on an array-typed target.
+///
+/// `infer_arg` infers the type of an argument expression; it is supplied
+/// by the caller because array methods are validated from two different
+/// inference contexts (`Sema::infer_expr_type` and the free-standing
+/// `infer_expr_type_free`).
+fn check_array_method<F>(
+    method: &str,
+    args: &[Expr],
+    span: &Span,
+    array_type: &Type,
+    mut infer_arg: F,
+) -> Result<Type, String>
+where
+    F: FnMut(&Expr) -> Result<Type, String>,
+{
+    match method {
+        "size" => {
+            if !args.is_empty() {
+                return Err(format!(
+                    "{}:{}:{}: Array method 'size' expects 0 arguments, got {}",
+                    span.file, span.line, span.col, args.len()
+                ));
+            }
+            Ok(Type::I32)
         }
-        Ok(Type::I32)
-    } else {
-        Err(format!("{}:{}:{}: Array type has no method '{}'",
-            span.file, span.line, span.col, method))
+        "resize" => {
+            // Only dynamically-sized arrays can be resized; fixed-size
+            // arrays (`fixed` keyword) are backed by plain C arrays.
+            if matches!(array_type, Type::TyFixedArray(..)) {
+                return Err(format!(
+                    "{}:{}:{}: Cannot resize fixed-size array",
+                    span.file, span.line, span.col
+                ));
+            }
+            if args.len() != 1 {
+                return Err(format!(
+                    "{}:{}:{}: Array method 'resize' expects 1 argument, got {}",
+                    span.file, span.line, span.col, args.len()
+                ));
+            }
+            let arg_type = infer_arg(&args[0])?;
+            if !is_integral_type(&arg_type) {
+                return Err(format!(
+                    "{}:{}:{}: Array method 'resize' expects an integer argument, got {}",
+                    span.file, span.line, span.col, arg_type
+                ));
+            }
+            // A negative literal can never be a valid length. Unary minus
+            // is desugared to `0 - lit`, which extract_index_literal folds.
+            if let Some(val) = extract_index_literal(&args[0]) {
+                if val < 0 {
+                    return Err(format!(
+                        "{}:{}:{}: Array method 'resize' expects a non-negative size, got {}",
+                        span.file, span.line, span.col, val
+                    ));
+                }
+            }
+            Ok(Type::Void)
+        }
+        _ => Err(format!("{}:{}:{}: Array type has no method '{}'",
+            span.file, span.line, span.col, method)),
     }
 }
 
@@ -945,26 +983,13 @@ fn infer_expr_type_free(
                     span.file, span.line, span.col));
             }
             match target_type {
-                // Fixed-size array: check compile-time known index bounds
+                // Fixed-size arrays: check compile-time known index bounds.
                 // Negative indices wrap from end (-1 → last element, -n → index 0)
-                Type::TyArray(elem, size) => {
-                    if let Some(sz) = size {
-                        let index_val = extract_index_literal(index);
-                        if let Some(val) = index_val {
-                            if val < 0 {
-                                let pos = (-val) as u64;
-                                if pos > sz {
-                                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                                        span.file, span.line, span.col, val, sz));
-                                }
-                            } else if (val as u64) >= sz {
-                                return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                                    span.file, span.line, span.col, val, sz));
-                            }
-                        }
-                    }
-                    Ok(*elem)
-                }
+                Type::TyFixedArray(elem, sz) => check_index_bounds(&elem, Some(sz), index, span),
+                // Dynamically-sized arrays can be resized at runtime, so
+                // the declared size is not a compile-time bound; illegal
+                // accesses are caught at runtime instead.
+                Type::TyArray(elem, _) => Ok(*elem),
                 Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
                 _ => Err(format!("{}:{}:{}: Cannot index non-array type",
                     span.file, span.line, span.col)),
@@ -1001,7 +1026,8 @@ fn infer_expr_type_free(
                     }
                     Ok(Type::Void)
                 }
-                Type::TyArray(..) => check_array_method(method, args, span),
+                Type::TyArray(..) | Type::TyFixedArray(..) => check_array_method(method, args, span, &target_type,
+                    |e| infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members)),
                 _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
                     span.file, span.line, span.col)),
             }
@@ -1029,7 +1055,7 @@ fn infer_expr_type_free(
                     let ok = is_numeric_type(&init_type) && is_numeric_type(&decl_field.typ)
                         && literal_fits_target(field_expr, &decl_field.typ);
                     let ok = ok || {
-                        if let (Type::TyArray(init_elem, _), Type::TyArray(decl_elem, _)) = (&init_type, &decl_field.typ) {
+                        if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&decl_field.typ)) {
                             if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
                                 if let Expr::ArrayLit(elems, _) = field_expr {
                                     elems.iter().all(|e| literal_fits_target(e, decl_elem))
@@ -1095,6 +1121,37 @@ fn extract_index_literal(index: &Expr) -> Option<i128> {
         }
         _ => None,
     }
+}
+
+/// Decompose an array type into its element type and optional declared
+/// size. Covers both dynamically-sized (`TyArray`) and fixed-size
+/// (`TyFixedArray`) arrays.
+fn as_array(t: &Type) -> Option<(&Type, Option<u64>)> {
+    match t {
+        Type::TyArray(elem, size) => Some((elem, *size)),
+        Type::TyFixedArray(elem, n) => Some((elem, Some(*n))),
+        _ => None,
+    }
+}
+
+/// Check compile-time bounds for a literal index against a declared
+/// array size. Negative indices wrap from the end (-1 → last element).
+fn check_index_bounds(elem: &Type, size: Option<u64>, index: &Expr, span: &Span) -> Result<Type, String> {
+    if let Some(sz) = size {
+        if let Some(val) = extract_index_literal(index) {
+            if val < 0 {
+                let pos = (-val) as u64;
+                if pos > sz {
+                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                        span.file, span.line, span.col, val, sz));
+                }
+            } else if (val as u64) >= sz {
+                return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
+                    span.file, span.line, span.col, val, sz));
+            }
+        }
+    }
+    Ok(elem.clone())
 }
 
 /// Returns `true` if `t` is any numeric type (integer or float).

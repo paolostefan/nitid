@@ -170,7 +170,7 @@ impl Codegen {
             c_code.push_str(&format!("typedef struct{} {} {{", attr, name));
             for f in fields {
                 match &f.typ {
-                    Type::TyArray(elem, Some(n)) => {
+                    Type::TyFixedArray(elem, n) => {
                         c_code.push_str(&format!(" {} {}[{}];", elem.c_str(), f.name, n));
                     }
                     _ => {
@@ -556,10 +556,27 @@ impl Codegen {
     /// default to I32 (e.g. integer literals in a `u8[]` variable).
     fn emit_typed_init(&mut self, init: &Expr, declared_type: &Type) -> String {
         match (declared_type, init) {
-            (Type::TyArray(_decl_elem, Some(_)), Expr::ArrayLit(elems, _)) => {
+            (Type::TyFixedArray(_decl_elem, _), Expr::ArrayLit(elems, _)) => {
                 let elems_str: Vec<String> =
                     elems.iter().map(|e| self.emit_expr(e, "")).collect();
                 format!("{{ {} }}", elems_str.join(", "))
+            }
+            // Dynamically-sized array with declared initial length: pad the
+            // compound literal to the declared size so the runtime zero-fills
+            // and stores every element on the heap.
+            (Type::TyArray(decl_elem, Some(count)), Expr::ArrayLit(elems, _)) => {
+                let elems_str: Vec<String> =
+                    elems.iter().map(|e| self.emit_expr(e, "")).collect();
+                let suffix = self.array_type_suffix(decl_elem);
+                let c_type = decl_elem.c_str();
+                format!(
+                    "nitid_array_from_lit_{}({}, ({}[{}]){{\n        {}\n    }})",
+                    suffix,
+                    count,
+                    c_type,
+                    count,
+                    elems_str.join(",\n        ")
+                )
             }
             (Type::TyArray(decl_elem, _), Expr::ArrayLit(elems, _)) => {
                 let elems_str: Vec<String> =
@@ -578,11 +595,11 @@ impl Codegen {
         }
     }
 
-    /// Return the array dimension suffix for a sized array type,
-    /// e.g. `[5]` for `TyArray(_, Some(5))`, empty string otherwise.
+    /// Return the array dimension suffix for a fixed-size array type,
+    /// e.g. `[5]` for `TyFixedArray(_, 5)`, empty string otherwise.
     fn array_decl_suffix(&self, typ: &Type) -> String {
         match typ {
-            Type::TyArray(_, Some(n)) => format!("[{}]", n),
+            Type::TyFixedArray(_, n) => format!("[{}]", n),
             _ => String::new(),
         }
     }
@@ -613,22 +630,31 @@ impl Codegen {
                     // but only the first gets the initializer.
                     for name in &v.names {
                         self.declare_var(name, typ.clone());
-                        s.push_str(&format!("    {} {};\n", type_str, name));
+                        s.push_str(&format!("    {} {}{};\n", type_str, name, suffix));
                     }
                 }
             } else {
                 // Struct-like types (e.g. nitid_array) need zero-init to avoid
                 // garbage pointers.  Scalar types are fine uninitialized.
-                let zero_init = matches!(typ, Type::TyArray(..));
                 let decls: Vec<String> = v
                     .names
                     .iter()
-                    .map(|n| {
-                        if zero_init {
+                    .map(|n| match typ {
+                        Type::TyFixedArray(..) => {
                             format!("{}{} = {{0}}", n, suffix)
-                        } else {
-                            n.clone()
                         }
+                        // Dynamically-sized array with initial length: the
+                        // runtime allocates and zeroes `count` elements.
+                        Type::TyArray(elem, Some(count)) => {
+                            format!("{} = nitid_array_zeros(sizeof({}), {})", n, elem.c_str(), count)
+                        }
+                        // Unsized dynamic array: empty, but carry the element
+                        // size so runtime calls like resize() know how to
+                        // address memory; remaining fields are zeroed.
+                        Type::TyArray(elem, None) => {
+                            format!("{} = {{.elem_size = sizeof({})}}", n, elem.c_str())
+                        }
+                        _ => n.clone(),
                     })
                     .collect();
                 for name in &v.names {
@@ -908,9 +934,19 @@ impl Codegen {
                         _ => None,
                     };
                     match var_type {
-                        Some(Type::TyArray(_, Some(n))) => format!("({})", n),
-                        Some(Type::TyArray(_, None)) => format!("nitid_array_size({})", target_str),
+                        Some(Type::TyFixedArray(_, n)) => format!("({})", n),
+                        Some(Type::TyArray(..)) => format!("nitid_array_size({})", target_str),
                         _ => format!("/* unknown method {}.{} */", target_str, method),
+                    }
+                } else if method == "resize" {
+                    // Sema guarantees a dynamic array with exactly one
+                    // integer argument.
+                    match target.as_ref() {
+                        Expr::Ident(name, _) => match args_str.first() {
+                            Some(arg) => format!("nitid_array_resize(&{}, {})", name, arg),
+                            None => format!("/* invalid resize on {} */", name),
+                        },
+                        _ => format!("/* unsupported resize target */"),
                     }
                 } else {
                     format!("/* unknown method {}.{} */", target_str, method)
@@ -919,9 +955,9 @@ impl Codegen {
             Expr::StructLit { struct_name, fields, .. } => {
                 let fields_str: Vec<String> = fields.iter()
                     .map(|(name, val)| {
-                        let is_sized_array = self.lookup_struct_field_type(struct_name, name)
-                            .map(|t| matches!(t, Type::TyArray(_, Some(_))))
-                            .unwrap_or(false);
+                    let is_sized_array = self.lookup_struct_field_type(struct_name, name)
+                        .map(|t| matches!(t, Type::TyFixedArray(..)))
+                        .unwrap_or(false);
                         if is_sized_array {
                             if let Expr::ArrayLit(elems, _) = val {
                                 let elems_str: Vec<String> = elems.iter()
@@ -944,7 +980,7 @@ impl Codegen {
     /// `None` when the index is not a compile-time literal.
     fn normalize_literal_index(&self, index: &Expr, target: &Expr) -> Option<String> {
         let sz = match self.typeof_expr(target) {
-            Some(Type::TyArray(_, Some(n))) => n,
+            Some(Type::TyFixedArray(_, n)) => n,
             _ => return None,
         };
         match index {
@@ -1253,7 +1289,8 @@ impl Codegen {
         match expr {
             Expr::Ident(name, _) => {
                 self.lookup_var_type(name).and_then(|t| match t {
-                    Type::TyArray(elem, sz) => Some((*elem, sz.is_some())),
+                    Type::TyFixedArray(elem, _) => Some((*elem, true)),
+                    Type::TyArray(elem, _) => Some((*elem, false)),
                     _ => None,
                 })
             }
@@ -1265,7 +1302,8 @@ impl Codegen {
                 match target_type {
                     Type::Struct(sname) => {
                         self.lookup_struct_field_type(&sname, field).and_then(|t| match t {
-                            Type::TyArray(elem, sz) => Some((*elem, sz.is_some())),
+                            Type::TyFixedArray(elem, _) => Some((*elem, true)),
+                            Type::TyArray(elem, _) => Some((*elem, false)),
                             _ => None,
                         })
                     }

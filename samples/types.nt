@@ -68,4 +68,7 @@ fn main {
 
     printf("~0 for different byte lengths is: %u, %u, %u, %lu, %llu",
            u_8, u_16, u_32, u_64, u_128);
+
+    // Hex number literal
+    u_64 = 0xffffffff00001234;
 }

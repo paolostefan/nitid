@@ -1,38 +1,48 @@
 // Sample illustrating base array use.
 
-// Fixed size literal init
+// Fixed-size literal init (C-backed, cannot be resized)
 fixed int a[3] = {10, 20, 30};
 
-// Fixed size literal init (partial)
+// Fixed-size literal init (partial)
 b := fixed int[300]{1, 2};
 
-// Dynamic size literal init
+// Dynamically-sized literal init (heap-backed, resizable)
 c := int[5]{1, 2, 3, 4, 5};
 
-// Dynamic size literal init (partial)
+// Dynamically-sized literal init (partial: remaining elements zeroed)
 d := int[50]{1, 2, 3, 4, 5};
 
-// Dynamic size literal init (partial), alternate syntax
+// Dynamically-sized literal init (partial), alternate syntax
 e := [50 int]{1, 2, 3, 4, 5};
 
-// Fixed size no  init
+// Fixed-size no init
 f := fixed int[300];
 
-// Dynamic size no init
+// Dynamically-sized no init
 g := int[5];
 
-// Dynamic size no init, alternate syntax
+// Dynamically-sized no init, alternate syntax
 h := [10 int];
 
 printf("e[0]=%d; d[0]=%d\n", e[0], d[0]);
 printf("e[30]=%d (should be 0); d[30]=%d (should be 0)\n", e[30], d[30]);
 
 // Size of fixed-sized array
-printf("f.size()=%d\n", f.size());
+printf("f.size()=%ld\n", f.size());
 
 // Size of dynamically-sized array
-printf("e.size()=%d\n", e.size());
+printf("e.size()=%ld\n", e.size());
 
+// Resize dynamically-sized arrays
 e.resize(200);
 
-printf("e.size()=%d\n", e.size());
+printf("after grow e.size()=%ld\n", e.size());
+printf("e[150]=%d (should be 0)\n", e[150]);
+
+// Resize back down
+e.resize(10);
+printf("after shrink e.size()=%ld; e[0]=%d (should be 1)\n", e.size(), e[0]);
+
+// Resize an array declared without initializer
+g.resize(3);
+printf("g.size()=%d; g[2]=%d (should be 0)\n", g.size(), g[2]);

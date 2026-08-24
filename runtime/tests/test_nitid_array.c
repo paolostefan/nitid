@@ -90,6 +90,76 @@ TEST(array_data_independent) {
     free(a.data);
 }
 
+TEST(array_resize_grow_zero_fills) {
+    int32_t vals[] = {1, 2, 3};
+    nitid_array a = nitid_array_from_lit_i32(3, vals);
+    nitid_array_resize(&a, 6);
+    ASSERT_EQ(a.length, 6);
+    ASSERT_EQ(a.capacity, 6);
+    ASSERT_EQ(nitid_array_get_i32(a, 0), 1);
+    ASSERT_EQ(nitid_array_get_i32(a, 2), 3);
+    ASSERT_EQ(nitid_array_get_i32(a, 3), 0);
+    ASSERT_EQ(nitid_array_get_i32(a, 5), 0);
+    free(a.data);
+}
+
+TEST(array_resize_shrunk_keeps_prefix) {
+    int32_t vals[] = {1, 2, 3, 4, 5};
+    nitid_array a = nitid_array_from_lit_i32(5, vals);
+    nitid_array_resize(&a, 2);
+    ASSERT_EQ(nitid_array_size(a), 2);
+    ASSERT_EQ(nitid_array_get_i32(a, 0), 1);
+    ASSERT_EQ(nitid_array_get_i32(a, 1), 2);
+    nitid_array_resize(&a, 4);
+    ASSERT_EQ(nitid_array_size(a), 4);
+    ASSERT_EQ(nitid_array_get_i32(a, 0), 1);
+    ASSERT_EQ(nitid_array_get_i32(a, 2), 0); // regrown tail is zeroed
+    free(a.data);
+}
+
+TEST(array_resize_to_zero_then_regrow) {
+    int32_t vals[] = {7, 8};
+    nitid_array a = nitid_array_from_lit_i32(2, vals);
+    nitid_array_resize(&a, 0);
+    ASSERT_EQ(nitid_array_size(a), 0);
+    ASSERT_NULL(a.data);
+    nitid_array_resize(&a, 3);
+    ASSERT_EQ(nitid_array_size(a), 3);
+    ASSERT_EQ(nitid_array_get_i32(a, 0), 0);
+    free(a.data);
+}
+
+TEST(array_resize_empty_decl) {
+    // Mirrors `a := int[10];` — declared without initializer.
+    nitid_array a = {.elem_size = sizeof(int64_t)};
+    nitid_array_resize(&a, 10);
+    ASSERT_EQ(nitid_array_size(a), 10);
+    ASSERT_EQ(a.elem_size, sizeof(int64_t));
+    ASSERT_EQ(nitid_array_get_i64(a, 9), 0);
+    free(a.data);
+}
+
+TEST(array_zeros) {
+    nitid_array a = nitid_array_zeros(sizeof(int32_t), 4);
+    ASSERT_EQ(a.length, 4);
+    ASSERT_EQ(a.capacity, 4);
+    ASSERT_EQ(a.elem_size, sizeof(int32_t));
+    ASSERT_NOT_NULL(a.data);
+    for (size_t i = 0; i < 4; i++) {
+        ASSERT_EQ(nitid_array_get_i32(a, (int64_t)i), 0);
+    }
+    free(a.data);
+}
+
+TEST(array_resize_same_size_noop) {
+    int32_t vals[] = {5};
+    nitid_array a = nitid_array_from_lit_i32(1, vals);
+    nitid_array_resize(&a, 1);
+    ASSERT_EQ(nitid_array_get_i32(a, 0), 5);
+    ASSERT_EQ(nitid_array_size(a), 1);
+    free(a.data);
+}
+
 void register_array_tests(void) {
     RUN_TEST(array_from_lit_empty);
     RUN_TEST(array_from_lit_single);
@@ -100,4 +170,10 @@ void register_array_tests(void) {
     RUN_TEST(array_f64);
     RUN_TEST(array_bool);
     RUN_TEST(array_data_independent);
+    RUN_TEST(array_resize_grow_zero_fills);
+    RUN_TEST(array_resize_shrunk_keeps_prefix);
+    RUN_TEST(array_resize_to_zero_then_regrow);
+    RUN_TEST(array_resize_empty_decl);
+    RUN_TEST(array_resize_same_size_noop);
+    RUN_TEST(array_zeros);
 }

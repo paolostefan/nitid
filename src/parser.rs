@@ -675,9 +675,17 @@ impl Parser {
             None
         };
         self.expect(&TokenKind::Semicolon)?;
-        // Wrap element type in TyArray when this is an array declaration
-        let typ = if array_size.is_some() || is_fixed {
-            Type::TyArray(Box::new(base_typ), array_size)
+        // Wrap element type when this is an array declaration:
+        // `fixed` + explicit size → fixed-size C array; explicit size
+        // without `fixed` → dynamically-sized (heap) array.
+        let typ = if let Some(sz) = array_size {
+            if is_fixed {
+                Type::TyFixedArray(Box::new(base_typ), sz)
+            } else {
+                Type::TyArray(Box::new(base_typ), Some(sz))
+            }
+        } else if is_fixed {
+            Type::TyArray(Box::new(base_typ), None)
         } else {
             base_typ
         };
@@ -720,9 +728,15 @@ impl Parser {
         let is_bracket_array = matches!(self.peek_kind(), Some(TokenKind::LBracket))
             && matches!(self.peek_nth_kind(1), Some(TokenKind::IntLit(_)))
             && self.peek_nth_kind(2).map(|k| is_type_kind(k, &self.enum_names)).unwrap_or(false);
-        if self.consume(&TokenKind::Fixed) || self.peek_kind().map(|k| is_type_kind(k, &self.enum_names)).unwrap_or(false) || is_bracket_array {
-            let is_fixed_annot = self.consume(&TokenKind::Fixed);
+        let is_fixed_annot = self.consume(&TokenKind::Fixed);
+        if is_fixed_annot || self.peek_kind().map(|k| is_type_kind(k, &self.enum_names)).unwrap_or(false) || is_bracket_array {
             let typ = self.parse_type()?;
+            // Fold the `fixed` annotation into sized array types:
+            // `fixed int[5]` → C array; plain `int[5]` stays dynamic.
+            let typ = match (is_fixed_annot, typ) {
+                (true, Type::TyArray(elem, Some(sz))) => Type::TyFixedArray(elem, sz),
+                (_, t) => t,
+            };
             // Optional initializer (e.g. `a := [3 int]{1, 2, 3}`)
             let init = if self.check(&TokenKind::LBrace) {
                 Some(self.parse_expr()?)
