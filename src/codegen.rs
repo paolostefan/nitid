@@ -134,6 +134,7 @@ impl Codegen {
         c_code.push_str("#include <stdio.h>\n");
         c_code.push_str("#include <stdint.h>\n");
         c_code.push_str("#include <stdbool.h>\n");
+        c_code.push_str("#include \"runtime/nitid_types.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string16.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string32.h\"\n");
