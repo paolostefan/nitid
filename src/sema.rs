@@ -1,6 +1,6 @@
+use crate::PackageContext;
 use crate::ast::*;
 use crate::types::{Type, is_string_type};
-use crate::{PackageContext};
 /// Semantic analyser for Nitid.
 ///
 /// Phase 3 of the transpilation pipeline: validates the AST produced
@@ -67,6 +67,9 @@ pub struct Sema {
     fn_sigs_map: HashMap<String, (Vec<Type>, Vec<Type>)>,
     /// Imported struct definitions
     imported_struct_defs: HashMap<String, StructInfo>,
+    /// Per-package functions for qualified access (eg. Math.multiply()).
+    /// Key: imported package name. Value: that package's functions
+    package_functions: HashMap<String, HashMap<String, (Vec<Type>, Vec<Type>)>>,
 }
 
 /// A lexical scope mapping variable names to their types.
@@ -134,6 +137,7 @@ impl Sema {
             enum_members: HashMap::new(),
             fn_sigs_map: HashMap::new(),
             imported_struct_defs: HashMap::new(),
+            package_functions: HashMap::new(),
         }
     }
 
@@ -141,33 +145,48 @@ impl Sema {
     pub fn analyze(
         &mut self,
         program: &mut Program,
-        pkg_ctx: Option<&PackageContext>,
+        packages: Option<&HashMap<String, PackageContext>>,
     ) -> Result<(), String> {
         // Pre-populate from imported package context.
-        if let Some(ctx) = pkg_ctx {
-            for (name, sig) in &ctx.functions {
-                self.fn_sigs_map.insert(
-                    name.clone(),
-                    (sig.param_types.clone(), sig.return_types.clone()),
-                );
+        if let Some(pkgs) = packages {
+            // Bare-call support: flatten everything
+            for ctx in pkgs.values() {
+                for (name, sig) in &ctx.functions {
+                    self.fn_sigs_map.insert(
+                        name.clone(),
+                        (sig.param_types.clone(), sig.return_types.clone()),
+                    );
+                }
+
+                for (name, fields) in &ctx.structs {
+                    self.imported_struct_defs.insert(
+                        name.clone(),
+                        StructInfo {
+                            fields: fields
+                                .iter()
+                                .map(|(n, t)| StructField {
+                                    name: n.clone(),
+                                    typ: t.clone(),
+                                    span: Span::new("", 0, 0),
+                                })
+                                .collect(),
+                            packed: false,
+                            align: None,
+                        },
+                    );
+                }
             }
 
-            for (name, fields) in &ctx.structs {
-                self.imported_struct_defs.insert(
-                    name.clone(),
-                    StructInfo {
-                        fields: fields
-                            .iter()
-                            .map(|(n, t)| StructField {
-                                name: n.clone(),
-                                typ: t.clone(),
-                                span: Span::new("", 0, 0),
-                            })
-                            .collect(),
-                        packed: false,
-                        align: None,
-                    },
-                );
+            // Qualified-access support: keep per-package namespaces.
+            for (pkg_name, ctx) in pkgs {
+                let mut fns = HashMap::new();
+                for (name, sig) in &ctx.functions {
+                    fns.insert(
+                        name.clone(),
+                        (sig.param_types.clone(), sig.return_types.clone()),
+                    );
+                }
+                self.package_functions.insert(pkg_name.clone(), fns);
             }
         }
         self.analyze_decls(&mut program.decls)
@@ -185,7 +204,9 @@ impl Sema {
 
         // Start with imported struct defs (shadowed by local ones)
         for (name, info) in &self.imported_struct_defs {
-          self.struct_defs.entry(name.clone()).or_insert_with(|| info.clone());
+            self.struct_defs
+                .entry(name.clone())
+                .or_insert_with(|| info.clone());
         }
 
         for decl in decls.iter() {
@@ -789,6 +810,34 @@ impl Sema {
                 args,
                 span,
             } => {
+                // Imports: qualified package call, e.g. Math.multiply(25, 14).
+                // The receiver is an Ident naming an imported package.
+                if let Expr::Ident(pkg_name, _) = target.as_ref() {
+                    if let Some(pkg_fns) = self.package_functions.get(pkg_name) {
+                        // Validate argument types first.
+                        for arg in args {
+                            self.infer_expr_type(arg, scope, fn_sigs)?;
+                        }
+
+                        return pkg_fns
+                            .get(method)
+                            .map(|(_, returns)| {
+                                if returns.len() == 1 {
+                                    returns[0].clone()
+                                } else {
+                                    Type::Void
+                                }
+                            })
+                            .ok_or_else(|| {
+                                format!(
+                                    "{}:{}:{}: Package '{}' has no function '{}'",
+                                    span.file, span.line, span.col, pkg_name, method
+                                )
+                            });
+                    }
+                }
+
+                // The receiver is not an imported package's name.
                 let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
                 match target_type {
                     Type::Struct(ref struct_name) => {

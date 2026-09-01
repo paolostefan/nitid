@@ -11,7 +11,7 @@
 ///   parser; this pass just emits them.
 /// * Type inference for `:=` uses a simple heuristic
 ///   ([`infer_init_type`]) rather than consulting the semantic
-///   analyser's results.
+///   analyzer's results.
 ///
 /// # Limitations
 /// * Only one `.c` file is produced per input `.nt` file (no
@@ -21,7 +21,7 @@
 ///   will produce C code that references unknown types.
 /// * The runtime string library (`nitid_string`) is minimal.
 use crate::ast::*;
-use crate::types::{is_string_type, Type};
+use crate::types::{Type, is_string_type};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -53,6 +53,8 @@ pub struct Codegen {
     struct_defs: Vec<(String, Vec<StructField>, bool, Option<u64>)>,
     /// Enum definitions (name, variants) for emission.
     enum_defs: Vec<(String, Vec<EnumVariant>)>,
+    /// Imported package names, for resolving qualified calls like Math.foo()
+    package_names: HashSet<String>,
 }
 
 impl Codegen {
@@ -66,6 +68,7 @@ impl Codegen {
             struct_names: HashSet::new(),
             struct_defs: Vec::new(),
             enum_defs: Vec::new(),
+            package_names: HashSet::new(),
         }
     }
 
@@ -81,13 +84,17 @@ impl Codegen {
         &mut self,
         program: &Program,
         c_src_dir: &str,
+        package_names: HashSet<String>,
     ) -> Result<(Vec<CFile>, String), String> {
+        self.package_names = package_names;
+
         // Pass 0: collect struct and enum definitions.
         for decl in &program.decls {
             match decl {
                 Decl::StructDecl(s) => {
                     self.struct_names.insert(s.name.clone());
-                    self.struct_defs.push((s.name.clone(), s.fields.clone(), s.packed, s.align));
+                    self.struct_defs
+                        .push((s.name.clone(), s.fields.clone(), s.packed, s.align));
                 }
                 Decl::EnumDecl(e) => {
                     self.enum_defs.push((e.name.clone(), e.variants.clone()));
@@ -142,20 +149,24 @@ impl Codegen {
         c_code.push('\n');
 
         // Enum type definitions.
-        let enum_emissions: Vec<(String, String)> = self.enum_defs.iter().map(|(name, variants)| {
-            let mut body = String::new();
-            for v in variants {
-                if let Some(ref val) = v.value {
-                    // We can't call self.emit_expr here due to borrow rules,
-                    // so we use a simple structural emission for enum values.
-                    let val_str = enum_value_to_c(val);
-                    body.push_str(&format!(" {} = {},", v.name, val_str));
-                } else {
-                    body.push_str(&format!(" {},", v.name));
+        let enum_emissions: Vec<(String, String)> = self
+            .enum_defs
+            .iter()
+            .map(|(name, variants)| {
+                let mut body = String::new();
+                for v in variants {
+                    if let Some(ref val) = v.value {
+                        // We can't call self.emit_expr here due to borrow rules,
+                        // so we use a simple structural emission for enum values.
+                        let val_str = enum_value_to_c(val);
+                        body.push_str(&format!(" {} = {},", v.name, val_str));
+                    } else {
+                        body.push_str(&format!(" {},", v.name));
+                    }
                 }
-            }
-            (name.clone(), body)
-        }).collect();
+                (name.clone(), body)
+            })
+            .collect();
         for (name, body) in &enum_emissions {
             c_code.push_str(&format!("typedef enum {{{} }} {};\n\n", body, name));
         }
@@ -558,16 +569,14 @@ impl Codegen {
     fn emit_typed_init(&mut self, init: &Expr, declared_type: &Type) -> String {
         match (declared_type, init) {
             (Type::TyFixedArray(_decl_elem, _), Expr::ArrayLit(elems, _)) => {
-                let elems_str: Vec<String> =
-                    elems.iter().map(|e| self.emit_expr(e, "")).collect();
+                let elems_str: Vec<String> = elems.iter().map(|e| self.emit_expr(e, "")).collect();
                 format!("{{ {} }}", elems_str.join(", "))
             }
             // Dynamically-sized array with declared initial length: pad the
             // compound literal to the declared size so the runtime zero-fills
             // and stores every element on the heap.
             (Type::TyArray(decl_elem, Some(count)), Expr::ArrayLit(elems, _)) => {
-                let elems_str: Vec<String> =
-                    elems.iter().map(|e| self.emit_expr(e, "")).collect();
+                let elems_str: Vec<String> = elems.iter().map(|e| self.emit_expr(e, "")).collect();
                 let suffix = self.array_type_suffix(decl_elem);
                 let c_type = decl_elem.c_str();
                 format!(
@@ -580,8 +589,7 @@ impl Codegen {
                 )
             }
             (Type::TyArray(decl_elem, _), Expr::ArrayLit(elems, _)) => {
-                let elems_str: Vec<String> =
-                    elems.iter().map(|e| self.emit_expr(e, "")).collect();
+                let elems_str: Vec<String> = elems.iter().map(|e| self.emit_expr(e, "")).collect();
                 let suffix = self.array_type_suffix(decl_elem);
                 let c_type = decl_elem.c_str();
                 format!(
@@ -647,7 +655,12 @@ impl Codegen {
                         // Dynamically-sized array with initial length: the
                         // runtime allocates and zeroes `count` elements.
                         Type::TyArray(elem, Some(count)) => {
-                            format!("{} = nitid_array_zeros(sizeof({}), {})", n, elem.c_str(), count)
+                            format!(
+                                "{} = nitid_array_zeros(sizeof({}), {})",
+                                n,
+                                elem.c_str(),
+                                count
+                            )
                         }
                         // Unsized dynamic array: empty, but carry the element
                         // size so runtime calls like resize() know how to
@@ -810,14 +823,12 @@ impl Codegen {
             Expr::Assign { left, right, .. } => {
                 let left_str = self.emit_expr(left, current_fn);
                 let right_str = match left.as_ref() {
-                    Expr::Ident(name, _) => {
-                        match self.lookup_var_type(name) {
-                            Some(ref typ) if is_string_type(typ) => {
-                                self.emit_string_as_value(right, typ, current_fn)
-                            }
-                            _ => self.emit_expr(right, current_fn),
+                    Expr::Ident(name, _) => match self.lookup_var_type(name) {
+                        Some(ref typ) if is_string_type(typ) => {
+                            self.emit_string_as_value(right, typ, current_fn)
                         }
-                    }
+                        _ => self.emit_expr(right, current_fn),
+                    },
                     _ => self.emit_expr(right, current_fn),
                 };
                 format!("{} = {}", left_str, right_str)
@@ -866,18 +877,38 @@ impl Codegen {
                 // Check for string indexing → codepoint-aware at_cp
                 if let Some(t) = self.typeof_expr(target) {
                     match t {
-                        Type::String => return format!("nitid_string_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
-                        Type::String16 => return format!("nitid_string16_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
-                        Type::String32 => return format!("nitid_string32_at_cp(&{}, {})", target_str, self.emit_expr(index, current_fn)),
+                        Type::String => {
+                            return format!(
+                                "nitid_string_at_cp(&{}, {})",
+                                target_str,
+                                self.emit_expr(index, current_fn)
+                            );
+                        }
+                        Type::String16 => {
+                            return format!(
+                                "nitid_string16_at_cp(&{}, {})",
+                                target_str,
+                                self.emit_expr(index, current_fn)
+                            );
+                        }
+                        Type::String32 => {
+                            return format!(
+                                "nitid_string32_at_cp(&{}, {})",
+                                target_str,
+                                self.emit_expr(index, current_fn)
+                            );
+                        }
                         _ => {}
                     }
                 }
-                let is_sized = self.infer_array_info(target)
+                let is_sized = self
+                    .infer_array_info(target)
                     .map(|(_, sized)| sized)
                     .unwrap_or(false);
                 if is_sized {
                     // Normalize negative literal indices to their wrapped positive form
-                    let index_str = self.normalize_literal_index(index, target)
+                    let index_str = self
+                        .normalize_literal_index(index, target)
                         .unwrap_or_else(|| self.emit_expr(index, current_fn));
                     format!("{}[{}]", target_str, index_str)
                 } else {
@@ -885,7 +916,9 @@ impl Codegen {
                     let suffix = self.array_type_suffix(&elem_type);
                     format!(
                         "nitid_array_get_{}({}, {})",
-                        suffix, target_str, self.emit_expr(index, current_fn)
+                        suffix,
+                        target_str,
+                        self.emit_expr(index, current_fn)
                     )
                 }
             }
@@ -904,18 +937,28 @@ impl Codegen {
                 };
                 format!("{}{}{}", target_str, op, field)
             }
-            Expr::MethodCall { target, method, args, .. } => {
-                let target_str = self.emit_expr(target, current_fn);
-                let args_str: Vec<String> = args.iter()
-                    .map(|a| self.emit_expr(a, current_fn))
-                    .collect();
-                let struct_name = match target.as_ref() {
-                    Expr::Ident(name, _) => {
-                        self.lookup_var_type(name).and_then(|t| match t {
-                            Type::Struct(s) => Some(s),
-                            _ => None,
-                        })
+            Expr::MethodCall {
+                target,
+                method,
+                args,
+                ..
+            } => {
+                // Import: qualified package call, e.g. Math.Multiply(25,14) .
+                if let Expr::Ident(pkg_name, _) = target.as_ref() {
+                    if self.package_names.contains(pkg_name) {
+                        let args_str = self.emit_call_args_joined(args, current_fn);
+                        return format!("{}({})", method, args_str);
                     }
+                }
+
+                let target_str = self.emit_expr(target, current_fn);
+                let args_str: Vec<String> =
+                    args.iter().map(|a| self.emit_expr(a, current_fn)).collect();
+                let struct_name = match target.as_ref() {
+                    Expr::Ident(name, _) => self.lookup_var_type(name).and_then(|t| match t {
+                        Type::Struct(s) => Some(s),
+                        _ => None,
+                    }),
                     _ => None,
                 };
                 if let Some(ref sname) = struct_name {
@@ -947,21 +990,28 @@ impl Codegen {
                             Some(arg) => format!("nitid_array_resize(&{}, {})", name, arg),
                             None => format!("/* invalid resize on {} */", name),
                         },
-                        _ => format!("/* unsupported resize target */"),
+                        _ => "/* unsupported resize target */".to_string(),
                     }
                 } else {
                     format!("/* unknown method {}.{} */", target_str, method)
                 }
             }
-            Expr::StructLit { struct_name, fields, .. } => {
-                let fields_str: Vec<String> = fields.iter()
+            Expr::StructLit {
+                struct_name,
+                fields,
+                ..
+            } => {
+                let fields_str: Vec<String> = fields
+                    .iter()
                     .map(|(name, val)| {
-                    let is_sized_array = self.lookup_struct_field_type(struct_name, name)
-                        .map(|t| matches!(t, Type::TyFixedArray(..)))
-                        .unwrap_or(false);
+                        let is_sized_array = self
+                            .lookup_struct_field_type(struct_name, name)
+                            .map(|t| matches!(t, Type::TyFixedArray(..)))
+                            .unwrap_or(false);
                         if is_sized_array {
                             if let Expr::ArrayLit(elems, _) = val {
-                                let elems_str: Vec<String> = elems.iter()
+                                let elems_str: Vec<String> = elems
+                                    .iter()
                                     .map(|e| self.emit_expr(e, current_fn))
                                     .collect();
                                 return format!(".{} = {{ {} }}", name, elems_str.join(", "));
@@ -976,7 +1026,7 @@ impl Codegen {
         }
     }
 
-    /// Normalise a literal index expression: negative values are
+    /// Normalize a literal index expression: negative values are
     /// wrapped from the array end (`-1` → `size - 1`).  Returns
     /// `None` when the index is not a compile-time literal.
     fn normalize_literal_index(&self, index: &Expr, target: &Expr) -> Option<String> {
@@ -987,13 +1037,24 @@ impl Codegen {
         match index {
             Expr::IntLit(val, _) if *val < 0 => {
                 let abs = (-val) as u64;
-                if abs <= sz { Some((sz - abs).to_string()) } else { None }
+                if abs <= sz {
+                    Some((sz - abs).to_string())
+                } else {
+                    None
+                }
             }
-            Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+            Expr::BinaryOp {
+                left,
+                op: BinOp::Sub,
+                right,
+                ..
+            } => {
                 if let Expr::IntLit(0, _) = left.as_ref() {
                     if let Expr::IntLit(val, _) = right.as_ref() {
                         let abs = *val as u64;
-                        if abs <= sz { return Some((sz - abs).to_string()); }
+                        if abs <= sz {
+                            return Some((sz - abs).to_string());
+                        }
                     }
                 }
                 None
@@ -1024,17 +1085,21 @@ impl Codegen {
                 }
                 None
             }
-            Expr::Call { name, .. } => {
-                self.fn_returns.get(name).and_then(|ret| {
-                    if ret.len() == 1 { Some(ret[0].clone()) } else { None }
-                })
-            }
+            Expr::Call { name, .. } => self.fn_returns.get(name).and_then(|ret| {
+                if ret.len() == 1 {
+                    Some(ret[0].clone())
+                } else {
+                    None
+                }
+            }),
             Expr::BinaryOp { left, op, .. } => {
                 let lt = self.typeof_expr(left)?;
                 if is_string_type(&lt) {
                     match op {
                         BinOp::Add => Some(lt),
-                        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => Some(Type::Bool),
+                        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
+                            Some(Type::Bool)
+                        }
                         _ => Some(lt),
                     }
                 } else {
@@ -1044,7 +1109,9 @@ impl Codegen {
             Expr::Index { target, .. } => {
                 let t = self.typeof_expr(target);
                 match t {
-                    Some(Type::String) | Some(Type::String16) | Some(Type::String32) => Some(Type::U32),
+                    Some(Type::String) | Some(Type::String16) | Some(Type::String32) => {
+                        Some(Type::U32)
+                    }
                     Some(Type::TyArray(elem, _)) => Some(*elem),
                     _ => None,
                 }
@@ -1154,11 +1221,17 @@ impl Codegen {
                     }
                     if typ == Type::String16 {
                         let conv = format!("nitid_string16_to_utf8(&{})", name);
-                        return format!("{{ nitid_string _nitid_utf8 = {}; printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); }}", conv);
+                        return format!(
+                            "{{ nitid_string _nitid_utf8 = {}; printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); }}",
+                            conv
+                        );
                     }
                     if typ == Type::String32 {
                         let conv = format!("nitid_string32_to_utf8(&{})", name);
-                        return format!("{{ nitid_string _nitid_utf8 = {}; printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); }}", conv);
+                        return format!(
+                            "{{ nitid_string _nitid_utf8 = {}; printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); }}",
+                            conv
+                        );
                     }
                 }
             }
@@ -1166,15 +1239,24 @@ impl Codegen {
             if let Some(typ) = self.typeof_expr(&args[0]) {
                 if typ == Type::String {
                     let expr_str = self.emit_expr(&args[0], current_fn);
-                    return format!("{{ nitid_string _nitid_str = {}; printf(\"%s\\n\", _nitid_str.data); nitid_string_free(&_nitid_str); }}", expr_str);
+                    return format!(
+                        "{{ nitid_string _nitid_str = {}; printf(\"%s\\n\", _nitid_str.data); nitid_string_free(&_nitid_str); }}",
+                        expr_str
+                    );
                 }
                 if typ == Type::String16 {
                     let expr_str = self.emit_expr(&args[0], current_fn);
-                    return format!("{{ nitid_string16 _nitid_s16 = {}; nitid_string _nitid_utf8 = nitid_string16_to_utf8(&_nitid_s16); printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); nitid_string16_free(&_nitid_s16); }}", expr_str);
+                    return format!(
+                        "{{ nitid_string16 _nitid_s16 = {}; nitid_string _nitid_utf8 = nitid_string16_to_utf8(&_nitid_s16); printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); nitid_string16_free(&_nitid_s16); }}",
+                        expr_str
+                    );
                 }
                 if typ == Type::String32 {
                     let expr_str = self.emit_expr(&args[0], current_fn);
-                    return format!("{{ nitid_string32 _nitid_s32 = {}; nitid_string _nitid_utf8 = nitid_string32_to_utf8(&_nitid_s32); printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); nitid_string32_free(&_nitid_s32); }}", expr_str);
+                    return format!(
+                        "{{ nitid_string32 _nitid_s32 = {}; nitid_string _nitid_utf8 = nitid_string32_to_utf8(&_nitid_s32); printf(\"%s\\n\", _nitid_utf8.data); nitid_string_free(&_nitid_utf8); nitid_string32_free(&_nitid_s32); }}",
+                        expr_str
+                    );
                 }
             }
         }
@@ -1248,9 +1330,7 @@ impl Codegen {
             Expr::CharLit(..) => "uint8_t".to_string(),
             Expr::BoolLit(..) => "bool".to_string(),
             Expr::ArrayLit(..) => "nitid_array".to_string(),
-            Expr::Index { target, .. } => {
-                self.infer_array_elem_type(target).c_str().to_string()
-            }
+            Expr::Index { target, .. } => self.infer_array_elem_type(target).c_str().to_string(),
             Expr::StructLit { struct_name, .. } => struct_name.clone(),
             _ => "int".to_string(),
         }
@@ -1288,13 +1368,11 @@ impl Codegen {
     /// (has a compile-time known size).
     fn infer_array_info(&self, expr: &Expr) -> Option<(Type, bool)> {
         match expr {
-            Expr::Ident(name, _) => {
-                self.lookup_var_type(name).and_then(|t| match t {
-                    Type::TyFixedArray(elem, _) => Some((*elem, true)),
-                    Type::TyArray(elem, _) => Some((*elem, false)),
-                    _ => None,
-                })
-            }
+            Expr::Ident(name, _) => self.lookup_var_type(name).and_then(|t| match t {
+                Type::TyFixedArray(elem, _) => Some((*elem, true)),
+                Type::TyArray(elem, _) => Some((*elem, false)),
+                _ => None,
+            }),
             Expr::FieldAccess { target, field, .. } => {
                 let target_type = match target.as_ref() {
                     Expr::Ident(name, _) => self.lookup_var_type(name),
@@ -1302,11 +1380,12 @@ impl Codegen {
                 }?;
                 match target_type {
                     Type::Struct(sname) => {
-                        self.lookup_struct_field_type(&sname, field).and_then(|t| match t {
-                            Type::TyFixedArray(elem, _) => Some((*elem, true)),
-                            Type::TyArray(elem, _) => Some((*elem, false)),
-                            _ => None,
-                        })
+                        self.lookup_struct_field_type(&sname, field)
+                            .and_then(|t| match t {
+                                Type::TyFixedArray(elem, _) => Some((*elem, true)),
+                                Type::TyArray(elem, _) => Some((*elem, false)),
+                                _ => None,
+                            })
                     }
                     _ => None,
                 }
@@ -1351,7 +1430,8 @@ impl Codegen {
     fn lookup_struct_field_type(&self, struct_name: &str, field_name: &str) -> Option<Type> {
         for (name, fields, _, _) in &self.struct_defs {
             if name == struct_name {
-                return fields.iter()
+                return fields
+                    .iter()
                     .find(|f| f.name == field_name)
                     .map(|f| f.typ.clone());
             }
@@ -1385,7 +1465,12 @@ impl Codegen {
 fn enum_value_to_c(expr: &Expr) -> String {
     match expr {
         Expr::IntLit(val, _) => val.to_string(),
-        Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+        Expr::BinaryOp {
+            left,
+            op: BinOp::Sub,
+            right,
+            ..
+        } => {
             if let Expr::IntLit(0, _) = left.as_ref() {
                 if let Expr::IntLit(rval, _) = right.as_ref() {
                     return format!("{}", -rval);
@@ -1422,7 +1507,7 @@ impl Codegen {
         cmake.push_str(
             "target_include_directories(nitid_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
         );
-      
+
         cmake.push_str(&format!("add_executable({}\n", proj_name));
         cmake.push_str(&format!("    {}.c\n", base_name));
         cmake.push_str(")\n\n");
@@ -1430,9 +1515,7 @@ impl Codegen {
         cmake.push_str(
             "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
         );
-        cmake.push_str(
-            "target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n"
-        );
+        cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n");
 
         cmake
     }

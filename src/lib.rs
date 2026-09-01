@@ -15,11 +15,15 @@
 //!
 //! # Limitations
 //! * Import resolution is declared in the grammar but **not implemented**.
-//! * The semantic analyser does **not** enforce
+//! * The semantic analyzer does **not** enforce
 //!   no-implicit-casts or no-uninitialized-variables in practice
 //!   (it issues warnings but does not reject the program).
 //! * Memory management, race-condition prevention, and buffer-overflow
 //!   protection are **not** implemented.
+use std::string::String;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fs;
 
 /// AST node types.
 pub mod ast;
@@ -54,14 +58,13 @@ pub struct FunctionSig {
 #[derive(Debug, Clone)]
 pub struct PackageContext {
     /// Functions: name -> (param types, return types, param names)
-    pub functions: std::collections::HashMap<String, FunctionSig>,
+    pub functions: HashMap<String, FunctionSig>,
     /// Struct definitions: name -> list of (field name, field type)
-    pub structs: std::collections::HashMap<String, Vec<(String, types::Type)>>,
+    pub structs: HashMap<String, Vec<(String, types::Type)>>,
     /// Enum definitions: name -> list of (variant name, optional value)
-    pub enums: std::collections::HashMap<String, Vec<(String, Option<i128>)>>,
+    pub enums: HashMap<String, Vec<(String, Option<i128>)>>,
 }
 
-use std::fs;
 
 /// Read a file from `path` and transpile it.
 ///
@@ -185,17 +188,17 @@ fn has_nt_files(dir: &std::path::Path) -> bool {
 /// by package name.
 pub fn load_imports(
     program: &ast::Program,
-) -> Result<std::collections::HashMap<String, Vec<ast::Program>>, String> {
-    let mut imported = std::collections::HashMap::new();
+) -> Result<HashMap<String, Vec<ast::Program>>, String> {
+    let mut imported = HashMap::new();
     let mut visited = std::collections::HashSet::new();
     load_imports_inner(program, &mut imported, &mut visited)
 }
 
 fn load_imports_inner(
   program: &ast::Program,
-  imported: &mut std::collections::HashMap<String, Vec<ast::Program>>,
+  imported: &mut HashMap<String, Vec<ast::Program>>,
   visited: &mut std::collections::HashSet<String>
-) -> Result<std::collections::HashMap<String, Vec<ast::Program>>, String> {
+) -> Result<HashMap<String, Vec<ast::Program>>, String> {
   for imp in &program.imports {
 
     if !visited.insert(imp.name.clone()) {
@@ -240,9 +243,9 @@ fn load_imports_inner(
 /// unified view.
 pub fn build_package_context(programs: &[ast::Program]) -> PackageContext {
     let mut ctx = PackageContext {
-        functions: std::collections::HashMap::new(),
-        structs: std::collections::HashMap::new(),
-        enums: std::collections::HashMap::new(),
+        functions: HashMap::new(),
+        structs: HashMap::new(),
+        enums: HashMap::new(),
     };
 
     for program in programs {
@@ -301,9 +304,9 @@ pub fn build_package_context(programs: &[ast::Program]) -> PackageContext {
 /// on name conflicts (last-one-wins).
 pub fn merge_contexts(contexts: &[PackageContext]) -> PackageContext {
     let mut merged = PackageContext {
-        functions: std::collections::HashMap::new(),
-        structs: std::collections::HashMap::new(),
-        enums: std::collections::HashMap::new(),
+        functions: HashMap::new(),
+        structs: HashMap::new(),
+        enums: HashMap::new(),
     };
 
     for ctx in contexts {
@@ -341,19 +344,20 @@ pub fn compile(
     // Load and parse imports.
     let imports = load_imports(&program)?;
 
-    // Build combined context from all imported packages.
-    let pkg_contexts: Vec<PackageContext> = imports
-        .values()
-        .map(|programs| build_package_context(programs))
+    // Build a per-package context map.
+    let pkg_contexts: HashMap<String, PackageContext> = imports
+        .iter()
+        .map(|(name, programs)| (name.clone(), build_package_context(programs)))
         .collect();
-    let combined_ctx = merge_contexts(&pkg_contexts);
 
-    // Pass context to sema.
+    // Pass the package map to sema.
     let mut sema_ctx = sema::Sema::new();
-    sema_ctx.analyze(&mut program, Some(&combined_ctx))?;
+    sema_ctx.analyze(&mut program, Some(&pkg_contexts))?;
 
     let mut cg = codegen::Codegen::new();
-    let (c_files, cmake) = cg.generate(&program, c_src_dir)?;
+    let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
+    let (c_files, cmake) =
+        cg.generate(&program, c_src_dir, package_names)?;
 
     Ok((program, c_files, cmake))
 }
