@@ -77,6 +77,7 @@ fn main() -> Result<(), String> {
     // Copy the Nitid runtime sources (nitid_string) into the output directory.
     let proj_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     for (src, dst) in [
+        (proj_root.join("runtime/nitid_types.h"), format!("{}/runtime/nitid_types.h", c_src_dir)),
         (proj_root.join("runtime/nitid_string.h"), format!("{}/runtime/nitid_string.h", c_src_dir)),
         (proj_root.join("runtime/nitid_string.c"), format!("{}/runtime/nitid_string.c", c_src_dir)),
         (proj_root.join("runtime/nitid_string16.h"), format!("{}/runtime/nitid_string16.h", c_src_dir)),

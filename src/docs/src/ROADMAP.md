@@ -38,7 +38,7 @@ bounds-checked access.
 
 | #   | Done | Feature                          | What's involved                                                                                                                             |
 |-----|------|----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.1 |      | **File-level import resolution** | Given `import Foo`, find `Foo.nt` in search paths, tokenize + parse it, merge declarations into a package symbol table.                     |
+| 1.1 | ✅   | **File-level import resolution** | Given `import Foo`, find files with `package Foo;` in search paths, tokenize + parse them, merge declarations into a package symbol table.  |
 | 1.2 |      | **Qualified access**             | `Foo.someFunc()` — parser needs to handle `Ident "." Ident` call syntax. Sema resolves against imported package.                            |
 | 1.3 |      | **Import aliasing**              | `import Foo as f` → `f.someFunc()`. Already parsed, just not wired.                                                                         |
 | 1.4 |      | **Multi-file compilation**       | Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order. |
@@ -92,8 +92,9 @@ bounds-checked access.
 | #   | Done | Feature                        | What's involved                                                                                                                                                                                                                            |
 |-----|------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 5.1 |      | **Struct tags**                | Optional string metadata after each field (`age: u8 "json:\"age\""`). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See [spec](specs/4.structs.md#tags). |
-| 5.2 |      | **Full runtime for I256/U256** | Software-emulated 256-bit integer in C. Add `nitid_i256` / `nitid_u256` to runtime. Operator overloads for arithmetic.                                                                                                                     |
-| 5.3 |      | **F8 / F16 runtime**           | 8/16-bit floats (likely `_Float16` if compiler supports, or soft-float wrapper).                                                                                                                                                           |
+| 5.2 |      | **Include file to variable**   | Ability to embed files, like what Golang does with a single-file `go:embed` directive.                                                                                                                                                     |
+| 5.3 |      | **Full runtime for I256/U256** | Software-emulated 256-bit integer in C. Add `nitid_i256` / `nitid_u256` to runtime. Operator overloads for arithmetic.                                                                                                                     |
+| 5.4 |      | **F8 / F16 runtime**           | 8/16-bit floats (likely `_Float16` if compiler supports, or soft-float wrapper).                                                                                                                                                           |
 
 ---
 

@@ -1,6 +1,9 @@
+use crate::ast::*;
+use crate::types::{Type, is_string_type};
+use crate::{PackageContext};
 /// Semantic analyser for Nitid.
 ///
-/// Phase 3 of the transpilation pipeline: validates the AST produced
+/// Phase 3 of the transpilation pipeline: validates the AST produced
 /// by the parser and annotates it with type information.
 ///
 /// # Checks performed
@@ -18,8 +21,6 @@
 /// * Overflow / underflow protection.
 /// * Dead code detection.
 use std::collections::HashMap;
-use crate::ast::*;
-use crate::types::{is_string_type, Type};
 
 /// Info about a struct definition: its fields and layout attributes.
 #[derive(Debug, Clone)]
@@ -36,7 +37,7 @@ struct EnumInfo {
     variants: Vec<EnumVariant>,
 }
 
-/// The semantic analyser context.
+/// The semantic analyzer context.
 ///
 /// Holds the global scope, a reference to the current function's
 /// return types, and accumulates warnings during analysis.
@@ -62,6 +63,10 @@ pub struct Sema {
     enum_defs: HashMap<String, EnumInfo>,
     /// Enum member lookup: member_name -> (underlying_type, value).
     enum_members: HashMap<String, (Type, i128)>,
+    /// Imported functions signatures (from PackageContext)
+    fn_sigs_map: HashMap<String, (Vec<Type>, Vec<Type>)>,
+    /// Imported struct definitions
+    imported_struct_defs: HashMap<String, StructInfo>,
 }
 
 /// A lexical scope mapping variable names to their types.
@@ -76,19 +81,27 @@ struct Scope {
 impl Scope {
     /// Create an empty scope with no parent.
     fn new() -> Self {
-        Self { vars: HashMap::new(), parent: None }
+        Self {
+            vars: HashMap::new(),
+            parent: None,
+        }
     }
 
     /// Create a child scope with `parent` as the enclosing scope.
     fn child(parent: Scope) -> Self {
-        Self { vars: HashMap::new(), parent: Some(Box::new(parent)) }
+        Self {
+            vars: HashMap::new(),
+            parent: Some(Box::new(parent)),
+        }
     }
 
     /// Declare a variable in *this* scope only.
     fn declare(&mut self, name: &str, typ: Type, span: &Span) -> Result<(), String> {
         if self.vars.contains_key(name) {
-            return Err(format!("{}:{}:{}: Variable '{}' already declared in this scope",
-                span.file, span.line, span.col, name));
+            return Err(format!(
+                "{}:{}:{}: Variable '{}' already declared in this scope",
+                span.file, span.line, span.col, name
+            ));
         }
         self.vars.insert(name.to_string(), typ);
         Ok(())
@@ -96,14 +109,15 @@ impl Scope {
 
     /// Look up a variable, checking this scope first, then parents.
     fn lookup(&self, name: &str) -> Option<Type> {
-        self.vars.get(name).cloned().or_else(|| {
-            self.parent.as_ref().and_then(|p| p.lookup(name))
-        })
+        self.vars
+            .get(name)
+            .cloned()
+            .or_else(|| self.parent.as_ref().and_then(|p| p.lookup(name)))
     }
 }
 
 impl Sema {
-    /// Create a new semantic analyser with an empty global scope.
+    /// Create a new semantic analyzer with an empty global scope.
     pub fn new() -> Self {
         Self {
             warnings: Vec::new(),
@@ -118,23 +132,62 @@ impl Sema {
             current_struct_type: None,
             enum_defs: HashMap::new(),
             enum_members: HashMap::new(),
+            fn_sigs_map: HashMap::new(),
+            imported_struct_defs: HashMap::new(),
         }
     }
 
     /// Run semantic analysis on the entire program.
-    pub fn analyze(&mut self, program: &mut Program) -> Result<(), String> {
+    pub fn analyze(
+        &mut self,
+        program: &mut Program,
+        pkg_ctx: Option<&PackageContext>,
+    ) -> Result<(), String> {
+        // Pre-populate from imported package context.
+        if let Some(ctx) = pkg_ctx {
+            for (name, sig) in &ctx.functions {
+                self.fn_sigs_map.insert(
+                    name.clone(),
+                    (sig.param_types.clone(), sig.return_types.clone()),
+                );
+            }
+
+            for (name, fields) in &ctx.structs {
+                self.imported_struct_defs.insert(
+                    name.clone(),
+                    StructInfo {
+                        fields: fields
+                            .iter()
+                            .map(|(n, t)| StructField {
+                                name: n.clone(),
+                                typ: t.clone(),
+                                span: Span::new("", 0, 0),
+                            })
+                            .collect(),
+                        packed: false,
+                        align: None,
+                    },
+                );
+            }
+        }
         self.analyze_decls(&mut program.decls)
     }
 
     // ── Declarations ──────────────────────────────────────────
 
-    /// Analyse all top-level declarations.
+    /// Analyze all top-level declarations.
     ///
     /// Pre-pass: collect struct definitions.
     /// Pass 1: collect function & method signatures for call resolution.
-    /// Pass 2: analyse each declaration body.
+    /// Pass 2: analyze each declaration body.
     fn analyze_decls(&mut self, decls: &mut [Decl]) -> Result<(), String> {
         // Pre-pass: collect struct and enum definitions.
+
+        // Start with imported struct defs (shadowed by local ones)
+        for (name, info) in &self.imported_struct_defs {
+          self.struct_defs.entry(name.clone()).or_insert_with(|| info.clone());
+        }
+
         for decl in decls.iter() {
             match decl {
                 Decl::StructDecl(s) => {
@@ -145,7 +198,14 @@ impl Sema {
                             s.span.file, s.span.line, s.span.col, name
                         ));
                     }
-                    self.struct_defs.insert(name, StructInfo { fields: s.fields.clone(), packed: s.packed, align: s.align });
+                    self.struct_defs.insert(
+                        name,
+                        StructInfo {
+                            fields: s.fields.clone(),
+                            packed: s.packed,
+                            align: s.align,
+                        },
+                    );
                 }
                 Decl::EnumDecl(e) => {
                     let name = e.name.clone();
@@ -186,13 +246,22 @@ impl Sema {
                                 v.span.file, v.span.line, v.span.col, val, name, underlying
                             ));
                         }
-                        self.enum_members.insert(v.name.clone(), (Type::Enum(name.clone()), val));
+                        self.enum_members
+                            .insert(v.name.clone(), (Type::Enum(name.clone()), val));
                         next_val = val.checked_add(1).ok_or_else(|| {
-                            format!("{}:{}:{}: Enum '{}' variant values overflow",
-                                v.span.file, v.span.line, v.span.col, name)
+                            format!(
+                                "{}:{}:{}: Enum '{}' variant values overflow",
+                                v.span.file, v.span.line, v.span.col, name
+                            )
                         })?;
                     }
-                    self.enum_defs.insert(name, EnumInfo { underlying_type: underlying, variants: e.variants.clone() });
+                    self.enum_defs.insert(
+                        name,
+                        EnumInfo {
+                            underlying_type: underlying,
+                            variants: e.variants.clone(),
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -200,12 +269,20 @@ impl Sema {
 
         // Pass 1: gather all function signatures and method signatures.
         let mut fn_sigs: HashMap<String, (Vec<Type>, Vec<Type>)> = HashMap::new();
+
+        // Start with imported signatures (they're "below" in scope).
+        for (name, sig) in &self.fn_sigs_map {
+            fn_sigs.insert(name.clone(), sig.clone());
+        }
+
         for decl in decls.iter() {
             match decl {
                 Decl::FnDecl(f) => {
-                    let param_types: Vec<Type> = f.params.iter().flat_map(|p| {
-                        std::iter::repeat(p.typ.clone()).take(p.names.len())
-                    }).collect();
+                    let param_types: Vec<Type> = f
+                        .params
+                        .iter()
+                        .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
+                        .collect();
                     fn_sigs.insert(f.name.clone(), (param_types, f.returns.clone()));
                 }
                 Decl::ImplBlock(imp) => {
@@ -220,9 +297,11 @@ impl Sema {
                         let m_name = method.name.clone();
                         // Check for duplicate method names within this impl block
                         // (will be caught by the struct_methods insert below)
-                        let param_types: Vec<Type> = method.params.iter().flat_map(|p| {
-                            std::iter::repeat(p.typ.clone()).take(p.names.len())
-                        }).collect();
+                        let param_types: Vec<Type> = method
+                            .params
+                            .iter()
+                            .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
+                            .collect();
                         // Register method in fn_sigs with mangled name
                         let mangled = format!("{}_{}", struct_name, m_name);
                         // Method gets an implicit self pointer parameter in C
@@ -230,13 +309,14 @@ impl Sema {
                         c_params.extend(param_types);
                         fn_sigs.insert(mangled, (c_params, method.returns.clone()));
                     }
-                    self.struct_methods.insert(struct_name.clone(), imp.methods.clone());
+                    self.struct_methods
+                        .insert(struct_name.clone(), imp.methods.clone());
                 }
                 _ => {}
             }
         }
 
-        // Pass 2: analyse bodies.
+        // Pass 2: analyze bodies.
         for decl in decls.iter_mut() {
             match decl {
                 Decl::FnDecl(f) => {
@@ -270,8 +350,19 @@ impl Sema {
                     self.current_struct_type = None;
                 }
                 Decl::VarDecl(v) => {
-                    analyze_var_decl_free(v, &mut self.globals, &fn_sigs, &mut self.warnings, &self.struct_defs, &self.enum_members)?;
-                    let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..))).unwrap_or(false);
+                    analyze_var_decl_free(
+                        v,
+                        &mut self.globals,
+                        &fn_sigs,
+                        &mut self.warnings,
+                        &self.struct_defs,
+                        &self.enum_members,
+                    )?;
+                    let can_zero_init = v
+                        .typ
+                        .as_ref()
+                        .map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..)))
+                        .unwrap_or(false);
                     if v.init.is_none() && !can_zero_init {
                         for name in &v.names {
                             return Err(format!(
@@ -289,7 +380,7 @@ impl Sema {
 
     // ── Blocks & statements ──────────────────────────────────
 
-    /// Analyse a block of statements, creating a nested scope.
+    /// Analyze a block of statements, creating a nested scope.
     fn analyze_block(
         &mut self,
         stmts: &mut [Stmt],
@@ -305,7 +396,7 @@ impl Sema {
         self.pop_uninit_scope()
     }
 
-    /// Analyse a single statement.
+    /// Analyze a single statement.
     fn analyze_stmt(
         &mut self,
         stmt: &mut Stmt,
@@ -314,11 +405,22 @@ impl Sema {
     ) -> Result<(), String> {
         match stmt {
             Stmt::VarDecl(v) => {
-                analyze_var_decl_free(v, scope, fn_sigs, &mut self.warnings, &self.struct_defs, &self.enum_members)?;
+                analyze_var_decl_free(
+                    v,
+                    scope,
+                    fn_sigs,
+                    &mut self.warnings,
+                    &self.struct_defs,
+                    &self.enum_members,
+                )?;
                 // Deferred init check: vars without init are tracked
                 // per scope and checked at scope exit.
                 // Array types can be zero-initialized so skip uninit tracking.
-                let can_zero_init = v.typ.as_ref().map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..))).unwrap_or(false);
+                let can_zero_init = v
+                    .typ
+                    .as_ref()
+                    .map(|t| matches!(t, Type::TyArray(..) | Type::TyFixedArray(..)))
+                    .unwrap_or(false);
                 if v.init.is_none() && !can_zero_init {
                     for name in &v.names {
                         self.add_uninit(name, &v.span);
@@ -336,8 +438,11 @@ impl Sema {
                 if values.len() != self.current_fn_returns.len() {
                     return Err(format!(
                         "{}:{}:{}: Return {} values but function expects {}",
-                        span.file, span.line, span.col,
-                        values.len(), self.current_fn_returns.len()
+                        span.file,
+                        span.line,
+                        span.col,
+                        values.len(),
+                        self.current_fn_returns.len()
                     ));
                 }
                 for val in values.iter_mut() {
@@ -354,7 +459,12 @@ impl Sema {
                 *scope = *inner.parent.unwrap();
                 self.pop_uninit_scope()
             }
-            Stmt::If { cond, then_block, else_block, .. } => {
+            Stmt::If {
+                cond,
+                then_block,
+                else_block,
+                ..
+            } => {
                 self.analyze_expr(cond, scope, fn_sigs)?;
                 self.analyze_block(then_block, scope, fn_sigs)?;
                 if let Some(else_b) = else_block {
@@ -369,7 +479,13 @@ impl Sema {
                 self.loop_depth -= 1;
                 Ok(())
             }
-            Stmt::For { init, cond, inc, body, .. } => {
+            Stmt::For {
+                init,
+                cond,
+                inc,
+                body,
+                ..
+            } => {
                 if let Some(init_stmt) = init {
                     self.analyze_stmt(init_stmt, scope, fn_sigs)?;
                 }
@@ -384,7 +500,12 @@ impl Sema {
                 self.loop_depth -= 1;
                 Ok(())
             }
-            Stmt::ForIn { var, iter, body, span } => {
+            Stmt::ForIn {
+                var,
+                iter,
+                body,
+                span,
+            } => {
                 let iter_type = self.analyze_expr(iter, scope, fn_sigs)?;
                 if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
                     return Err(format!(
@@ -403,7 +524,13 @@ impl Sema {
                 *scope = *inner.parent.unwrap();
                 self.pop_uninit_scope()
             }
-            Stmt::ForInIndex { idx_var, item_var, iter, body, span } => {
+            Stmt::ForInIndex {
+                idx_var,
+                item_var,
+                iter,
+                body,
+                span,
+            } => {
                 let iter_type = self.analyze_expr(iter, scope, fn_sigs)?;
                 if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
                     return Err(format!(
@@ -487,13 +614,15 @@ impl Sema {
             Expr::StringLit(..) => Ok(Type::String),
             Expr::CharLit(..) => Ok(Type::U8),
             Expr::BoolLit(..) => Ok(Type::Bool),
-            Expr::Ident(name, span) => {
-                scope.lookup(name).or_else(|| {
-                    self.enum_members.get(name).map(|(t, _)| t.clone())
-                }).ok_or_else(|| {
-                    format!("{}:{}:{}: Undefined variable '{}'", span.file, span.line, span.col, name)
-                })
-            }
+            Expr::Ident(name, span) => scope
+                .lookup(name)
+                .or_else(|| self.enum_members.get(name).map(|(t, _)| t.clone()))
+                .ok_or_else(|| {
+                    format!(
+                        "{}:{}:{}: Undefined variable '{}'",
+                        span.file, span.line, span.col, name
+                    )
+                }),
             Expr::Call { name, args, span } => {
                 for arg in args {
                     self.infer_expr_type(arg, scope, fn_sigs)?;
@@ -505,29 +634,45 @@ impl Sema {
                     // Type conversion: `i64(expr)` returns the target type
                     Ok(typ)
                 } else {
-                    fn_sigs.get(name).map(|(_, returns)| {
-                        if returns.len() == 1 {
-                            returns[0].clone()
-                        } else {
-                            // Multi-return functions have void type in expression
-                            // context; the return values are written through
-                            // output pointer arguments.
-                            Type::Void
-                        }
-                    }).ok_or_else(|| format!("{}:{}:{}: Undefined function '{}'",
-                        span.file, span.line, span.col, name))
+                    fn_sigs
+                        .get(name)
+                        .map(|(_, returns)| {
+                            if returns.len() == 1 {
+                                returns[0].clone()
+                            } else {
+                                // Multi-return functions have void type in expression
+                                // context; the return values are written through
+                                // output pointer arguments.
+                                Type::Void
+                            }
+                        })
+                        .ok_or_else(|| {
+                            format!(
+                                "{}:{}:{}: Undefined function '{}'",
+                                span.file, span.line, span.col, name
+                            )
+                        })
                 }
             }
-            Expr::BinaryOp { left, right, op, span } => {
+            Expr::BinaryOp {
+                left,
+                right,
+                op,
+                span,
+            } => {
                 let lt = self.infer_expr_type(left, scope, fn_sigs)?;
                 let rt = self.infer_expr_type(right, scope, fn_sigs)?;
                 let lt_r = resolve_enum_type(&lt, &self.enum_defs).clone();
                 let rt_r = resolve_enum_type(&rt, &self.enum_defs).clone();
                 match op {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
-                        if lt_r == rt_r { Ok(lt_r) } else {
-                            Err(format!("{}:{}:{}: Type mismatch in arithmetic",
-                                span.file, span.line, span.col))
+                        if lt_r == rt_r {
+                            Ok(lt_r)
+                        } else {
+                            Err(format!(
+                                "{}:{}:{}: Type mismatch in arithmetic",
+                                span.file, span.line, span.col
+                            ))
                         }
                     }
                     BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
@@ -535,9 +680,13 @@ impl Sema {
                     }
                     BinOp::And | BinOp::Or => Ok(Type::Bool),
                     BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-                        if lt_r == rt_r { Ok(lt_r) } else {
-                            Err(format!("{}:{}:{}: Type mismatch in bitwise op",
-                                span.file, span.line, span.col))
+                        if lt_r == rt_r {
+                            Ok(lt_r)
+                        } else {
+                            Err(format!(
+                                "{}:{}:{}: Type mismatch in bitwise op",
+                                span.file, span.line, span.col
+                            ))
                         }
                     }
                 }
@@ -546,37 +695,51 @@ impl Sema {
             Expr::DeclAssign { right, .. } => self.infer_expr_type(right, scope, fn_sigs),
             Expr::ArrayLit(elems, span) => {
                 if elems.is_empty() {
-                    return Err(format!("{}:{}:{}: Empty array literals not supported yet",
-                        span.file, span.line, span.col));
+                    return Err(format!(
+                        "{}:{}:{}: Empty array literals not supported yet",
+                        span.file, span.line, span.col
+                    ));
                 }
                 let elem_type = self.infer_expr_type(&elems[0], scope, fn_sigs)?;
                 for e in elems[1..].iter() {
                     let et = self.infer_expr_type(e, scope, fn_sigs)?;
                     if et != elem_type {
-                        return Err(format!("{}:{}:{}: Array element type mismatch",
-                            span.file, span.line, span.col));
+                        return Err(format!(
+                            "{}:{}:{}: Array element type mismatch",
+                            span.file, span.line, span.col
+                        ));
                     }
                 }
                 Ok(Type::TyArray(Box::new(elem_type), None))
             }
-            Expr::Index { target, index, span } => {
+            Expr::Index {
+                target,
+                index,
+                span,
+            } => {
                 let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
                 let index_type = self.infer_expr_type(index, scope, fn_sigs)?;
                 if !is_numeric_type(&index_type) {
-                    return Err(format!("{}:{}:{}: Array index must be numeric",
-                        span.file, span.line, span.col));
+                    return Err(format!(
+                        "{}:{}:{}: Array index must be numeric",
+                        span.file, span.line, span.col
+                    ));
                 }
                 match target_type {
                     // Fixed-size arrays: check compile-time known index bounds.
                     // Negative indices wrap from end (-1 → last element, -n → index 0)
-                    Type::TyFixedArray(elem, sz) => check_index_bounds(&elem, Some(sz), index, span),
+                    Type::TyFixedArray(elem, sz) => {
+                        check_index_bounds(&elem, Some(sz), index, span)
+                    }
                     // Dynamically-sized arrays can be resized at runtime, so
                     // the declared size is not a compile-time bound; illegal
                     // accesses are caught at runtime instead.
                     Type::TyArray(elem, _) => Ok(*elem),
                     Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
-                    _ => Err(format!("{}:{}:{}: Cannot index non-array type",
-                        span.file, span.line, span.col)),
+                    _ => Err(format!(
+                        "{}:{}:{}: Cannot index non-array type",
+                        span.file, span.line, span.col
+                    )),
                 }
             }
             Expr::PostIncrement { target, span } | Expr::PostDecrement { target, span } => {
@@ -589,47 +752,74 @@ impl Sema {
                 }
                 Ok(t)
             }
-            Expr::FieldAccess { target, field, span } => {
+            Expr::FieldAccess {
+                target,
+                field,
+                span,
+            } => {
                 let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
                 match target_type {
                     Type::Struct(ref struct_name) => {
                         let info = self.struct_defs.get(struct_name).ok_or_else(|| {
-                            format!("{}:{}:{}: Unknown struct type '{}'",
-                                span.file, span.line, span.col, struct_name)
+                            format!(
+                                "{}:{}:{}: Unknown struct type '{}'",
+                                span.file, span.line, span.col, struct_name
+                            )
                         })?;
-                        info.fields.iter().find(|f| f.name == *field)
+                        info.fields
+                            .iter()
+                            .find(|f| f.name == *field)
                             .map(|f| f.typ.clone())
                             .ok_or_else(|| {
-                                format!("{}:{}:{}: Struct '{}' has no field '{}'",
-                                    span.file, span.line, span.col, struct_name, field)
+                                format!(
+                                    "{}:{}:{}: Struct '{}' has no field '{}'",
+                                    span.file, span.line, span.col, struct_name, field
+                                )
                             })
                     }
-                    _ => Err(format!("{}:{}:{}: Cannot access field on non-struct type",
-                        span.file, span.line, span.col)),
+                    _ => Err(format!(
+                        "{}:{}:{}: Cannot access field on non-struct type",
+                        span.file, span.line, span.col
+                    )),
                 }
             }
-            Expr::MethodCall { target, method, args, span } => {
+            Expr::MethodCall {
+                target,
+                method,
+                args,
+                span,
+            } => {
                 let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
                 match target_type {
                     Type::Struct(ref struct_name) => {
                         let methods = self.struct_methods.get(struct_name).ok_or_else(|| {
-                            format!("{}:{}:{}: Struct '{}' has no methods",
-                                span.file, span.line, span.col, struct_name)
+                            format!(
+                                "{}:{}:{}: Struct '{}' has no methods",
+                                span.file, span.line, span.col, struct_name
+                            )
                         })?;
-                        let method_decl = methods.iter().find(|m| m.name == *method)
-                            .ok_or_else(|| {
-                                format!("{}:{}:{}: Struct '{}' has no method '{}'",
-                                    span.file, span.line, span.col, struct_name, method)
+                        let method_decl =
+                            methods.iter().find(|m| m.name == *method).ok_or_else(|| {
+                                format!(
+                                    "{}:{}:{}: Struct '{}' has no method '{}'",
+                                    span.file, span.line, span.col, struct_name, method
+                                )
                             })?;
                         // Check method arity
-                        let expected_params: Vec<&Type> = method_decl.params.iter()
+                        let expected_params: Vec<&Type> = method_decl
+                            .params
+                            .iter()
                             .flat_map(|p| std::iter::repeat(&p.typ).take(p.names.len()))
                             .collect();
                         if args.len() != expected_params.len() {
                             return Err(format!(
                                 "{}:{}:{}: Method '{}' expects {} arguments, got {}",
-                                span.file, span.line, span.col, method,
-                                expected_params.len(), args.len()
+                                span.file,
+                                span.line,
+                                span.col,
+                                method,
+                                expected_params.len(),
+                                args.len()
                             ));
                         }
                         // Check argument types (for now just validate they exist)
@@ -639,46 +829,74 @@ impl Sema {
                         // Return the method's return type
                         if method_decl.returns.len() == 1 {
                             Ok(method_decl.returns[0].clone())
-                        } else if method_decl.returns.is_empty() || method_decl.returns[0] == Type::Void {
+                        } else if method_decl.returns.is_empty()
+                            || method_decl.returns[0] == Type::Void
+                        {
                             Ok(Type::Void)
                         } else {
                             Ok(Type::Void) // multi-return in expression context
                         }
                     }
-                    Type::TyArray(..) | Type::TyFixedArray(..) => check_array_method(method, args, span, &target_type,
-                        |e| self.infer_expr_type(e, scope, fn_sigs)),
-                    _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
-                        span.file, span.line, span.col)),
+                    Type::TyArray(..) | Type::TyFixedArray(..) => {
+                        check_array_method(method, args, span, &target_type, |e| {
+                            self.infer_expr_type(e, scope, fn_sigs)
+                        })
+                    }
+                    _ => Err(format!(
+                        "{}:{}:{}: Cannot call method on non-struct type",
+                        span.file, span.line, span.col
+                    )),
                 }
             }
-            Expr::StructLit { struct_name, fields, span } => {
+            Expr::StructLit {
+                struct_name,
+                fields,
+                span,
+            } => {
                 let info = self.struct_defs.get(struct_name).ok_or_else(|| {
-                    format!("{}:{}:{}: Unknown struct type '{}'",
-                        span.file, span.line, span.col, struct_name)
+                    format!(
+                        "{}:{}:{}: Unknown struct type '{}'",
+                        span.file, span.line, span.col, struct_name
+                    )
                 })?;
                 // Check field count matches
                 if fields.len() != info.fields.len() {
                     return Err(format!(
                         "{}:{}:{}: Struct '{}' has {} fields but literal provides {}",
-                        span.file, span.line, span.col, struct_name,
-                        info.fields.len(), fields.len()
+                        span.file,
+                        span.line,
+                        span.col,
+                        struct_name,
+                        info.fields.len(),
+                        fields.len()
                     ));
                 }
                 // Check each field exists and validate types
                 for (field_name, field_expr) in fields {
-                    let decl_field = info.fields.iter().find(|f| f.name == *field_name)
+                    let decl_field = info
+                        .fields
+                        .iter()
+                        .find(|f| f.name == *field_name)
                         .ok_or_else(|| {
-                            format!("{}:{}:{}: Struct '{}' has no field '{}'",
-                                span.file, span.line, span.col, struct_name, field_name)
+                            format!(
+                                "{}:{}:{}: Struct '{}' has no field '{}'",
+                                span.file, span.line, span.col, struct_name, field_name
+                            )
                         })?;
                     let init_type = self.infer_expr_type(field_expr, scope, fn_sigs)?;
                     if init_type != decl_field.typ {
-                        let ok = is_numeric_type(&init_type) && is_numeric_type(&decl_field.typ)
+                        let ok = is_numeric_type(&init_type)
+                            && is_numeric_type(&decl_field.typ)
                             && literal_fits_target(field_expr, &decl_field.typ);
                         let ok = ok || {
                             // Array of numerics: check each element fits target element type.
-                            if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&decl_field.typ)) {
-                                if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
+                            if let (Some((init_elem, _)), Some((decl_elem, _))) =
+                                (as_array(&init_type), as_array(&decl_field.typ))
+                            {
+                                if is_numeric_type(init_elem)
+                                    && is_numeric_type(decl_elem)
+                                    && init_elem != decl_elem
+                                {
                                     if let Expr::ArrayLit(elems, _) = field_expr {
                                         elems.iter().all(|e| literal_fits_target(e, decl_elem))
                                     } else {
@@ -693,8 +911,10 @@ impl Sema {
                         };
                         if !ok {
                             let sp = field_expr.span();
-                            return Err(format!("{}:{}:{}: Type mismatch for field '{}': expected {:?}, got {:?}",
-                                sp.file, sp.line, sp.col, field_name, decl_field.typ, init_type));
+                            return Err(format!(
+                                "{}:{}:{}: Type mismatch for field '{}': expected {:?}, got {:?}",
+                                sp.file, sp.line, sp.col, field_name, decl_field.typ, init_type
+                            ));
                         }
                     }
                 }
@@ -741,8 +961,8 @@ impl Sema {
 
 // ── Free functions (used from both Sema and standalone context) ──
 
-/// Analyse a variable declaration, inferring types and checking
-/// initialiser compatibility.
+/// Analyze a variable declaration, inferring types and checking
+/// initializer compatibility.
 ///
 /// This function is called both for global and local variable declarations.
 fn analyze_var_decl_free(
@@ -754,7 +974,13 @@ fn analyze_var_decl_free(
     enum_members: &HashMap<String, (Type, i128)>,
 ) -> Result<(), String> {
     let inferred_type = if let Some(ref init) = v.init {
-        Some(infer_expr_type_free(init, scope, fn_sigs, struct_defs, enum_members)?)
+        Some(infer_expr_type_free(
+            init,
+            scope,
+            fn_sigs,
+            struct_defs,
+            enum_members,
+        )?)
     } else {
         None
     };
@@ -769,16 +995,24 @@ fn analyze_var_decl_free(
             ));
             t.clone()
         } else {
-            return Err(format!("{}:{}:{}: Variable '{}' has no type and no initializer",
-                v.span.file, v.span.line, v.span.col, name));
+            return Err(format!(
+                "{}:{}:{}: Variable '{}' has no type and no initializer",
+                v.span.file, v.span.line, v.span.col, name
+            ));
         };
 
         // Type-check the initializer against the declared type.
         if let Some(ref init) = v.init {
             let init_type = infer_expr_type_free(init, scope, fn_sigs, struct_defs, enum_members)?;
             // Resolve enum types to underlying type for comparison.
-            let init_r = match &init_type { Type::Enum(_) => &Type::I32, _ => &init_type };
-            let typ_r = match &typ { Type::Enum(_) => &Type::I32, _ => &typ };
+            let init_r = match &init_type {
+                Type::Enum(_) => &Type::I32,
+                _ => &init_type,
+            };
+            let typ_r = match &typ {
+                Type::Enum(_) => &Type::I32,
+                _ => &typ,
+            };
             if init_r != typ_r {
                 if is_numeric_type(init_r) && is_numeric_type(typ_r) {
                     // Numeric-to-numeric: check if the literal value fits.
@@ -788,9 +1022,14 @@ fn analyze_var_decl_free(
                             v.span.file, v.span.line, v.span.col, name, typ
                         ));
                     }
-                } else if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&typ)) {
+                } else if let (Some((init_elem, _)), Some((decl_elem, _))) =
+                    (as_array(&init_type), as_array(&typ))
+                {
                     // Array of numerics: check each element literal fits target element type.
-                    if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
+                    if is_numeric_type(init_elem)
+                        && is_numeric_type(decl_elem)
+                        && init_elem != decl_elem
+                    {
                         if let Expr::ArrayLit(elems, _) = init {
                             for elem in elems {
                                 if !literal_fits_target(elem, decl_elem) {
@@ -850,7 +1089,10 @@ where
             if !args.is_empty() {
                 return Err(format!(
                     "{}:{}:{}: Array method 'size' expects 0 arguments, got {}",
-                    span.file, span.line, span.col, args.len()
+                    span.file,
+                    span.line,
+                    span.col,
+                    args.len()
                 ));
             }
             Ok(Type::I32)
@@ -867,7 +1109,10 @@ where
             if args.len() != 1 {
                 return Err(format!(
                     "{}:{}:{}: Array method 'resize' expects 1 argument, got {}",
-                    span.file, span.line, span.col, args.len()
+                    span.file,
+                    span.line,
+                    span.col,
+                    args.len()
                 ));
             }
             let arg_type = infer_arg(&args[0])?;
@@ -889,8 +1134,10 @@ where
             }
             Ok(Type::Void)
         }
-        _ => Err(format!("{}:{}:{}: Array type has no method '{}'",
-            span.file, span.line, span.col, method)),
+        _ => Err(format!(
+            "{}:{}:{}: Array type has no method '{}'",
+            span.file, span.line, span.col, method
+        )),
     }
 }
 
@@ -907,13 +1154,15 @@ fn infer_expr_type_free(
         Expr::StringLit(..) => Ok(Type::String),
         Expr::CharLit(..) => Ok(Type::U8),
         Expr::BoolLit(..) => Ok(Type::Bool),
-        Expr::Ident(name, span) => {
-            scope.lookup(name).or_else(|| {
-                enum_members.get(name).map(|(t, _)| t.clone())
-            }).ok_or_else(|| {
-                format!("{}:{}:{}: Undefined variable '{}'", span.file, span.line, span.col, name)
-            })
-        }
+        Expr::Ident(name, span) => scope
+            .lookup(name)
+            .or_else(|| enum_members.get(name).map(|(t, _)| t.clone()))
+            .ok_or_else(|| {
+                format!(
+                    "{}:{}:{}: Undefined variable '{}'",
+                    span.file, span.line, span.col, name
+                )
+            }),
         Expr::Call { name, args, span } => {
             for arg in args {
                 infer_expr_type_free(arg, scope, fn_sigs, struct_defs, enum_members)?;
@@ -923,27 +1172,49 @@ fn infer_expr_type_free(
             } else if let Some(typ) = Type::from_str(name) {
                 Ok(typ)
             } else {
-                fn_sigs.get(name).map(|(_, returns)| {
-                    if returns.len() == 1 {
-                        returns[0].clone()
-                    } else {
-                        Type::Void
-                    }
-                }).ok_or_else(|| format!("{}:{}:{}: Undefined function '{}'",
-                    span.file, span.line, span.col, name))
+                fn_sigs
+                    .get(name)
+                    .map(|(_, returns)| {
+                        if returns.len() == 1 {
+                            returns[0].clone()
+                        } else {
+                            Type::Void
+                        }
+                    })
+                    .ok_or_else(|| {
+                        format!(
+                            "{}:{}:{}: Undefined function '{}'",
+                            span.file, span.line, span.col, name
+                        )
+                    })
             }
         }
-        Expr::BinaryOp { left, right, op, span } => {
+        Expr::BinaryOp {
+            left,
+            right,
+            op,
+            span,
+        } => {
             let lt = infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members)?;
             let rt = infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members)?;
             // Resolve enum types to their underlying type for comparison.
-            let lt_r = match &lt { Type::Enum(_) => Type::I32, _ => lt.clone() };
-            let rt_r = match &rt { Type::Enum(_) => Type::I32, _ => rt.clone() };
+            let lt_r = match &lt {
+                Type::Enum(_) => Type::I32,
+                _ => lt.clone(),
+            };
+            let rt_r = match &rt {
+                Type::Enum(_) => Type::I32,
+                _ => rt.clone(),
+            };
             match op {
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
-                    if lt_r == rt_r { Ok(lt_r) } else {
-                        Err(format!("{}:{}:{}: Type mismatch in arithmetic",
-                            span.file, span.line, span.col))
+                    if lt_r == rt_r {
+                        Ok(lt_r)
+                    } else {
+                        Err(format!(
+                            "{}:{}:{}: Type mismatch in arithmetic",
+                            span.file, span.line, span.col
+                        ))
                     }
                 }
                 BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
@@ -951,36 +1222,57 @@ fn infer_expr_type_free(
                 }
                 BinOp::And | BinOp::Or => Ok(Type::Bool),
                 BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-                    if lt_r == rt_r { Ok(lt_r) } else {
-                        Err(format!("{}:{}:{}: Type mismatch in bitwise op",
-                            span.file, span.line, span.col))
+                    if lt_r == rt_r {
+                        Ok(lt_r)
+                    } else {
+                        Err(format!(
+                            "{}:{}:{}: Type mismatch in bitwise op",
+                            span.file, span.line, span.col
+                        ))
                     }
                 }
             }
         }
-        Expr::Assign { left, .. } => infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members),
-        Expr::DeclAssign { right, .. } => infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members),
+        Expr::Assign { left, .. } => {
+            infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members)
+        }
+        Expr::DeclAssign { right, .. } => {
+            infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members)
+        }
         Expr::ArrayLit(elems, span) => {
             if elems.is_empty() {
-                return Err(format!("{}:{}:{}: Empty array literals not supported yet",
-                    span.file, span.line, span.col));
+                return Err(format!(
+                    "{}:{}:{}: Empty array literals not supported yet",
+                    span.file, span.line, span.col
+                ));
             }
-            let elem_type = infer_expr_type_free(&elems[0], scope, fn_sigs, struct_defs, enum_members)?;
+            let elem_type =
+                infer_expr_type_free(&elems[0], scope, fn_sigs, struct_defs, enum_members)?;
             for e in elems[1..].iter() {
                 let et = infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members)?;
                 if et != elem_type {
-                    return Err(format!("{}:{}:{}: Array element type mismatch",
-                        span.file, span.line, span.col));
+                    return Err(format!(
+                        "{}:{}:{}: Array element type mismatch",
+                        span.file, span.line, span.col
+                    ));
                 }
             }
             Ok(Type::TyArray(Box::new(elem_type), None))
         }
-        Expr::Index { target, index, span } => {
-            let target_type = infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
-            let index_type = infer_expr_type_free(index, scope, fn_sigs, struct_defs, enum_members)?;
+        Expr::Index {
+            target,
+            index,
+            span,
+        } => {
+            let target_type =
+                infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
+            let index_type =
+                infer_expr_type_free(index, scope, fn_sigs, struct_defs, enum_members)?;
             if !is_numeric_type(&index_type) {
-                return Err(format!("{}:{}:{}: Array index must be numeric",
-                    span.file, span.line, span.col));
+                return Err(format!(
+                    "{}:{}:{}: Array index must be numeric",
+                    span.file, span.line, span.col
+                ));
             }
             match target_type {
                 // Fixed-size arrays: check compile-time known index bounds.
@@ -991,34 +1283,55 @@ fn infer_expr_type_free(
                 // accesses are caught at runtime instead.
                 Type::TyArray(elem, _) => Ok(*elem),
                 Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
-                _ => Err(format!("{}:{}:{}: Cannot index non-array type",
-                    span.file, span.line, span.col)),
+                _ => Err(format!(
+                    "{}:{}:{}: Cannot index non-array type",
+                    span.file, span.line, span.col
+                )),
             }
         }
         Expr::PostIncrement { target, .. } | Expr::PostDecrement { target, .. } => {
             infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)
         }
-        Expr::FieldAccess { target, field, span } => {
-            let target_type = infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
+        Expr::FieldAccess {
+            target,
+            field,
+            span,
+        } => {
+            let target_type =
+                infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
             match target_type {
                 Type::Struct(ref struct_name) => {
                     let info = struct_defs.get(struct_name).ok_or_else(|| {
-                        format!("{}:{}:{}: Unknown struct type '{}'",
-                            span.file, span.line, span.col, struct_name)
+                        format!(
+                            "{}:{}:{}: Unknown struct type '{}'",
+                            span.file, span.line, span.col, struct_name
+                        )
                     })?;
-                    info.fields.iter().find(|f| f.name == *field)
+                    info.fields
+                        .iter()
+                        .find(|f| f.name == *field)
                         .map(|f| f.typ.clone())
                         .ok_or_else(|| {
-                            format!("{}:{}:{}: Struct '{}' has no field '{}'",
-                                span.file, span.line, span.col, struct_name, field)
+                            format!(
+                                "{}:{}:{}: Struct '{}' has no field '{}'",
+                                span.file, span.line, span.col, struct_name, field
+                            )
                         })
                 }
-                _ => Err(format!("{}:{}:{}: Cannot access field on non-struct type",
-                    span.file, span.line, span.col)),
+                _ => Err(format!(
+                    "{}:{}:{}: Cannot access field on non-struct type",
+                    span.file, span.line, span.col
+                )),
             }
         }
-        Expr::MethodCall { target, method, args, span } => {
-            let target_type = infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
+        Expr::MethodCall {
+            target,
+            method,
+            args,
+            span,
+        } => {
+            let target_type =
+                infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members)?;
             match target_type {
                 Type::Struct(_) => {
                     for arg in args {
@@ -1026,37 +1339,64 @@ fn infer_expr_type_free(
                     }
                     Ok(Type::Void)
                 }
-                Type::TyArray(..) | Type::TyFixedArray(..) => check_array_method(method, args, span, &target_type,
-                    |e| infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members)),
-                _ => Err(format!("{}:{}:{}: Cannot call method on non-struct type",
-                    span.file, span.line, span.col)),
+                Type::TyArray(..) | Type::TyFixedArray(..) => {
+                    check_array_method(method, args, span, &target_type, |e| {
+                        infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members)
+                    })
+                }
+                _ => Err(format!(
+                    "{}:{}:{}: Cannot call method on non-struct type",
+                    span.file, span.line, span.col
+                )),
             }
         }
-        Expr::StructLit { struct_name, fields, span } => {
+        Expr::StructLit {
+            struct_name,
+            fields,
+            span,
+        } => {
             let info = struct_defs.get(struct_name).ok_or_else(|| {
-                format!("{}:{}:{}: Unknown struct type '{}'",
-                    span.file, span.line, span.col, struct_name)
+                format!(
+                    "{}:{}:{}: Unknown struct type '{}'",
+                    span.file, span.line, span.col, struct_name
+                )
             })?;
             if fields.len() != info.fields.len() {
                 return Err(format!(
                     "{}:{}:{}: Struct '{}' has {} fields but literal provides {}",
-                    span.file, span.line, span.col, struct_name,
-                    info.fields.len(), fields.len()
+                    span.file,
+                    span.line,
+                    span.col,
+                    struct_name,
+                    info.fields.len(),
+                    fields.len()
                 ));
             }
             for (field_name, field_expr) in fields {
-                let decl_field = info.fields.iter().find(|f| f.name == *field_name)
+                let decl_field = info
+                    .fields
+                    .iter()
+                    .find(|f| f.name == *field_name)
                     .ok_or_else(|| {
-                        format!("{}:{}:{}: Struct '{}' has no field '{}'",
-                            span.file, span.line, span.col, struct_name, field_name)
+                        format!(
+                            "{}:{}:{}: Struct '{}' has no field '{}'",
+                            span.file, span.line, span.col, struct_name, field_name
+                        )
                     })?;
-                let init_type = infer_expr_type_free(field_expr, scope, fn_sigs, struct_defs, enum_members)?;
+                let init_type =
+                    infer_expr_type_free(field_expr, scope, fn_sigs, struct_defs, enum_members)?;
                 if init_type != decl_field.typ {
-                    let ok = is_numeric_type(&init_type) && is_numeric_type(&decl_field.typ)
+                    let ok = is_numeric_type(&init_type)
+                        && is_numeric_type(&decl_field.typ)
                         && literal_fits_target(field_expr, &decl_field.typ);
                     let ok = ok || {
-                        if let (Some((init_elem, _)), Some((decl_elem, _))) = (as_array(&init_type), as_array(&decl_field.typ)) {
-                            if is_numeric_type(init_elem) && is_numeric_type(decl_elem) && init_elem != decl_elem {
+                        if let (Some((init_elem, _)), Some((decl_elem, _))) =
+                            (as_array(&init_type), as_array(&decl_field.typ))
+                        {
+                            if is_numeric_type(init_elem)
+                                && is_numeric_type(decl_elem)
+                                && init_elem != decl_elem
+                            {
                                 if let Expr::ArrayLit(elems, _) = field_expr {
                                     elems.iter().all(|e| literal_fits_target(e, decl_elem))
                                 } else {
@@ -1071,8 +1411,10 @@ fn infer_expr_type_free(
                     };
                     if !ok {
                         let sp = field_expr.span();
-                        return Err(format!("{}:{}:{}: Type mismatch for field '{}': expected {:?}, got {:?}",
-                            sp.file, sp.line, sp.col, field_name, decl_field.typ, init_type));
+                        return Err(format!(
+                            "{}:{}:{}: Type mismatch for field '{}': expected {:?}, got {:?}",
+                            sp.file, sp.line, sp.col, field_name, decl_field.typ, init_type
+                        ));
                     }
                 }
             }
@@ -1087,20 +1429,31 @@ fn infer_expr_type_free(
 fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, String> {
     match expr {
         Expr::IntLit(val, _) => Ok(*val),
-        Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+        Expr::BinaryOp {
+            left,
+            op: BinOp::Sub,
+            right,
+            ..
+        } => {
             if let Expr::IntLit(0, _) = left.as_ref() {
                 if let Expr::IntLit(rval, _) = right.as_ref() {
                     return rval.checked_neg().ok_or_else(|| {
-                        format!("{}:{}:{}: Enum value overflow",
-                            span.file, span.line, span.col)
+                        format!(
+                            "{}:{}:{}: Enum value overflow",
+                            span.file, span.line, span.col
+                        )
                     });
                 }
             }
-            Err(format!("{}:{}:{}: Enum variant value must be an integer literal",
-                span.file, span.line, span.col))
+            Err(format!(
+                "{}:{}:{}: Enum variant value must be an integer literal",
+                span.file, span.line, span.col
+            ))
         }
-        _ => Err(format!("{}:{}:{}: Enum variant value must be an integer literal",
-            span.file, span.line, span.col)),
+        _ => Err(format!(
+            "{}:{}:{}: Enum variant value must be an integer literal",
+            span.file, span.line, span.col
+        )),
     }
 }
 
@@ -1111,7 +1464,12 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, String> {
 fn extract_index_literal(index: &Expr) -> Option<i128> {
     match index {
         Expr::IntLit(val, _) => Some(*val),
-        Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+        Expr::BinaryOp {
+            left,
+            op: BinOp::Sub,
+            right,
+            ..
+        } => {
             if let Expr::IntLit(0, _) = left.as_ref() {
                 if let Expr::IntLit(val, _) = right.as_ref() {
                     return Some(-val);
@@ -1136,18 +1494,27 @@ fn as_array(t: &Type) -> Option<(&Type, Option<u64>)> {
 
 /// Check compile-time bounds for a literal index against a declared
 /// array size. Negative indices wrap from the end (-1 → last element).
-fn check_index_bounds(elem: &Type, size: Option<u64>, index: &Expr, span: &Span) -> Result<Type, String> {
+fn check_index_bounds(
+    elem: &Type,
+    size: Option<u64>,
+    index: &Expr,
+    span: &Span,
+) -> Result<Type, String> {
     if let Some(sz) = size {
         if let Some(val) = extract_index_literal(index) {
             if val < 0 {
                 let pos = (-val) as u64;
                 if pos > sz {
-                    return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                        span.file, span.line, span.col, val, sz));
+                    return Err(format!(
+                        "{}:{}:{}: Array index {} out of bounds for size {}",
+                        span.file, span.line, span.col, val, sz
+                    ));
                 }
             } else if (val as u64) >= sz {
-                return Err(format!("{}:{}:{}: Array index {} out of bounds for size {}",
-                    span.file, span.line, span.col, val, sz));
+                return Err(format!(
+                    "{}:{}:{}: Array index {} out of bounds for size {}",
+                    span.file, span.line, span.col, val, sz
+                ));
             }
         }
     }
@@ -1156,18 +1523,43 @@ fn check_index_bounds(elem: &Type, size: Option<u64>, index: &Expr, span: &Span)
 
 /// Returns `true` if `t` is any numeric type (integer or float).
 fn is_numeric_type(t: &Type) -> bool {
-    matches!(t,
-        Type::I8 | Type::I16 | Type::I32 | Type::I64 | Type::I128 | Type::I256
-        | Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::U128 | Type::U256
-        | Type::F8 | Type::F16 | Type::F32 | Type::F64
+    matches!(
+        t,
+        Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::I128
+            | Type::I256
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::U128
+            | Type::U256
+            | Type::F8
+            | Type::F16
+            | Type::F32
+            | Type::F64
     ) || matches!(t, Type::Enum(_))
 }
 
 /// Returns `true` if `t` is an integral type (integer only, no floats).
 fn is_integral_type(t: &Type) -> bool {
-    matches!(t,
-        Type::I8 | Type::I16 | Type::I32 | Type::I64 | Type::I128 | Type::I256
-        | Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::U128 | Type::U256
+    matches!(
+        t,
+        Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::I128
+            | Type::I256
+            | Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::U128
+            | Type::U256
     )
 }
 
@@ -1190,7 +1582,12 @@ fn literal_fits_target(expr: &Expr, target: &Type) -> bool {
     match expr {
         Expr::IntLit(val, _) => int_lit_fits(*val, target),
         Expr::FloatLit(val, _) => float_lit_fits(*val, target),
-        Expr::BinaryOp { left, op: BinOp::Sub, right, .. } => {
+        Expr::BinaryOp {
+            left,
+            op: BinOp::Sub,
+            right,
+            ..
+        } => {
             // Detect `0 - lit` (unary minus desugared by the parser).
             if let Expr::IntLit(0, _) = left.as_ref() {
                 if let Expr::IntLit(rval, _) = right.as_ref() {
@@ -1226,8 +1623,18 @@ fn int_lit_fits(val: i128, target: &Type) -> bool {
 /// Check if a float literal value fits in the target type.
 fn float_lit_fits(_val: f64, target: &Type) -> bool {
     match target {
-        Type::I8 | Type::I16 | Type::I32 | Type::I64 | Type::I128 | Type::I256
-        | Type::U8 | Type::U16 | Type::U32 | Type::U64 | Type::U128 | Type::U256 => {
+        Type::I8
+        | Type::I16
+        | Type::I32
+        | Type::I64
+        | Type::I128
+        | Type::I256
+        | Type::U8
+        | Type::U16
+        | Type::U32
+        | Type::U64
+        | Type::U128
+        | Type::U256 => {
             // Float literal does not implicitly narrow to integer.
             false
         }
@@ -1235,4 +1642,3 @@ fn float_lit_fits(_val: f64, target: &Type) -> bool {
         _ => false,
     }
 }
-
