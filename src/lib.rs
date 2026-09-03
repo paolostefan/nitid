@@ -201,17 +201,19 @@ fn load_imports_inner(
 ) -> Result<HashMap<String, Vec<ast::Program>>, String> {
   for imp in &program.imports {
 
-    if !visited.insert(imp.name.clone()) {
+    let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
+
+    if !visited.insert(key.clone()) {
       return Err(format!(
-        "{}:{}:{}: Circular import: '{}'",
-        imp.span.file, imp.span.line, imp.span.col, imp.name
+        "{}:{}:{}: Circular or duplicate import key '{}'",
+        imp.span.file, imp.span.line, imp.span.col, key
       ));
     }
 
-    if imported.contains_key(&imp.name) {
+    if imported.contains_key(&key) {
       return Err(format!(
-        "{}:{}:{}: Duplicate import '{}'",
-        imp.span.file, imp.span.line, imp.span.col, imp.name
+        "{}:{}:{}: Duplicate import key '{}'",
+        imp.span.file, imp.span.line, imp.span.col, key
       ));
     }
 
@@ -230,7 +232,6 @@ fn load_imports_inner(
     );
 
     // import alias (if any) or package name
-    let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
     imported.insert(key, programs);
   }
 
