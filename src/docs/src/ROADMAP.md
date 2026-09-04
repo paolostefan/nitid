@@ -36,15 +36,17 @@ bounds-checked access.
 
 ### Phase 1 — Module System
 
-| #   | Done | Feature                          | What's involved                                                                                                                             |
-|-----|------|----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.1 | ✅   | **File-level import resolution** | Given `import Foo`, find files with `package Foo;` in search paths, tokenize + parse them, merge declarations into a package symbol table.  |
-| 1.2 | ✅   | **Qualified access**             | `Foo.someFunc()` — parser needs to handle `Ident "." Ident` call syntax. Sema resolves against imported package.                            |
-| 1.3 | ✅   | **Import aliasing**              | `import Foo as f` → `f.someFunc()`. Already parsed, just not wired.                                                                         |
-| 1.4 |      | **Multi-file compilation**       | Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order. |
-| 1.5 |      | **Name conflict detection**      | Duplicate symbols across imports → error.                                                                                                   |
+| #   | Done | Feature                          | What's involved                                                                                                                                                                                                      |
+|-----|------|----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.1 | ✅   | **File-level import resolution** | Given `import Foo`, find files with `package Foo;` in search paths, tokenize + parse them, merge declarations into a package symbol table.                                                                           |
+| 1.2 | ✅   | **Qualified access**             | `Foo.someFunc()` — parser needs to handle `Ident "." Ident` call syntax. Sema resolves against imported package.                                                                                                     |
+| 1.3 | ✅   | **Import aliasing**              | `import Foo as f` → `f.someFunc()`. Already parsed, just not wired.                                                                                                                                                  |
+| 1.4 | ✅   | **Multi-file compilation**       | Dependency graph via recursive DFS (`load_package`). One `.c` per source file, foreign prototypes, CMake lists all files.                                                                                            |
+| 1.5 | ✅   | **Name conflict detection**      | Duplicate symbols across imports → error (keyed by real package name, not alias).                                                                                                                                    |
+| 1.6 |      | **Mangled C names for imports**  | Prefix imported function names with package name in C output (`Math_multiply`). Eliminates flat-namespace collisions. `foreign_sigs` stores `(mangled_c_name, params, returns)` instead of bare `(params, returns)`. |
 
-**Exit criteria:** `import Math; Math.sqrt(16)` works across two `.nt` files.
+**Exit criteria:** `import Math; Math.sqrt(16)` works across two `.nt` files. Two packages can export identically-named
+functions without C linker conflicts.
 
 ---
 

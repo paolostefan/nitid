@@ -20,6 +20,7 @@
 //!   (it issues warnings but does not reject the program).
 //! * Memory management, race-condition prevention, and buffer-overflow
 //!   protection are **not** implemented.
+use crate::ast::{Decl, Program};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -72,7 +73,7 @@ pub struct PackageContext {
 pub fn compile_file(
     path: &str,
     c_src_dir: &str,
-) -> Result<(ast::Program, Vec<codegen::CFile>, String), String> {
+) -> Result<(Program, Vec<codegen::CFile>, String), String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
     compile(path, &content, c_src_dir)
@@ -82,7 +83,7 @@ pub fn compile_file(
 ///
 /// Runs only the lexer+parser - no semantic analysis or codegen.
 /// This is used to import package files.
-pub fn parse_file(path: &str) -> Result<ast::Program, String> {
+pub fn parse_file(path: &str) -> Result<Program, String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
     parser::Parser::parse(&content, path)
@@ -92,10 +93,7 @@ pub fn parse_file(path: &str) -> Result<ast::Program, String> {
 ///
 /// Returns a Vec of parsed Programs, one per file.
 ///Files are parsed in alphabetical order for determinism.
-pub fn parse_package_dir(
-    dir: &std::path::Path,
-    expected_package: &str,
-) -> Result<Vec<ast::Program>, String> {
+pub fn parse_package_dir(dir: &Path, expected_package: &str) -> Result<Vec<Program>, String> {
     let mut files = collect_nt_files(dir)?;
     files.sort(); // deterministic order
 
@@ -123,7 +121,7 @@ pub fn parse_package_dir(
 }
 
 /// Recursively collect all `.nt` files in a directory.
-fn collect_nt_files(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+fn collect_nt_files(dir: &Path) -> Result<Vec<std::path::PathBuf>, String> {
     let mut files = Vec::new();
     let entries = dir
         .read_dir()
@@ -154,7 +152,7 @@ fn collect_nt_files(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, St
 /// 2. parent dir of the importing file
 /// 3. None (not found)
 fn resolve_package_dir(importing_file: &str, package_name: &str) -> Option<std::path::PathBuf> {
-    let importing_dir = std::path::Path::new(importing_file).parent()?;
+    let importing_dir = Path::new(importing_file).parent()?;
 
     // Search 1: sibling directory
     let candidate = importing_dir.join(package_name);
@@ -173,7 +171,7 @@ fn resolve_package_dir(importing_file: &str, package_name: &str) -> Option<std::
 }
 
 /// Check if a directory contains any `.nt` files.
-fn has_nt_files(dir: &std::path::Path) -> bool {
+fn has_nt_files(dir: &Path) -> bool {
     dir.read_dir().ok().map_or(false, |entries| {
         entries
             .filter_map(|e| e.ok())
@@ -186,17 +184,60 @@ fn has_nt_files(dir: &std::path::Path) -> bool {
 /// For each `import Foo;`, finds the Foo package directory,
 /// parses all `.nt` files inside it, and returns them keyed
 /// by package name.
-pub fn load_imports(program: &ast::Program) -> Result<HashMap<String, Vec<ast::Program>>, String> {
+pub fn load_imports(program: &Program) -> Result<HashMap<String, Vec<Program>>, String> {
     let mut imported = HashMap::new();
-    let mut visited = std::collections::HashSet::new();
-    load_imports_inner(program, &mut imported, &mut visited)
+    let mut visiting = HashSet::new();
+    load_package(program, &mut imported, &mut visiting)?;
+
+    Ok(imported)
+}
+
+fn load_package(
+    program: &Program,
+    imported: &mut HashMap<String, Vec<Program>>,
+    visiting: &mut HashSet<String>,
+) -> Result<(), String> {
+    for imp in &program.imports {
+        let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
+
+        // Already fully loaded (from some other path) => skip
+        if imported.contains_key(&key) {
+            continue;
+        }
+
+        // On the current DFS path => genuine cycle
+        if !visiting.insert(key.clone()) {
+            return Err(format!(
+                "{}:{}:{}: circular import involving '{}'",
+                imp.span.file, imp.span.line, imp.span.col, key
+            ));
+        }
+
+        let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
+            format!(
+                "{}:{}:{}: could not find package '{}'",
+                imp.span.file, imp.span.line, imp.span.col, imp.name
+            )
+        })?;
+
+        let programs = parse_package_dir(&pkg_dir, &imp.name)?;
+        imported.insert(key.clone(), programs.clone());
+
+        // Transitive: this package's own imports.
+        for prog in programs {
+            load_package(&prog, imported, visiting)?;
+        }
+
+        visiting.remove(&key);
+    }
+    Ok(())
 }
 
 fn load_imports_inner(
-    program: &ast::Program,
-    imported: &mut HashMap<String, Vec<ast::Program>>,
-    visited: &mut std::collections::HashSet<String>,
-) -> Result<HashMap<String, Vec<ast::Program>>, String> {
+    program: &Program,
+    imported: &mut HashMap<String, Vec<Program>>,
+    visited: &mut HashSet<String>,
+) -> Result<HashMap<String, Vec<Program>>, String> {
     for imp in &program.imports {
         let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
 
@@ -239,7 +280,7 @@ fn load_imports_inner(
 ///
 /// Extracts all function, struct and enum declarations from every file in the package into a flat,
 /// unified view.
-pub fn build_package_context(programs: &[ast::Program]) -> PackageContext {
+pub fn build_package_context(programs: &[Program]) -> PackageContext {
     let mut ctx = PackageContext {
         functions: HashMap::new(),
         structs: HashMap::new(),
@@ -296,6 +337,58 @@ pub fn build_package_context(programs: &[ast::Program]) -> PackageContext {
     ctx
 }
 
+/// Error on duplicate symbols (functions / structs / enums) across
+/// imported packages, keyed by the packages' real names (not aliases).
+pub fn check_import_conflicts(
+  imports: &HashMap<String, Vec<Program>>,
+) -> Result<(), String> {
+
+  let mut fn_owner: HashMap<String, String> = HashMap::new();
+  let mut struct_owner: HashMap<String, String> = HashMap::new();
+  let mut enum_owner: HashMap<String, String> = HashMap::new();
+
+  for (key,programs) in imports {
+    // Alias keys still come from the same underlying package
+    let real_name = programs
+        .first()
+        .map(|p| p.package.clone())
+        .unwrap_or_else(|| key.clone());
+
+    for prog in programs {
+      for decl in &prog.decls {
+        match decl {
+          Decl::FnDecl(f) => claim(f.name.clone(), &real_name, &mut fn_owner, "function")?,
+          Decl::StructDecl(s) => claim(s.name.clone(), &real_name, &mut struct_owner, "struct")?,
+          Decl::EnumDecl(e) => claim(e.name.clone(), &real_name, &mut enum_owner, "enum")?,
+          _ => {}
+        }
+      }
+    }
+  }
+
+  Ok(())
+}
+
+fn claim(
+  name: String,
+  owner: &String,
+  table: &mut HashMap<String, String>,
+  kind: &str
+) -> Result<(), String> {
+  if let Some(prev) = table.get(&name) {
+    if prev != owner {
+      return Err(format!(
+        "Name conflict: {} '{}' exported by both package '{}' and '{}'",
+        kind, name, prev, owner
+      ))
+    }
+  } else {
+    table.insert(name, owner.clone());
+  }
+
+  Ok(())
+}
+
 /// Combine multiple PackageContexts into one.
 ///
 /// Used when a file imports several packages. Later contexts shadow earlier ones
@@ -336,11 +429,14 @@ pub fn compile(
     path: &str,
     content: &str,
     c_src_dir: &str,
-) -> Result<(ast::Program, Vec<codegen::CFile>, String), String> {
+) -> Result<(Program, Vec<codegen::CFile>, String), String> {
     let mut program = parser::Parser::parse(content, path)?;
 
     // Load and parse imports.
     let imports = load_imports(&program)?;
+
+    // Duplicate symbols across imports are an error.
+    check_import_conflicts(&imports)?;
 
     // Build a per-package context map.
     let pkg_contexts: HashMap<String, PackageContext> = imports
@@ -365,7 +461,8 @@ pub fn compile(
 
     let mut cg = codegen::Codegen::new();
     let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
-    let (mut c_files, _) = cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
+    let (mut c_files, _) =
+        cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
 
     // Emit a .c file for every file in every imported package.
     for programs in imports.values() {
