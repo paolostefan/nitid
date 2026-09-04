@@ -20,10 +20,11 @@
 //!   (it issues warnings but does not reject the program).
 //! * Memory management, race-condition prevention, and buffer-overflow
 //!   protection are **not** implemented.
-use std::string::String;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
+use std::string::String;
 
 /// AST node types.
 pub mod ast;
@@ -64,7 +65,6 @@ pub struct PackageContext {
     /// Enum definitions: name -> list of (variant name, optional value)
     pub enums: HashMap<String, Vec<(String, Option<i128>)>>,
 }
-
 
 /// Read a file from `path` and transpile it.
 ///
@@ -186,56 +186,53 @@ fn has_nt_files(dir: &std::path::Path) -> bool {
 /// For each `import Foo;`, finds the Foo package directory,
 /// parses all `.nt` files inside it, and returns them keyed
 /// by package name.
-pub fn load_imports(
-    program: &ast::Program,
-) -> Result<HashMap<String, Vec<ast::Program>>, String> {
+pub fn load_imports(program: &ast::Program) -> Result<HashMap<String, Vec<ast::Program>>, String> {
     let mut imported = HashMap::new();
     let mut visited = std::collections::HashSet::new();
     load_imports_inner(program, &mut imported, &mut visited)
 }
 
 fn load_imports_inner(
-  program: &ast::Program,
-  imported: &mut HashMap<String, Vec<ast::Program>>,
-  visited: &mut std::collections::HashSet<String>
+    program: &ast::Program,
+    imported: &mut HashMap<String, Vec<ast::Program>>,
+    visited: &mut std::collections::HashSet<String>,
 ) -> Result<HashMap<String, Vec<ast::Program>>, String> {
-  for imp in &program.imports {
+    for imp in &program.imports {
+        let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
 
-    let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
+        if !visited.insert(key.clone()) {
+            return Err(format!(
+                "{}:{}:{}: Circular or duplicate import key '{}'",
+                imp.span.file, imp.span.line, imp.span.col, key
+            ));
+        }
 
-    if !visited.insert(key.clone()) {
-      return Err(format!(
-        "{}:{}:{}: Circular or duplicate import key '{}'",
-        imp.span.file, imp.span.line, imp.span.col, key
-      ));
+        if imported.contains_key(&key) {
+            return Err(format!(
+                "{}:{}:{}: Duplicate import key '{}'",
+                imp.span.file, imp.span.line, imp.span.col, key
+            ));
+        }
+
+        let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
+            format!(
+                "{}:{}:{}: Could not find package '{}' (no directory named '{}' found)",
+                imp.span.file, imp.span.line, imp.span.col, imp.name, imp.name
+            )
+        })?;
+
+        let programs = parse_package_dir(&pkg_dir, &imp.name)?;
+        eprintln!(
+            "[import] Loaded package '{}' ({} files)",
+            imp.name,
+            programs.len()
+        );
+
+        // import alias (if any) or package name
+        imported.insert(key, programs);
     }
 
-    if imported.contains_key(&key) {
-      return Err(format!(
-        "{}:{}:{}: Duplicate import key '{}'",
-        imp.span.file, imp.span.line, imp.span.col, key
-      ));
-    }
-
-    let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
-      format!(
-        "{}:{}:{}: Could not find package '{}' (no directory named '{}' found)",
-        imp.span.file, imp.span.line, imp.span.col, imp.name, imp.name
-      )
-    })?;
-
-    let programs = parse_package_dir(&pkg_dir, &imp.name)?;
-    eprintln!(
-      "[import] Loaded package '{}' ({} files)",
-      imp.name,
-      programs.len()
-    );
-
-    // import alias (if any) or package name
-    imported.insert(key, programs);
-  }
-
-  Ok(imported.clone())
+    Ok(imported.clone())
 }
 
 /// Build a PackageContext from a list of parsed programs (one package)
@@ -351,14 +348,52 @@ pub fn compile(
         .map(|(name, programs)| (name.clone(), build_package_context(programs)))
         .collect();
 
+    // Every function exported by every imported package.
+    let mut foreign_sigs: HashMap<String, (Vec<types::Type>, Vec<types::Type>)> = HashMap::new();
+    for ctx in pkg_contexts.values() {
+        for (name, sig) in &ctx.functions {
+            foreign_sigs.insert(
+                name.clone(),
+                (sig.param_types.clone(), sig.return_types.clone()),
+            );
+        }
+    }
+
     // Pass the package map to sema.
     let mut sema_ctx = sema::Sema::new();
     sema_ctx.analyze(&mut program, Some(&pkg_contexts))?;
 
     let mut cg = codegen::Codegen::new();
     let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
-    let (c_files, cmake) =
-        cg.generate(&program, c_src_dir, package_names)?;
+    let (mut c_files, _) = cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
+
+    // Emit a .c file for every file in every imported package.
+    for programs in imports.values() {
+        for prog in programs {
+            let base_name = Path::new(&prog.file)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("pkg");
+            let c_text = cg.generate_c(prog, package_names.clone(), &foreign_sigs);
+            c_files.push(codegen::CFile {
+                path: format!("{}/{}.c", c_src_dir, base_name),
+                content: c_text,
+            });
+        }
+    }
+
+    // Stems for add_executable, derived from every emitted .c.
+    let stems: Vec<String> = c_files
+        .iter()
+        .map(|cf| {
+            Path::new(&cf.path)
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    let cmake = cg.emit_cmake(&program, &stems);
 
     Ok((program, c_files, cmake))
 }

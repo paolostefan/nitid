@@ -14,11 +14,16 @@ use std::fmt;
 /// happily parse and type-check them, but the C backend may produce
 /// references to unknown C types.
 ///
+/// # Note on MSVC(R)
+/// MSVC(R) does not support 128-bit integer types, thus as of Nitid v0.1.0
+/// 128-bit integers are only available for other compilers. This is done
+/// via macros in nitid_types.h.
+///
 /// # Future work
 /// - I256, U256, F8, F16 need software-emulated math or compiler
 ///   builtins.
 /// - String16 / String32 need an actual UTF-16 / UTF-32 runtime.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Ord, Eq, PartialOrd)]
 pub enum Type {
     I8, I16, I32, I64, I128, I256,
     U8, U16, U32, U64, U128, U256,

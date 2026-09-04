@@ -22,6 +22,7 @@
 /// * The runtime string library (`nitid_string`) is minimal.
 use crate::ast::*;
 use crate::types::{Type, is_string_type};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -85,7 +86,42 @@ impl Codegen {
         program: &Program,
         c_src_dir: &str,
         package_names: HashSet<String>,
+        foreign_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
     ) -> Result<(Vec<CFile>, String), String> {
+        let c_code = self.generate_c(program, package_names, foreign_sigs);
+
+        let base_name = Path::new(&program.file)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output");
+
+        let mut c_files = Vec::new();
+        c_files.push(CFile {
+            path: format!("{}/{}.c", c_src_dir, base_name),
+            content: c_code,
+        });
+
+        let stems: Vec<String> = c_files
+            .iter()
+            .map(|cf| {
+                Path::new(&cf.path)
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+
+        let cmake = self.emit_cmake(program, &stems);
+        Ok((c_files, cmake))
+    }
+
+    pub fn generate_c(
+        &mut self,
+        program: &Program,
+        package_names: HashSet<String>,
+        foreign_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+    ) -> String {
         self.package_names = package_names;
 
         // Pass 0: collect struct and enum definitions.
@@ -134,18 +170,35 @@ impl Codegen {
             }
         }
 
-        let mut c_files = Vec::new();
         let mut c_code = String::new();
 
         // Standard C headers and Nitid runtime include.
         c_code.push_str("#include <stdio.h>\n");
-        c_code.push_str("#include <stdint.h>\n");
-        c_code.push_str("#include <stdbool.h>\n");
         c_code.push_str("#include \"runtime/nitid_types.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string16.h\"\n");
         c_code.push_str("#include \"runtime/nitid_string32.h\"\n");
         c_code.push_str("#include \"runtime/nitid_array.h\"\n");
+        c_code.push('\n');
+
+        // Prototypes for functions defined in other files.
+        let mut for_sign: Vec<(&String, &(Vec<Type>, Vec<Type>))> = foreign_sigs.iter().collect();
+        for_sign.sort(); // deterministic order
+
+        for (name, (params, returns)) in for_sign {
+            let ret = if returns.len() == 1 && returns[0] != Type::Void {
+                returns[0].c_str()
+            } else {
+                Cow::from("void")
+            };
+
+            let plist = params
+                .iter()
+                .map(|t| t.c_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            c_code.push_str(&format!("{} {}({});\n", ret, name, plist));
+        }
         c_code.push('\n');
 
         // Enum type definitions.
@@ -196,12 +249,12 @@ impl Codegen {
         // Forward declarations for functions that return values
         for decl in &program.decls {
             match decl {
-                Decl::FnDecl(f) => {
-                    if f.returns.len() > 1 || (f.returns.len() == 1 && f.returns[0] != Type::Void) {
-                        c_code.push_str(&self.emit_fn_decl(f, false));
-                        c_code.push_str(";\n");
-                    }
-                }
+                // Decl::FnDecl(f) => {
+                //     if f.returns.len() > 1 || (f.returns.len() == 1 && f.returns[0] != Type::Void) {
+                //         c_code.push_str(&self.emit_fn_decl(f, false));
+                //         c_code.push_str(";\n");
+                //     }
+                // }
                 Decl::ImplBlock(imp) => {
                     for method in &imp.methods {
                         if method.returns.len() > 1
@@ -240,19 +293,45 @@ impl Codegen {
             }
         }
 
-        let base_name = Path::new(&program.file)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("output");
+        c_code
+    }
 
-        c_files.push(CFile {
-            path: format!("{}/{}.c", c_src_dir, base_name),
-            content: c_code,
-        });
+    /// Generate a `CMakeLists.txt` that compiles the emitted C code
+    /// together with the Nitid runtime.
+    pub fn emit_cmake(&self, program: &Program, file_stems: &[String]) -> String {
+        let proj_name = if program.package == "main" {
+            "program"
+        } else {
+            &program.package
+        };
 
-        let cmake = self.emit_cmake(program, c_src_dir, base_name);
+        let mut cmake = String::new();
+        cmake.push_str("cmake_minimum_required(VERSION 3.10)\n");
+        cmake.push_str(&format!("project({} C)\n\n", proj_name));
+        cmake.push_str("set(CMAKE_C_STANDARD 17)\n");
+        cmake.push_str("set(CMAKE_C_STANDARD_REQUIRED ON)\n\n");
 
-        Ok((c_files, cmake))
+        cmake.push_str("add_library(nitid_runtime STATIC\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_array.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string16.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string32.c\n");
+        cmake.push_str(")\n");
+
+        cmake.push_str("target_include_directories(nitid_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n");
+
+        cmake.push_str(&format!("add_executable({}\n", proj_name));
+        for stem in file_stems {
+            cmake.push_str(&format!("    {}.c\n", stem));
+        }
+        cmake.push_str(")\n\n");
+
+        cmake.push_str(
+      "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
+    );
+        cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n");
+
+        cmake
     }
 
     // ── Function emission ────────────────────────────────────
@@ -1273,7 +1352,7 @@ impl Codegen {
         let args_str: Vec<String> = args
             .iter()
             .map(|a| -> String {
-                // If the printf arg is a i128/u128 var name, in C it must be type cast to "long long"
+                // If the printf arg is an i128/u128 var name, in C it must be type cast to "long long"
                 let emitted = self.emit_expr(a, current_fn);
                 let typ = self.lookup_var_type(&emitted);
                 // eprintln!("emit_printf: var= {}, type={:?}", emitted, typ);
@@ -1479,44 +1558,5 @@ fn enum_value_to_c(expr: &Expr) -> String {
             "0".to_string()
         }
         _ => "0".to_string(),
-    }
-}
-
-impl Codegen {
-    /// Generate a `CMakeLists.txt` that compiles the emitted C code
-    /// together with the Nitid runtime.
-    fn emit_cmake(&self, program: &Program, _c_src_dir: &str, base_name: &str) -> String {
-        let proj_name = if program.package == "main" {
-            "program"
-        } else {
-            &program.package
-        };
-        let mut cmake = String::new();
-        cmake.push_str("cmake_minimum_required(VERSION 3.10)\n");
-        cmake.push_str(&format!("project({} C)\n\n", proj_name));
-        cmake.push_str("set(CMAKE_C_STANDARD 17)\n");
-        cmake.push_str("set(CMAKE_C_STANDARD_REQUIRED ON)\n\n");
-
-        cmake.push_str("add_library(nitid_runtime STATIC\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_array.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string16.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string32.c\n");
-        cmake.push_str(")\n");
-
-        cmake.push_str(
-            "target_include_directories(nitid_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
-        );
-
-        cmake.push_str(&format!("add_executable({}\n", proj_name));
-        cmake.push_str(&format!("    {}.c\n", base_name));
-        cmake.push_str(")\n\n");
-
-        cmake.push_str(
-            "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
-        );
-        cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n");
-
-        cmake
     }
 }
