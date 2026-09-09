@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["compile","compile_file"],"mod":["ast","codegen","lexer","parser","sema","types"]};
+window.SIDEBAR_ITEMS = {"fn":["build_package_context","compile","compile_file","load_imports","merge_contexts","parse_file","parse_package_dir"],"mod":["ast","codegen","lexer","parser","sema","types"],"struct":["FunctionSig","PackageContext"]};

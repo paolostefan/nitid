@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-65857b07.js";
+            window.path_to_searchindex_js = "searchindex-99a014c4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-303ef326.js"></script>
+        <script src="toc-0e7e34c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -184,7 +184,7 @@ no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array
 array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with
 bounds-checked access.</p>
 <hr>
-<h2 id="implemented-features"><a class="header" href="#implemented-features">Implemented features</a></h2>
+<h2 id="base-features"><a class="header" href="#base-features">Base features</a></h2>
 <h3 id="composite-types"><a class="header" href="#composite-types">Composite Types</a></h3>
 <div class="table-wrapper">
 <table>
@@ -215,83 +215,86 @@ bounds-checked access.</p>
 </table>
 </div>
 <hr>
-<h2 id="features-to-be-implemented"><a class="header" href="#features-to-be-implemented">Features to be implemented</a></h2>
-<h3 id="phase-1--module-system"><a class="header" href="#phase-1--module-system">Phase 1 — Module System</a></h3>
+<h2 id="development-roadmap"><a class="header" href="#development-roadmap">Development roadmap</a></h2>
+<h3 id="v010--module-system"><a class="header" href="#v010--module-system">v0.1.0 — Module System</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>1.1</td><td></td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find <code>Foo.nt</code> in search paths, tokenize + parse it, merge declarations into a package symbol table.</td></tr>
-<tr><td>1.2</td><td></td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
-<tr><td>1.3</td><td></td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
-<tr><td>1.4</td><td></td><td><strong>Multi-file compilation</strong></td><td>Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order.</td></tr>
-<tr><td>1.5</td><td></td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error.</td></tr>
+<tr><td>v0.1.1</td><td>✅</td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find files with <code>package Foo;</code> in search paths, tokenize + parse them, merge declarations into a package symbol table.</td></tr>
+<tr><td>v0.1.2</td><td>✅</td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
+<tr><td>v0.1.3</td><td>✅</td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
+<tr><td>v0.1.4</td><td>✅</td><td><strong>Multi-file compilation</strong></td><td>Dependency graph via recursive DFS (<code>load_package</code>). One <code>.c</code> per source file, foreign prototypes, CMake lists all files.</td></tr>
+<tr><td>v0.1.5</td><td>✅</td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error (keyed by real package name, not alias).</td></tr>
+<tr><td>v0.1.6</td><td></td><td><strong>Mangled C names for imports</strong></td><td>Prefix imported function names with package name in C output (<code>Math_multiply</code>). Eliminates flat-namespace collisions. <code>foreign_sigs</code> stores <code>(mangled_c_name, params, returns)</code> instead of bare <code>(params, returns)</code>.</td></tr>
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files.</p>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export identically-named
+functions without C linker conflicts.</p>
 <hr>
-<h3 id="phase-2--memory-safety"><a class="header" href="#phase-2--memory-safety">Phase 2 — Memory Safety</a></h3>
+<h3 id="v020--memory-safety"><a class="header" href="#v020--memory-safety">v0.2.0 — Memory Safety</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
-<tr><td>2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
-<tr><td>2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
-<tr><td>2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
+<tr><td>v0.2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
+<tr><td>v0.2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
+<tr><td>v0.2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
+<tr><td>v0.2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Exit criteria:</strong> A dangling-pointer or out-of-bounds access produces a runtime panic instead of UB.</p>
 <hr>
-<h3 id="phase-3--concurrency"><a class="header" href="#phase-3--concurrency">Phase 3 — Concurrency</a></h3>
+<h3 id="v030--concurrency"><a class="header" href="#v030--concurrency">v0.3.0 — Concurrency</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>Approach</th></tr>
 </thead>
 <tbody>
-<tr><td>3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
-<tr><td>3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
-<tr><td>3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
-<tr><td>3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
+<tr><td>v0.3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
+<tr><td>v0.3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
+<tr><td>v0.3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
+<tr><td>v0.3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races.</p>
 <hr>
-<h3 id="phase-4--standard-library--polish"><a class="header" href="#phase-4--standard-library--polish">Phase 4 — Standard Library &amp; Polish</a></h3>
+<h3 id="v040--standard-library--polish"><a class="header" href="#v040--standard-library--polish">v0.4.0 — Standard Library &amp; Polish</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td>4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
-<tr><td>4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
-<tr><td>4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
-<tr><td>4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
-<tr><td>4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
-<tr><td>4.5</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
+<tr><td>v0.4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
+<tr><td>v0.4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
+<tr><td>v0.4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
+<tr><td>v0.4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
+<tr><td>v0.4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
+<tr><td>v0.4.6</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
 </tbody>
 </table>
 </div>
 <hr>
-<h2 id="phase-5--nice-to-have"><a class="header" href="#phase-5--nice-to-have">Phase 5 — Nice to have</a></h2>
+<h2 id="v050--nice-to-have"><a class="header" href="#v050--nice-to-have">v0.5.0 — Nice to have</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+<tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>5.1</td><td></td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="specs/4.structs.html#tags">spec</a>.</td></tr>
-<tr><td>5.2</td><td></td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
-<tr><td>5.3</td><td></td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
+<tr><td>v0.5.1</td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="specs/4.structs.html#tags">spec</a>.</td></tr>
+<tr><td>v0.5.2</td><td><strong>Include file to variable</strong></td><td>Ability to embed files, like what Golang does with a single-file <code>go:embed</code> directive.</td></tr>
+<tr><td>v0.5.3</td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
+<tr><td>v0.5.4</td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
 </tbody>
 </table>
 </div>
@@ -318,7 +321,7 @@ dangling code in the file that declares <code>package main</code> or has no <cod
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="how-it-works.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="samples-in-tests.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -332,7 +335,7 @@ dangling code in the file that declares <code>package main</code> or has no <cod
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="how-it-works.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="samples-in-tests.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

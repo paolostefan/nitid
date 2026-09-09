@@ -8,7 +8,7 @@ bounds-checked access.
 
 ---
 
-## Implemented features
+## Base features
 
 ### Composite Types
 
@@ -32,71 +32,71 @@ bounds-checked access.
 
 ---
 
-## Features to be implemented
+## Development roadmap
 
-### Phase 1 — Module System
+### v0.1.0 — Module System
 
-| #   | Done | Feature                          | What's involved                                                                                                                                                                                                      |
-|-----|------|----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.1 | ✅   | **File-level import resolution** | Given `import Foo`, find files with `package Foo;` in search paths, tokenize + parse them, merge declarations into a package symbol table.                                                                           |
-| 1.2 | ✅   | **Qualified access**             | `Foo.someFunc()` — parser needs to handle `Ident "." Ident` call syntax. Sema resolves against imported package.                                                                                                     |
-| 1.3 | ✅   | **Import aliasing**              | `import Foo as f` → `f.someFunc()`. Already parsed, just not wired.                                                                                                                                                  |
-| 1.4 | ✅   | **Multi-file compilation**       | Dependency graph via recursive DFS (`load_package`). One `.c` per source file, foreign prototypes, CMake lists all files.                                                                                            |
-| 1.5 | ✅   | **Name conflict detection**      | Duplicate symbols across imports → error (keyed by real package name, not alias).                                                                                                                                    |
-| 1.6 |      | **Mangled C names for imports**  | Prefix imported function names with package name in C output (`Math_multiply`). Eliminates flat-namespace collisions. `foreign_sigs` stores `(mangled_c_name, params, returns)` instead of bare `(params, returns)`. |
+| #      | Done | Feature                          | What's involved                                                                                                                                                                                                      |
+|--------|------|----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v0.1.1 | ✅   | **File-level import resolution** | Given `import Foo`, find files with `package Foo;` in search paths, tokenize + parse them, merge declarations into a package symbol table.                                                                           |
+| v0.1.2 | ✅   | **Qualified access**             | `Foo.someFunc()` — parser needs to handle `Ident "." Ident` call syntax. Sema resolves against imported package.                                                                                                     |
+| v0.1.3 | ✅   | **Import aliasing**              | `import Foo as f` → `f.someFunc()`. Already parsed, just not wired.                                                                                                                                                  |
+| v0.1.4 | ✅   | **Multi-file compilation**       | Dependency graph via recursive DFS (`load_package`). One `.c` per source file, foreign prototypes, CMake lists all files.                                                                                            |
+| v0.1.5 | ✅   | **Name conflict detection**      | Duplicate symbols across imports → error (keyed by real package name, not alias).                                                                                                                                    |
+| v0.1.6 |      | **Mangled C names for imports**  | Prefix imported function names with package name in C output (`Math_multiply`). Eliminates flat-namespace collisions. `foreign_sigs` stores `(mangled_c_name, params, returns)` instead of bare `(params, returns)`. |
 
 **Exit criteria:** `import Math; Math.sqrt(16)` works across two `.nt` files. Two packages can export identically-named
 functions without C linker conflicts.
 
 ---
 
-### Phase 2 — Memory Safety
+### v0.2.0 — Memory Safety
 
-| #   | Feature                            | What's involved                                                                                                                          |
-|-----|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| 2.1 | **Scoped allocation / RAII**       | Introduce `scope` blocks (`scope { ... }`) where allocations are freed at block exit. Codegen emits `alloca` or arena with auto-cleanup. |
-| 2.2 | **Safe reference types**           | `ref T` as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.                                     |
-| 2.3 | **Null-pointer prevention**        | Option type pattern: `T?` cannot be dereferenced without `is` check (or Rust-style `match` when that exists).                            |
-| 2.4 | **Buffer overflow runtime checks** | Wire every `a[i]` access through a bounds check. For arrays: `i < len`. For strings: `i < len`. Panic on violation.                      |
+| #      | Feature                            | What's involved                                                                                                                          |
+|--------|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| v0.2.1 | **Scoped allocation / RAII**       | Introduce `scope` blocks (`scope { ... }`) where allocations are freed at block exit. Codegen emits `alloca` or arena with auto-cleanup. |
+| v0.2.2 | **Safe reference types**           | `ref T` as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.                                     |
+| v0.2.3 | **Null-pointer prevention**        | Option type pattern: `T?` cannot be dereferenced without `is` check (or Rust-style `match` when that exists).                            |
+| v0.2.4 | **Buffer overflow runtime checks** | Wire every `a[i]` access through a bounds check. For arrays: `i < len`. For strings: `i < len`. Panic on violation.                      |
 
 **Exit criteria:** A dangling-pointer or out-of-bounds access produces a runtime panic instead of UB.
 
 ---
 
-### Phase 3 — Concurrency
+### v0.3.0 — Concurrency
 
-| #   | Feature                       | Approach                                                                                                         |
-|-----|-------------------------------|------------------------------------------------------------------------------------------------------------------|
-| 3.1 | **Thread spawn**              | `spawn f(args)` → C `pthread_create`.                                                                            |
-| 3.2 | **Channels**                  | `chan<T>` type, `send` / `recv` built-ins → C pipe or mpsc queue.                                                |
-| 3.3 | **Mutex / sync primitives**   | `mutex` type wrapping `pthread_mutex_t`, scoped locking.                                                         |
-| 3.4 | **Race-condition prevention** | Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C). |
+| #      | Feature                       | Approach                                                                                                         |
+|--------|-------------------------------|------------------------------------------------------------------------------------------------------------------|
+| v0.3.1 | **Thread spawn**              | `spawn f(args)` → C `pthread_create`.                                                                            |
+| v0.3.2 | **Channels**                  | `chan<T>` type, `send` / `recv` built-ins → C pipe or mpsc queue.                                                |
+| v0.3.3 | **Mutex / sync primitives**   | `mutex` type wrapping `pthread_mutex_t`, scoped locking.                                                         |
+| v0.3.4 | **Race-condition prevention** | Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C). |
 
 **Exit criteria:** Two threads communicate over a channel without data races.
 
 ---
 
-### Phase 4 — Standard Library & Polish
+### v0.4.0 — Standard Library & Polish
 
-| #   | Feature                         | Notes                                                     |
-|-----|---------------------------------|-----------------------------------------------------------|
-| 4.1 | **`match` / `switch`**          | Pattern matching on enums and values.                     |
-| 4.2 | **Standard lib: `math`**        | Trig, log, pow.                                           |
-| 4.3 | **Standard lib: `collections`** | Vec, HashMap, string builder.                             |
-| 4.4 | **Standard lib: `io`**          | File read/write, networking.                              |
-| 4.5 | **Standard lib: `cli`**         | Simplified CLI arguments parsing                          |
-| 4.5 | **`match` with destructuring**  | Advanced pattern matching (struct fields, enum variants). |
+| #      | Feature                         | Notes                                                     |
+|--------|---------------------------------|-----------------------------------------------------------|
+| v0.4.1 | **`match` / `switch`**          | Pattern matching on enums and values.                     |
+| v0.4.2 | **Standard lib: `math`**        | Trig, log, pow.                                           |
+| v0.4.3 | **Standard lib: `collections`** | Vec, HashMap, string builder.                             |
+| v0.4.4 | **Standard lib: `io`**          | File read/write, networking.                              |
+| v0.4.5 | **Standard lib: `cli`**         | Simplified CLI arguments parsing                          |
+| v0.4.6 | **`match` with destructuring**  | Advanced pattern matching (struct fields, enum variants). |
 
 ---
 
-## Phase 5 — Nice to have
+## v0.5.0 — Nice to have
 
-| #   | Done | Feature                        | What's involved                                                                                                                                                                                                                            |
-|-----|------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 5.1 |      | **Struct tags**                | Optional string metadata after each field (`age: u8 "json:\"age\""`). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See [spec](specs/4.structs.md#tags). |
-| 5.2 |      | **Include file to variable**   | Ability to embed files, like what Golang does with a single-file `go:embed` directive.                                                                                                                                                     |
-| 5.3 |      | **Full runtime for I256/U256** | Software-emulated 256-bit integer in C. Add `nitid_i256` / `nitid_u256` to runtime. Operator overloads for arithmetic.                                                                                                                     |
-| 5.4 |      | **F8 / F16 runtime**           | 8/16-bit floats (likely `_Float16` if compiler supports, or soft-float wrapper).                                                                                                                                                           |
+| #      | Feature                        | What's involved                                                                                                                                                                                                                            |
+|--------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v0.5.1 | **Struct tags**                | Optional string metadata after each field (`age: u8 "json:\"age\""`). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See [spec](specs/4.structs.md#tags). |
+| v0.5.2 | **Include file to variable**   | Ability to embed files, like what Golang does with a single-file `go:embed` directive.                                                                                                                                                     |
+| v0.5.3 | **Full runtime for I256/U256** | Software-emulated 256-bit integer in C. Add `nitid_i256` / `nitid_u256` to runtime. Operator overloads for arithmetic.                                                                                                                     |
+| v0.5.4 | **F8 / F16 runtime**           | 8/16-bit floats (likely `_Float16` if compiler supports, or soft-float wrapper).                                                                                                                                                           |
 
 ---
 

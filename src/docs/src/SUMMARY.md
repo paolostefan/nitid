@@ -1,6 +1,7 @@
 # Nitid Documentation
 
 - [How It Works](how-it-works.md)
+- [How `samples/` drives the Rust tests](samples-in-tests.md)
 - [Language roadmap](ROADMAP.md)
 - [Language Specification](specs/1.nitid-language-specs.md)
     - [Functions](specs/2.functions.md)
@@ -11,5 +12,5 @@
     - [Packages](specs/20.packages.md)
         - [Modules](specs/21.module-layout.md)
     - [Builtins](specs/30.builtins.md)
-- [Rust concepts](rust-concepts.md)
 - [File by file breakdown](file-by-file.md)
+- [Rust concepts (for people not familiar with Rust)](rust-concepts.md)

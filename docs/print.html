@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-65857b07.js";
+            window.path_to_searchindex_js = "searchindex-99a014c4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-303ef326.js"></script>
+        <script src="toc-0e7e34c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,6 +377,93 @@ enabled.</p>
 <a href="api/nitid/index.html"><code>api/nitid/index.html</code></a>. Build it with <code>cargo doc --no-deps</code> and copy the result to <code>docs/api</code>
 (the <code>make doc</code> target does this for you — see the <code>Makefile</code> at the project root).</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="how-samples-is-used-in-the-rust-tests"><a class="header" href="#how-samples-is-used-in-the-rust-tests">How <code>samples/</code> Is Used in the Rust Tests</a></h1>
+<p>The <code>samples/</code> directory doubles as a corpus of example <code>.nt</code> programs <strong>and</strong> as the primary input for the Rust
+integration tests. Nothing in <code>samples/</code> is hardcoded by name — the tests <strong>discover</strong> the files at runtime by scanning
+the directory. Adding a new <code>.nt</code> file there automatically exercises it in the test suite.</p>
+<p>The integration tests live under <code>tests/</code>:</p>
+<pre><code>tests/
+├── common/mod.rs   # Shared test helpers (batch runners, expectation parsing)
+├── valid.rs        # Compiles every top-level sample, expecting success
+└── errors.rs       # Compiles every sample/errors/ file, expecting a stated failure
+</code></pre>
+<h2 id="how-the-tests-find-the-samples"><a class="header" href="#how-the-tests-find-the-samples">How the tests find the samples</a></h2>
+<p>Sample paths are resolved relative to the Cargo workspace root, not relative to the test files:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>Path::new(env!("CARGO_MANIFEST_DIR")).join("samples")
+<span class="boring">}</span></code></pre>
+<p>Because the integration tests run from the crate root, <code>CARGO_MANIFEST_DIR</code> is the project root and this resolves
+directly to the <code>samples/</code> directory in the repo.</p>
+<h2 id="valid-samples--testsvalidrs"><a class="header" href="#valid-samples--testsvalidrs">Valid samples — <code>tests/valid.rs</code></a></h2>
+<p>The <code>all_valid_samples</code> test:</p>
+<ol>
+<li>Calls <code>common::discover_valid_samples()</code> to list every <code>.nt</code> file <strong>directly inside <code>samples/</code></strong> (top level only, so
+<code>samples/errors/</code> is excluded).</li>
+<li>Asserts the list is non-empty.</li>
+<li>Feeds the whole directory to <code>common::run_ok_batch()</code>, which compiles every file and collects failures.</li>
+<li>Asserts there are no failures — i.e. <strong>every <code>samples/*.nt</code> file must compile without errors</strong>.</li>
+</ol>
+<p>Any top-level <code>.nt</code> sample is therefore expected to be a working, compilable program (e.g. <code>hello.nt</code>,
+<code>functions.nt</code>, the <code>structs_*</code> and <code>array*</code> variants).</p>
+<h2 id="error-samples--testserrorsrs"><a class="header" href="#error-samples--testserrorsrs">Error samples — <code>tests/errors.rs</code></a></h2>
+<p>The <code>all_error_samples</code> test handles the <code>samples/errors/</code> subdirectory. These files are expected to <strong>fail</strong>
+compilation, and each one states <em>how</em> it should fail via a comment header before the source:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// expect-contains: Undefined variable 'y'
+// error raised in src/sema.rs:154
+// All variables must be declared before use
+
+x := y + z;
+<span class="boring">}</span></code></pre>
+<p>Two header conventions are recognized (first match in the header wins):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Header</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>// expect: &lt;exact message&gt;</code></td><td>The error string must <strong>equal</strong> this exactly</td></tr>
+<tr><td><code>// expect-contains: &lt;substring&gt;</code></td><td>The error string must <strong>contain</strong> this substring</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>// error raised in src/xxx.rs:N</code> annotation is documentation-only (it names the source location that raised the
+error) and is not checked by the tests.</p>
+<p><code>common::run_error_file()</code> compiles each file and checks:</p>
+<ul>
+<li>If compilation <strong>succeeds</strong> when an error expectation is set → failure (“expected a compilation error”).</li>
+<li>If there is <strong>no</strong> expectation header → any error is accepted.</li>
+<li>Otherwise it compares the produced error against the expected exact/substring value from the header.</li>
+</ul>
+<h2 id="shared-helpers--testscommonmodrs"><a class="header" href="#shared-helpers--testscommonmodrs">Shared helpers — <code>tests/common/mod.rs</code></a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>compile_file(path)</code></td><td>Read a <code>.nt</code> file and run the full pipeline</td></tr>
+<tr><td><code>run_ok_batch(dir)</code></td><td>Compile every <code>.nt</code> in a directory, expecting success</td></tr>
+<tr><td><code>extract_expect(content)</code></td><td>Parse the expectation header from a <code>.nt</code> file</td></tr>
+<tr><td><code>run_error_file(path)</code></td><td>Compile one error sample, check it matches its header</td></tr>
+<tr><td><code>run_error_batch(dir)</code></td><td>Batch runner for error samples</td></tr>
+<tr><td><code>discover_valid_samples()</code></td><td>List top-level (non-error) <code>.nt</code> files, sorted</td></tr>
+</tbody>
+</table>
+</div>
+<p>Each file is compiled through the <strong>full four-phase pipeline</strong> exposed as the public API <code>nitid::compile(path, &amp;content, "")</code>
+— lexing, parsing, semantic analysis, and code generation (<code>src/lib.rs:376</code>) — so every sample exercises the entire
+transpiler rather than a single stage.</p>
+<h2 id="conventions-for-adding-samples"><a class="header" href="#conventions-for-adding-samples">Conventions for adding samples</a></h2>
+<ul>
+<li><strong>Top-level <code>samples/*.nt</code></strong> → must compile cleanly (fails <code>valid.rs</code> otherwise).</li>
+<li><strong><code>samples/errors/*.nt</code></strong> → must fail to compile; add a <code>// expect:</code> or <code>// expect-contains:</code> header (unless you
+accept any error) so <code>errors.rs</code> knows the expected failure mode.</li>
+</ul>
+<p>Files are sorted by path and filtered by the <code>.nt</code> extension before batch compilation, so ordering is deterministic.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="nitid-implementation-roadmap"><a class="header" href="#nitid-implementation-roadmap">Nitid Implementation Roadmap</a></h1>
 <p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while,
 multi-return, <code>for</code> loops (C-style + range-based), <code>break</code>/<code>continue</code>, postfix <code>++</code>/<code>--</code>, source-span errors,
@@ -384,7 +471,7 @@ no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array
 array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with
 bounds-checked access.</p>
 <hr>
-<h2 id="implemented-features"><a class="header" href="#implemented-features">Implemented features</a></h2>
+<h2 id="base-features"><a class="header" href="#base-features">Base features</a></h2>
 <h3 id="composite-types"><a class="header" href="#composite-types">Composite Types</a></h3>
 <div class="table-wrapper">
 <table>
@@ -415,83 +502,86 @@ bounds-checked access.</p>
 </table>
 </div>
 <hr>
-<h2 id="features-to-be-implemented"><a class="header" href="#features-to-be-implemented">Features to be implemented</a></h2>
-<h3 id="phase-1--module-system"><a class="header" href="#phase-1--module-system">Phase 1 — Module System</a></h3>
+<h2 id="development-roadmap"><a class="header" href="#development-roadmap">Development roadmap</a></h2>
+<h3 id="v010--module-system"><a class="header" href="#v010--module-system">v0.1.0 — Module System</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>1.1</td><td></td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find <code>Foo.nt</code> in search paths, tokenize + parse it, merge declarations into a package symbol table.</td></tr>
-<tr><td>1.2</td><td></td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
-<tr><td>1.3</td><td></td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
-<tr><td>1.4</td><td></td><td><strong>Multi-file compilation</strong></td><td>Current CLI transpiles each file independently then merges C files. With real imports, need dependency graph → topological transpile order.</td></tr>
-<tr><td>1.5</td><td></td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error.</td></tr>
+<tr><td>v0.1.1</td><td>✅</td><td><strong>File-level import resolution</strong></td><td>Given <code>import Foo</code>, find files with <code>package Foo;</code> in search paths, tokenize + parse them, merge declarations into a package symbol table.</td></tr>
+<tr><td>v0.1.2</td><td>✅</td><td><strong>Qualified access</strong></td><td><code>Foo.someFunc()</code> — parser needs to handle <code>Ident "." Ident</code> call syntax. Sema resolves against imported package.</td></tr>
+<tr><td>v0.1.3</td><td>✅</td><td><strong>Import aliasing</strong></td><td><code>import Foo as f</code> → <code>f.someFunc()</code>. Already parsed, just not wired.</td></tr>
+<tr><td>v0.1.4</td><td>✅</td><td><strong>Multi-file compilation</strong></td><td>Dependency graph via recursive DFS (<code>load_package</code>). One <code>.c</code> per source file, foreign prototypes, CMake lists all files.</td></tr>
+<tr><td>v0.1.5</td><td>✅</td><td><strong>Name conflict detection</strong></td><td>Duplicate symbols across imports → error (keyed by real package name, not alias).</td></tr>
+<tr><td>v0.1.6</td><td></td><td><strong>Mangled C names for imports</strong></td><td>Prefix imported function names with package name in C output (<code>Math_multiply</code>). Eliminates flat-namespace collisions. <code>foreign_sigs</code> stores <code>(mangled_c_name, params, returns)</code> instead of bare <code>(params, returns)</code>.</td></tr>
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files.</p>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export identically-named
+functions without C linker conflicts.</p>
 <hr>
-<h3 id="phase-2--memory-safety"><a class="header" href="#phase-2--memory-safety">Phase 2 — Memory Safety</a></h3>
+<h3 id="v020--memory-safety"><a class="header" href="#v020--memory-safety">v0.2.0 — Memory Safety</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
-<tr><td>2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
-<tr><td>2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
-<tr><td>2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
+<tr><td>v0.2.1</td><td><strong>Scoped allocation / RAII</strong></td><td>Introduce <code>scope</code> blocks (<code>scope { ... }</code>) where allocations are freed at block exit. Codegen emits <code>alloca</code> or arena with auto-cleanup.</td></tr>
+<tr><td>v0.2.2</td><td><strong>Safe reference types</strong></td><td><code>ref T</code> as a language type. Runtime tracks ref count or borrow region. Deref generates bounds check.</td></tr>
+<tr><td>v0.2.3</td><td><strong>Null-pointer prevention</strong></td><td>Option type pattern: <code>T?</code> cannot be dereferenced without <code>is</code> check (or Rust-style <code>match</code> when that exists).</td></tr>
+<tr><td>v0.2.4</td><td><strong>Buffer overflow runtime checks</strong></td><td>Wire every <code>a[i]</code> access through a bounds check. For arrays: <code>i &lt; len</code>. For strings: <code>i &lt; len</code>. Panic on violation.</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Exit criteria:</strong> A dangling-pointer or out-of-bounds access produces a runtime panic instead of UB.</p>
 <hr>
-<h3 id="phase-3--concurrency"><a class="header" href="#phase-3--concurrency">Phase 3 — Concurrency</a></h3>
+<h3 id="v030--concurrency"><a class="header" href="#v030--concurrency">v0.3.0 — Concurrency</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>Approach</th></tr>
 </thead>
 <tbody>
-<tr><td>3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
-<tr><td>3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
-<tr><td>3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
-<tr><td>3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
+<tr><td>v0.3.1</td><td><strong>Thread spawn</strong></td><td><code>spawn f(args)</code> → C <code>pthread_create</code>.</td></tr>
+<tr><td>v0.3.2</td><td><strong>Channels</strong></td><td><code>chan&lt;T&gt;</code> type, <code>send</code> / <code>recv</code> built-ins → C pipe or mpsc queue.</td></tr>
+<tr><td>v0.3.3</td><td><strong>Mutex / sync primitives</strong></td><td><code>mutex</code> type wrapping <code>pthread_mutex_t</code>, scoped locking.</td></tr>
+<tr><td>v0.3.4</td><td><strong>Race-condition prevention</strong></td><td>Most complex. Borrow-checker-like analysis or runtime data-race detection (TSan instrumentation in generated C).</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races.</p>
 <hr>
-<h3 id="phase-4--standard-library--polish"><a class="header" href="#phase-4--standard-library--polish">Phase 4 — Standard Library &amp; Polish</a></h3>
+<h3 id="v040--standard-library--polish"><a class="header" href="#v040--standard-library--polish">v0.4.0 — Standard Library &amp; Polish</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>#</th><th>Feature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td>4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
-<tr><td>4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
-<tr><td>4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
-<tr><td>4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
-<tr><td>4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
-<tr><td>4.5</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
+<tr><td>v0.4.1</td><td><strong><code>match</code> / <code>switch</code></strong></td><td>Pattern matching on enums and values.</td></tr>
+<tr><td>v0.4.2</td><td><strong>Standard lib: <code>math</code></strong></td><td>Trig, log, pow.</td></tr>
+<tr><td>v0.4.3</td><td><strong>Standard lib: <code>collections</code></strong></td><td>Vec, HashMap, string builder.</td></tr>
+<tr><td>v0.4.4</td><td><strong>Standard lib: <code>io</code></strong></td><td>File read/write, networking.</td></tr>
+<tr><td>v0.4.5</td><td><strong>Standard lib: <code>cli</code></strong></td><td>Simplified CLI arguments parsing</td></tr>
+<tr><td>v0.4.6</td><td><strong><code>match</code> with destructuring</strong></td><td>Advanced pattern matching (struct fields, enum variants).</td></tr>
 </tbody>
 </table>
 </div>
 <hr>
-<h2 id="phase-5--nice-to-have"><a class="header" href="#phase-5--nice-to-have">Phase 5 — Nice to have</a></h2>
+<h2 id="v050--nice-to-have"><a class="header" href="#v050--nice-to-have">v0.5.0 — Nice to have</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>#</th><th>Done</th><th>Feature</th><th>What’s involved</th></tr>
+<tr><th>#</th><th>Feature</th><th>What’s involved</th></tr>
 </thead>
 <tbody>
-<tr><td>5.1</td><td></td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="#tags">spec</a>.</td></tr>
-<tr><td>5.2</td><td></td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
-<tr><td>5.3</td><td></td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
+<tr><td>v0.5.1</td><td><strong>Struct tags</strong></td><td>Optional string metadata after each field (<code>age: u8 "json:\"age\""</code>). Lexer/parser accept tag tokens. Sema stores tags in symbol table. No runtime effect; exposed via reflection / compile-time API. See <a href="#tags">spec</a>.</td></tr>
+<tr><td>v0.5.2</td><td><strong>Include file to variable</strong></td><td>Ability to embed files, like what Golang does with a single-file <code>go:embed</code> directive.</td></tr>
+<tr><td>v0.5.3</td><td><strong>Full runtime for I256/U256</strong></td><td>Software-emulated 256-bit integer in C. Add <code>nitid_i256</code> / <code>nitid_u256</code> to runtime. Operator overloads for arithmetic.</td></tr>
+<tr><td>v0.5.4</td><td><strong>F8 / F16 runtime</strong></td><td>8/16-bit floats (likely <code>_Float16</code> if compiler supports, or soft-float wrapper).</td></tr>
 </tbody>
 </table>
 </div>
@@ -1003,9 +1093,9 @@ between fields.</p>
   size: u32;
 };
 </code></pre>
-<h2 id="-tags"><a class="header" href="#-tags">📝 Tags</a></h2>
+<h2 id="tags"><a class="header" href="#tags">Tags</a></h2>
 <hr>
-<p><strong>PLEASE NOTE</strong>: struct tags are an unimplemented feature, still in draft status. <strong>Do not rely on it yet</strong>.</p>
+<p><strong>📝 PLEASE NOTE</strong>: struct tags are an <strong>unimplemented</strong> feature, still in draft status. <strong>Do not rely on it yet</strong>.</p>
 <hr>
 <p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
 literals following the field type.</p>
@@ -1373,177 +1463,6 @@ without an explicit manifest entry remain a compile error, not a silent merge).<
 <h2 id="printfstring-fmt-any-args"><a class="header" href="#printfstring-fmt-any-args">printf(string fmt, any args[])</a></h2>
 <p>Exactly the same as C std library’s <code>printf()</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="rust-concepts-for-non-rustaceans"><a class="header" href="#rust-concepts-for-non-rustaceans">Rust Concepts (for non-Rustaceans)</a></h1>
-<h2 id="quick-tour-of-rust-for-reading-this-codebase"><a class="header" href="#quick-tour-of-rust-for-reading-this-codebase">Quick Tour of Rust for reading this codebase</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>If you know…</th><th>This Rust concept</th></tr>
-</thead>
-<tbody>
-<tr><td><code>int x = 5;</code></td><td><code>let x: i32 = 5;</code> (immutable by default)</td></tr>
-<tr><td><code>int x = 5;</code> (mutable)</td><td><code>let mut x: i32 = 5;</code></td></tr>
-<tr><td><code>const</code> function in C++</td><td><code>fn foo(&amp;self) -&gt; Type</code></td></tr>
-<tr><td><code>void</code> function in C++</td><td><code>fn foo(&amp;mut self)</code> (no return)</td></tr>
-<tr><td><code>std::vector&lt;int&gt;</code></td><td><code>Vec&lt;i32&gt;</code></td></tr>
-<tr><td><code>std::map&lt;K, V&gt;</code></td><td><code>HashMap&lt;K, V&gt;</code></td></tr>
-<tr><td><code>nullptr</code></td><td><code>None</code> (from <code>Option</code>)</td></tr>
-<tr><td><code>T*</code> (nullable)</td><td><code>Option&lt;Box&lt;T&gt;&gt;</code></td></tr>
-<tr><td><code>union</code> / <code>enum</code> + union</td><td><code>enum</code> with variants and data</td></tr>
-<tr><td><code>string</code> (C++ std::string)</td><td><code>String</code> (owned) or <code>&amp;str</code> (borrowed)</td></tr>
-<tr><td>Exceptions</td><td><code>Result&lt;T, E&gt;</code> with <code>?</code> operator</td></tr>
-<tr><td><code>static_cast&lt;int&gt;</code></td><td><code>as</code> keyword: <code>x as i32</code></td></tr>
-<tr><td><code>#include</code></td><td><code>mod</code> / <code>use</code></td></tr>
-<tr><td><code>// comment</code></td><td><code>// comment</code> (same)</td></tr>
-<tr><td><code>/* */</code> block comment</td><td><code>/* */</code> or <code>///</code> doc comment</td></tr>
-<tr><td><code>assert(x == 5)</code></td><td><code>assert_eq!(x, 5)</code></td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="common-patterns-youll-see"><a class="header" href="#common-patterns-youll-see">Common patterns you’ll see</a></h3>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Creating a new instance
-let mut lexer = Lexer::new(input, file);
-
-// Calling a method
-lexer.tokenize() ?;  // ? propagates errors
-
-// Pattern matching
-match value {
-Some(x) =&gt; do_something(x),
-None =&gt; handle_missing(),
-}
-
-// Destructuring a struct
-let Lexer { chars, pos,..} = lexer;
-
-// Iterating
-for token in &amp; tokens { /* ... */ }
-
-// Type ascription
-let x: Vec&lt;Token&gt; = Vec::new();
-<span class="boring">}</span></code></pre>
-<hr>
-<h2 id="enum-rusts-tagged-union--sum-type"><a class="header" href="#enum-rusts-tagged-union--sum-type"><code>enum</code> (Rust’s tagged union / sum type)</a></h2>
-<p>Like a C enum on steroids. Each variant can carry data:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum TokenKind {
-  Ident(String),      // carries a String
-  IntLit(String),
-  Fn,                 // carries nothing (like a plain C enum)
-  Plus,
-  Semicolon,
-  // ...
-}
-<span class="boring">}</span></code></pre>
-<p>You match on it with <code>match</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>match token.kind {
-TokenKind::Ident(name) =&gt; { /* name is a String here */ }
-TokenKind::Fn =&gt; { /* this is just a marker */ }
-_ =&gt; { /* default case */ }
-}
-<span class="boring">}</span></code></pre>
-<h2 id="struct"><a class="header" href="#struct"><code>struct</code></a></h2>
-<p>Like a C struct but with methods defined in an <code>impl</code> block:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>struct Lexer {
-  chars: Vec&lt;char&gt;,
-  pos: usize,
-}
-
-impl Lexer {
-  fn new(input: &amp;str) -&gt; Self { /* constructor */ }
-  fn peek(&amp;self) -&gt; Option&lt;char&gt; { /* method */ }
-  fn advance(&amp;mut self) { /* mutating method */ }
-}
-<span class="boring">}</span></code></pre>
-<ul>
-<li><code>&amp;self</code> = read-only reference to the struct (like a <code>const</code> method in C++)</li>
-<li><code>&amp;mut self</code> = mutable reference (can modify the struct)</li>
-<li><code>Self</code> = the type of the struct itself</li>
-</ul>
-<h2 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h2>
-<p>Rust’s way of saying “maybe there’s a value, maybe there isn’t” — like a nullable pointer but safer:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn peek(&amp;self) -&gt; Option&lt;char&gt; {
-  self.chars.get(self.pos).copied()
-}
-<span class="boring">}</span></code></pre>
-<p>Returns <code>Some(c)</code> if there’s a character, or <code>None</code> if we’re at the end.</p>
-<h2 id="resultt-e"><a class="header" href="#resultt-e"><code>Result&lt;T, E&gt;</code></a></h2>
-<p>Either a success value <code>Ok(T)</code> or an error <code>Err(E)</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn tokenize(&amp;mut self) -&gt; Result&lt;Vec&lt;Token&gt;, String&gt;
-<span class="boring">}</span></code></pre>
-<p>Callers propagate errors with <code>?</code>:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let tokens = lexer.tokenize() ?;  // returns early if Err
-<span class="boring">}</span></code></pre>
-<h2 id="boxexpr"><a class="header" href="#boxexpr"><code>Box&lt;Expr&gt;</code></a></h2>
-<p>A pointer to heap-allocated data. Used for recursive types (like expressions containing sub-expressions):</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>enum Expr {
-  BinaryOp {
-    left: Box&lt;Expr&gt;,   // points to another Expr on the heap
-    right: Box&lt;Expr&gt;,
-    op: BinOp,
-  },
-  IntLit(i128, Span),
-  // ...
-}
-<span class="boring">}</span></code></pre>
-<p>If we didn’t use <code>Box</code>, the type would be infinitely large (it’d contain itself).</p>
-<h2 id="derivedebug-clone"><a class="header" href="#derivedebug-clone"><code>#[derive(Debug, Clone)]</code></a></h2>
-<p>Auto-implements debug printing and cloning for a type:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[derive(Debug, Clone)]
-struct Span {
-  file: String,
-  line: usize,
-  col: usize,
-}
-<span class="boring">}</span></code></pre>
-<ul>
-<li><code>Debug</code> lets you print it with <code>{:?}</code></li>
-<li><code>Clone</code> gives you a <code>.clone()</code> method to make a copy</li>
-</ul>
-<h2 id="hashmapk-v"><a class="header" href="#hashmapk-v"><code>HashMap&lt;K, V&gt;</code></a></h2>
-<p>A hash table (dictionary / map):</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>let mut map: HashMap&lt;String, Type&gt; = HashMap::new();
-map.insert("x".to_string(), Type::I32);
-<span class="boring">}</span></code></pre>
-<h2 id="match"><a class="header" href="#match"><code>match</code></a></h2>
-<p>Like C <code>switch</code> but way more powerful — can destructure, bind variables, and must be exhaustive:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>match c {
-'/' if self.peek_ahead(1) == Some('/') =&gt; { /* line comment */ }
-'/' if self.peek_ahead(1) == Some('*') =&gt; { /* block comment */ }
-'+' =&gt; { Token::new(TokenKind::Plus, self.span()) }
-c if c.is_ascii_digit() =&gt; self.read_number(c),
-_ =&gt; return Err("unexpected character"),
-}
-<span class="boring">}</span></code></pre>
-<h2 id="-and-mut-references"><a class="header" href="#-and-mut-references"><code>&amp;</code> and <code>&amp;mut</code> (references)</a></h2>
-<ul>
-<li><code>&amp;T</code> = immutable reference (read-only, borrow)</li>
-<li><code>&amp;mut T</code> = mutable reference</li>
-<li>Rust’s borrow checker enforces: either one <code>&amp;mut</code> OR many <code>&amp;</code>, never both at once. This prevents data races at compile
-time.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="file-by-file-breakdown"><a class="header" href="#file-by-file-breakdown">File-by-file breakdown</a></h1>
 <h2 id="srctypesrs--the-type-system"><a class="header" href="#srctypesrs--the-type-system"><code>src/types.rs</code> — The Type System</a></h2>
 <p><strong>What it does:</strong> Defines all the types that Nitid supports and how they map to C types.</p>
@@ -1805,7 +1724,178 @@ file as a module. <code>main.rs</code> is the crate root.</p>
 error, which Rust prints and exits with a non-zero code.</p>
 <p><strong>Rust concept – <code>clap::Parser</code>:</strong> A library that auto-generates CLI argument parsing from struct annotations.
 <code>#[arg(short = 'o')]</code> means the <code>--output</code> flag also accepts <code>-o</code>.</p>
+<hr><div style="break-before: page; page-break-before: always;"></div>
+<h1 id="rust-concepts-for-non-rustaceans"><a class="header" href="#rust-concepts-for-non-rustaceans">Rust Concepts (for non-Rustaceans)</a></h1>
+<h2 id="quick-tour-of-rust-for-reading-this-codebase"><a class="header" href="#quick-tour-of-rust-for-reading-this-codebase">Quick Tour of Rust for reading this codebase</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>If you know…</th><th>This Rust concept</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int x = 5;</code></td><td><code>let x: i32 = 5;</code> (immutable by default)</td></tr>
+<tr><td><code>int x = 5;</code> (mutable)</td><td><code>let mut x: i32 = 5;</code></td></tr>
+<tr><td><code>const</code> function in C++</td><td><code>fn foo(&amp;self) -&gt; Type</code></td></tr>
+<tr><td><code>void</code> function in C++</td><td><code>fn foo(&amp;mut self)</code> (no return)</td></tr>
+<tr><td><code>std::vector&lt;int&gt;</code></td><td><code>Vec&lt;i32&gt;</code></td></tr>
+<tr><td><code>std::map&lt;K, V&gt;</code></td><td><code>HashMap&lt;K, V&gt;</code></td></tr>
+<tr><td><code>nullptr</code></td><td><code>None</code> (from <code>Option</code>)</td></tr>
+<tr><td><code>T*</code> (nullable)</td><td><code>Option&lt;Box&lt;T&gt;&gt;</code></td></tr>
+<tr><td><code>union</code> / <code>enum</code> + union</td><td><code>enum</code> with variants and data</td></tr>
+<tr><td><code>string</code> (C++ std::string)</td><td><code>String</code> (owned) or <code>&amp;str</code> (borrowed)</td></tr>
+<tr><td>Exceptions</td><td><code>Result&lt;T, E&gt;</code> with <code>?</code> operator</td></tr>
+<tr><td><code>static_cast&lt;int&gt;</code></td><td><code>as</code> keyword: <code>x as i32</code></td></tr>
+<tr><td><code>#include</code></td><td><code>mod</code> / <code>use</code></td></tr>
+<tr><td><code>// comment</code></td><td><code>// comment</code> (same)</td></tr>
+<tr><td><code>/* */</code> block comment</td><td><code>/* */</code> or <code>///</code> doc comment</td></tr>
+<tr><td><code>assert(x == 5)</code></td><td><code>assert_eq!(x, 5)</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="common-patterns-youll-see"><a class="header" href="#common-patterns-youll-see">Common patterns you’ll see</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Creating a new instance
+let mut lexer = Lexer::new(input, file);
+
+// Calling a method
+lexer.tokenize() ?;  // ? propagates errors
+
+// Pattern matching
+match value {
+Some(x) =&gt; do_something(x),
+None =&gt; handle_missing(),
+}
+
+// Destructuring a struct
+let Lexer { chars, pos,..} = lexer;
+
+// Iterating
+for token in &amp; tokens { /* ... */ }
+
+// Type ascription
+let x: Vec&lt;Token&gt; = Vec::new();
+<span class="boring">}</span></code></pre>
 <hr>
+<h2 id="enum-rusts-tagged-union--sum-type"><a class="header" href="#enum-rusts-tagged-union--sum-type"><code>enum</code> (Rust’s tagged union / sum type)</a></h2>
+<p>Like a C enum on steroids. Each variant can carry data:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum TokenKind {
+  Ident(String),      // carries a String
+  IntLit(String),
+  Fn,                 // carries nothing (like a plain C enum)
+  Plus,
+  Semicolon,
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>You match on it with <code>match</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match token.kind {
+TokenKind::Ident(name) =&gt; { /* name is a String here */ }
+TokenKind::Fn =&gt; { /* this is just a marker */ }
+_ =&gt; { /* default case */ }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="struct"><a class="header" href="#struct"><code>struct</code></a></h2>
+<p>Like a C struct but with methods defined in an <code>impl</code> block:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Lexer {
+  chars: Vec&lt;char&gt;,
+  pos: usize,
+}
+
+impl Lexer {
+  fn new(input: &amp;str) -&gt; Self { /* constructor */ }
+  fn peek(&amp;self) -&gt; Option&lt;char&gt; { /* method */ }
+  fn advance(&amp;mut self) { /* mutating method */ }
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>&amp;self</code> = read-only reference to the struct (like a <code>const</code> method in C++)</li>
+<li><code>&amp;mut self</code> = mutable reference (can modify the struct)</li>
+<li><code>Self</code> = the type of the struct itself</li>
+</ul>
+<h2 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h2>
+<p>Rust’s way of saying “maybe there’s a value, maybe there isn’t” — like a nullable pointer but safer:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn peek(&amp;self) -&gt; Option&lt;char&gt; {
+  self.chars.get(self.pos).copied()
+}
+<span class="boring">}</span></code></pre>
+<p>Returns <code>Some(c)</code> if there’s a character, or <code>None</code> if we’re at the end.</p>
+<h2 id="resultt-e"><a class="header" href="#resultt-e"><code>Result&lt;T, E&gt;</code></a></h2>
+<p>Either a success value <code>Ok(T)</code> or an error <code>Err(E)</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn tokenize(&amp;mut self) -&gt; Result&lt;Vec&lt;Token&gt;, String&gt;
+<span class="boring">}</span></code></pre>
+<p>Callers propagate errors with <code>?</code>:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let tokens = lexer.tokenize() ?;  // returns early if Err
+<span class="boring">}</span></code></pre>
+<h2 id="boxexpr"><a class="header" href="#boxexpr"><code>Box&lt;Expr&gt;</code></a></h2>
+<p>A pointer to heap-allocated data. Used for recursive types (like expressions containing sub-expressions):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>enum Expr {
+  BinaryOp {
+    left: Box&lt;Expr&gt;,   // points to another Expr on the heap
+    right: Box&lt;Expr&gt;,
+    op: BinOp,
+  },
+  IntLit(i128, Span),
+  // ...
+}
+<span class="boring">}</span></code></pre>
+<p>If we didn’t use <code>Box</code>, the type would be infinitely large (it’d contain itself).</p>
+<h2 id="derivedebug-clone"><a class="header" href="#derivedebug-clone"><code>#[derive(Debug, Clone)]</code></a></h2>
+<p>Auto-implements debug printing and cloning for a type:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[derive(Debug, Clone)]
+struct Span {
+  file: String,
+  line: usize,
+  col: usize,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><code>Debug</code> lets you print it with <code>{:?}</code></li>
+<li><code>Clone</code> gives you a <code>.clone()</code> method to make a copy</li>
+</ul>
+<h2 id="hashmapk-v"><a class="header" href="#hashmapk-v"><code>HashMap&lt;K, V&gt;</code></a></h2>
+<p>A hash table (dictionary / map):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mut map: HashMap&lt;String, Type&gt; = HashMap::new();
+map.insert("x".to_string(), Type::I32);
+<span class="boring">}</span></code></pre>
+<h2 id="match"><a class="header" href="#match"><code>match</code></a></h2>
+<p>Like C <code>switch</code> but way more powerful — can destructure, bind variables, and must be exhaustive:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>match c {
+'/' if self.peek_ahead(1) == Some('/') =&gt; { /* line comment */ }
+'/' if self.peek_ahead(1) == Some('*') =&gt; { /* block comment */ }
+'+' =&gt; { Token::new(TokenKind::Plus, self.span()) }
+c if c.is_ascii_digit() =&gt; self.read_number(c),
+_ =&gt; return Err("unexpected character"),
+}
+<span class="boring">}</span></code></pre>
+<h2 id="-and-mut-references"><a class="header" href="#-and-mut-references"><code>&amp;</code> and <code>&amp;mut</code> (references)</a></h2>
+<ul>
+<li><code>&amp;T</code> = immutable reference (read-only, borrow)</li>
+<li><code>&amp;mut T</code> = mutable reference</li>
+<li>Rust’s borrow checker enforces: either one <code>&amp;mut</code> OR many <code>&amp;</code>, never both at once. This prevents data races at compile
+time.</li>
+</ul>
+
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
