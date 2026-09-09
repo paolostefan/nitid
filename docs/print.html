@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-99a014c4.js";
+            window.path_to_searchindex_js = "searchindex-f7ae381d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0e7e34c0.js"></script>
@@ -211,10 +211,10 @@ they aren’t available yet, at least not in the <code>main</code> branch, and t
 │           └── specs/          # Language spec chapters
 ├── runtime/                    # C runtime library shipped with generated code
 │   ├── CMakeLists.txt          # Static library build config
-│   ├── nitid_array.{c,h}
-│   ├── nitid_string.{c,h}
-│   ├── nitid_string16.{c,h}
-│   ├── nitid_string32.{c,h}
+│   ├── array.{c,h}
+│   ├── string.{c,h}
+│   ├── string16.{c,h}
+│   ├── string32.{c,h}
 │   └── tests/                  # C unit tests for runtime types
 │       ├── CMakeLists.txt
 │       ├── nitid_test.h        # Lightweight test harness (macros)
@@ -1652,7 +1652,7 @@ struct — they’re just regular functions.</p>
 <ul>
 <li>One <code>.c</code> file per input <code>.nt</code> file</li>
 <li>A <code>CMakeLists.txt</code> for building everything with CMake</li>
-<li>Copies runtime files (<code>nitid_string.h</code>, <code>nitid_string.c</code>)</li>
+<li>Copies runtime files (<code>string.h</code>, <code>string.c</code>)</li>
 </ul>
 </li>
 <li>
@@ -1708,10 +1708,10 @@ struct Cli {
 <span class="boring">}</span></code></pre>
 <p><strong>Pipeline in <code>main()</code>:</strong></p>
 <ol>
-<li>Creates <code>c_src/runtime/</code> output directory</li>
+<li>Creates <code>c_src/nitid/</code> output directory</li>
 <li>For each input file:
 a. Read the file b. Parse it → AST c. Semantic analysis d. Code generation → C files</li>
-<li>Copies runtime library files (<code>nitid_string.h/.c</code>) into output</li>
+<li>Copies runtime library files (e.g. <code>string.h/.c</code>) into output</li>
 <li>Writes all <code>.c</code> files and <code>CMakeLists.txt</code></li>
 <li>If <code>--run</code> is passed:
 a. Runs <code>cmake -S c_src -B c_src/build</code>

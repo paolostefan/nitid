@@ -213,7 +213,7 @@ Key methods:
 - `generate(&program)` — the main entry point. Produces:
     - One `.c` file per input `.nt` file
     - A `CMakeLists.txt` for building everything with CMake
-    - Copies runtime files (`nitid_string.h`, `nitid_string.c`)
+    - Copies runtime files (`string.h`, `string.c`)
 
 - `emit_fn_decl(f, ...)` — generates the C function signature. Special case: `main` gets the standard
   `int main(int argc, char **argv)` signature regardless of what the Nitid code said.
@@ -278,10 +278,10 @@ struct Cli {
 
 **Pipeline in `main()`:**
 
-1. Creates `c_src/runtime/` output directory
+1. Creates `c_src/nitid/` output directory
 2. For each input file:
    a. Read the file b. Parse it → AST c. Semantic analysis d. Code generation → C files
-3. Copies runtime library files (`nitid_string.h/.c`) into output
+3. Copies runtime library files (e.g. `string.h/.c`) into output
 4. Writes all `.c` files and `CMakeLists.txt`
 5. If `--run` is passed:
    a. Runs `cmake -S c_src -B c_src/build`

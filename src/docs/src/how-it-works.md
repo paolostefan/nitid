@@ -42,10 +42,10 @@ nitid/
 │           └── specs/          # Language spec chapters
 ├── runtime/                    # C runtime library shipped with generated code
 │   ├── CMakeLists.txt          # Static library build config
-│   ├── nitid_array.{c,h}
-│   ├── nitid_string.{c,h}
-│   ├── nitid_string16.{c,h}
-│   ├── nitid_string32.{c,h}
+│   ├── array.{c,h}
+│   ├── string.{c,h}
+│   ├── string16.{c,h}
+│   ├── string32.{c,h}
 │   └── tests/                  # C unit tests for runtime types
 │       ├── CMakeLists.txt
 │       ├── nitid_test.h        # Lightweight test harness (macros)
