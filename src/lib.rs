@@ -20,7 +20,7 @@
 //!   (it issues warnings but does not reject the program).
 //! * Memory management, race-condition prevention, and buffer-overflow
 //!   protection are **not** implemented.
-use crate::ast::{Decl, Program};
+use crate::ast::Program;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -337,58 +337,6 @@ pub fn build_package_context(programs: &[Program]) -> PackageContext {
     ctx
 }
 
-/// Error on duplicate symbols (functions / structs / enums) across
-/// imported packages, keyed by the packages' real names (not aliases).
-pub fn check_import_conflicts(
-  imports: &HashMap<String, Vec<Program>>,
-) -> Result<(), String> {
-
-  let mut fn_owner: HashMap<String, String> = HashMap::new();
-  let mut struct_owner: HashMap<String, String> = HashMap::new();
-  let mut enum_owner: HashMap<String, String> = HashMap::new();
-
-  for (key,programs) in imports {
-    // Alias keys still come from the same underlying package
-    let real_name = programs
-        .first()
-        .map(|p| p.package.clone())
-        .unwrap_or_else(|| key.clone());
-
-    for prog in programs {
-      for decl in &prog.decls {
-        match decl {
-          Decl::FnDecl(f) => claim(f.name.clone(), &real_name, &mut fn_owner, "function")?,
-          Decl::StructDecl(s) => claim(s.name.clone(), &real_name, &mut struct_owner, "struct")?,
-          Decl::EnumDecl(e) => claim(e.name.clone(), &real_name, &mut enum_owner, "enum")?,
-          _ => {}
-        }
-      }
-    }
-  }
-
-  Ok(())
-}
-
-fn claim(
-  name: String,
-  owner: &String,
-  table: &mut HashMap<String, String>,
-  kind: &str
-) -> Result<(), String> {
-  if let Some(prev) = table.get(&name) {
-    if prev != owner {
-      return Err(format!(
-        "Name conflict: {} '{}' exported by both package '{}' and '{}'",
-        kind, name, prev, owner
-      ))
-    }
-  } else {
-    table.insert(name, owner.clone());
-  }
-
-  Ok(())
-}
-
 /// Combine multiple PackageContexts into one.
 ///
 /// Used when a file imports several packages. Later contexts shadow earlier ones
@@ -435,9 +383,6 @@ pub fn compile(
     // Load and parse imports.
     let imports = load_imports(&program)?;
 
-    // Duplicate symbols across imports are an error.
-    check_import_conflicts(&imports)?;
-
     // Build a per-package context map.
     let pkg_contexts: HashMap<String, PackageContext> = imports
         .iter()
@@ -445,12 +390,15 @@ pub fn compile(
         .collect();
 
     // Every function exported by every imported package.
-    let mut foreign_sigs: HashMap<String, (Vec<types::Type>, Vec<types::Type>)> = HashMap::new();
-    for ctx in pkg_contexts.values() {
+    let mut foreign_sigs: HashMap<String, (String, Vec<types::Type>, Vec<types::Type>)> =
+        HashMap::new();
+    for (pkg_name, ctx) in &pkg_contexts {
         for (name, sig) in &ctx.functions {
+            // Mangle: "multiply" in package "Math" -> "Math_multiply"
+            let mangled = format!("{}_{}", pkg_name, name);
             foreign_sigs.insert(
                 name.clone(),
-                (sig.param_types.clone(), sig.return_types.clone()),
+                (mangled, sig.param_types.clone(), sig.return_types.clone()),
             );
         }
     }
@@ -465,13 +413,20 @@ pub fn compile(
         cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
 
     // Emit a .c file for every file in every imported package.
-    for programs in imports.values() {
+    for (pkg_name, programs) in &imports {
+        // Prevent self-functions from appearing as "foreign"
+        let pkg_foreign = foreign_sigs
+            .iter()
+            .filter(|(_, (mangled, _, _))| !mangled.starts_with(&format!("{}_", pkg_name)))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
         for prog in programs {
             let base_name = Path::new(&prog.file)
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("pkg");
-            let c_text = cg.generate_c(prog, package_names.clone(), &foreign_sigs);
+            let c_text = cg.generate_c(prog, package_names.clone(), &pkg_foreign);
             c_files.push(codegen::CFile {
                 path: format!("{}/{}.c", c_src_dir, base_name),
                 content: c_text,

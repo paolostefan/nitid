@@ -42,8 +42,8 @@ fn main() -> Result<(), String> {
     let cli = Cli::parse();
     let c_src_dir = &cli.c_dir;
 
-    // Ensure the output directory (and its `runtime/` subdirectory) exist.
-    fs::create_dir_all(format!("{}/runtime", c_src_dir))
+    // Ensure the output directory (and its `nitid/` subdirectory) exist.
+    fs::create_dir_all(format!("{}/nitid", c_src_dir))
         .map_err(|e| format!("Failed to create output dir '{}': {}", c_src_dir, e))?;
 
     let mut all_c_files = Vec::new();
@@ -62,7 +62,7 @@ fn main() -> Result<(), String> {
         }
 
         // Strip runtime files from each file's output (we merge them below).
-        c_files.retain(|f| !f.path.contains("runtime/"));
+        c_files.retain(|f| !f.path.contains("nitid/"));
         all_c_files.extend(c_files);
         all_cmake = cmake;
     }
@@ -74,18 +74,18 @@ fn main() -> Result<(), String> {
         return Err("Dangling code in more than one source file \u{2014} cannot auto-generate main".to_string());
     }
 
-    // Copy the Nitid runtime sources (nitid_string) into the output directory.
+    // Copy the Nitid runtime sources into the output directory.
     let proj_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     for (src, dst) in [
-        (proj_root.join("runtime/nitid_types.h"), format!("{}/runtime/nitid_types.h", c_src_dir)),
-        (proj_root.join("runtime/nitid_string.h"), format!("{}/runtime/nitid_string.h", c_src_dir)),
-        (proj_root.join("runtime/nitid_string.c"), format!("{}/runtime/nitid_string.c", c_src_dir)),
-        (proj_root.join("runtime/nitid_string16.h"), format!("{}/runtime/nitid_string16.h", c_src_dir)),
-        (proj_root.join("runtime/nitid_string16.c"), format!("{}/runtime/nitid_string16.c", c_src_dir)),
-        (proj_root.join("runtime/nitid_string32.h"), format!("{}/runtime/nitid_string32.h", c_src_dir)),
-        (proj_root.join("runtime/nitid_string32.c"), format!("{}/runtime/nitid_string32.c", c_src_dir)),
-        (proj_root.join("runtime/nitid_array.h"), format!("{}/runtime/nitid_array.h", c_src_dir)),
-        (proj_root.join("runtime/nitid_array.c"), format!("{}/runtime/nitid_array.c", c_src_dir)),
+        (proj_root.join("runtime/types.h"), format!("{}/nitid/types.h", c_src_dir)),
+        (proj_root.join("runtime/string.h"), format!("{}/nitid/string.h", c_src_dir)),
+        (proj_root.join("runtime/string.c"), format!("{}/nitid/string.c", c_src_dir)),
+        (proj_root.join("runtime/string16.h"), format!("{}/nitid/string16.h", c_src_dir)),
+        (proj_root.join("runtime/string16.c"), format!("{}/nitid/string16.c", c_src_dir)),
+        (proj_root.join("runtime/string32.h"), format!("{}/nitid/string32.h", c_src_dir)),
+        (proj_root.join("runtime/string32.c"), format!("{}/nitid/string32.c", c_src_dir)),
+        (proj_root.join("runtime/array.h"), format!("{}/nitid/array.h", c_src_dir)),
+        (proj_root.join("runtime/array.c"), format!("{}/nitid/array.c", c_src_dir)),
     ] {
         let content = fs::read_to_string(&src)
             .map_err(|e| format!("Failed to read runtime file '{}': {}", src.display(), e))?;

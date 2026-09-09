@@ -56,6 +56,10 @@ pub struct Codegen {
     enum_defs: Vec<(String, Vec<EnumVariant>)>,
     /// Imported package names, for resolving qualified calls like Math.foo()
     package_names: HashSet<String>,
+    // Signatures of imported functions
+    foreign_sigs: HashMap<String, (String, Vec<Type>, Vec<Type>)>,
+    // Currently processed package
+    current_package: String,
 }
 
 impl Codegen {
@@ -70,6 +74,8 @@ impl Codegen {
             struct_defs: Vec::new(),
             enum_defs: Vec::new(),
             package_names: HashSet::new(),
+            foreign_sigs: HashMap::new(),
+            current_package: "main".to_string(),
         }
     }
 
@@ -86,7 +92,7 @@ impl Codegen {
         program: &Program,
         c_src_dir: &str,
         package_names: HashSet<String>,
-        foreign_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+        foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
     ) -> Result<(Vec<CFile>, String), String> {
         let c_code = self.generate_c(program, package_names, foreign_sigs);
 
@@ -120,9 +126,16 @@ impl Codegen {
         &mut self,
         program: &Program,
         package_names: HashSet<String>,
-        foreign_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+        foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
     ) -> String {
+        self.current_package = program.package.clone();
         self.package_names = package_names;
+        self.foreign_sigs = foreign_sigs.clone();
+
+        self.fn_returns.clear();
+        self.fn_params.clear();
+        self.struct_names.clear();
+        self.struct_defs.clear();
 
         // Pass 0: collect struct and enum definitions.
         for decl in &program.decls {
@@ -174,18 +187,23 @@ impl Codegen {
 
         // Standard C headers and Nitid runtime include.
         c_code.push_str("#include <stdio.h>\n");
-        c_code.push_str("#include \"runtime/nitid_types.h\"\n");
-        c_code.push_str("#include \"runtime/nitid_string.h\"\n");
-        c_code.push_str("#include \"runtime/nitid_string16.h\"\n");
-        c_code.push_str("#include \"runtime/nitid_string32.h\"\n");
-        c_code.push_str("#include \"runtime/nitid_array.h\"\n");
+        c_code.push_str("#include \"nitid/types.h\"\n");
+        c_code.push_str("#include \"nitid/string.h\"\n");
+        c_code.push_str("#include \"nitid/string16.h\"\n");
+        c_code.push_str("#include \"nitid/string32.h\"\n");
+        c_code.push_str("#include \"nitid/array.h\"\n");
         c_code.push('\n');
 
         // Prototypes for functions defined in other files.
-        let mut for_sign: Vec<(&String, &(Vec<Type>, Vec<Type>))> = foreign_sigs.iter().collect();
+        let mut for_sign: Vec<(&String, &(String, Vec<Type>, Vec<Type>))> =
+            foreign_sigs.iter().collect();
         for_sign.sort(); // deterministic order
 
-        for (name, (params, returns)) in for_sign {
+        for (name, (mangled, params, returns)) in for_sign {
+            // Skip prototype if function is defined in this file
+            if self.fn_returns.contains_key(name) {
+                continue;
+            }
             let ret = if returns.len() == 1 && returns[0] != Type::Void {
                 returns[0].c_str()
             } else {
@@ -197,7 +215,7 @@ impl Codegen {
                 .map(|t| t.c_str())
                 .collect::<Vec<_>>()
                 .join(", ");
-            c_code.push_str(&format!("{} {}({});\n", ret, name, plist));
+            c_code.push_str(&format!("{} {}({});\n", ret, mangled, plist));
         }
         c_code.push('\n');
 
@@ -249,12 +267,6 @@ impl Codegen {
         // Forward declarations for functions that return values
         for decl in &program.decls {
             match decl {
-                // Decl::FnDecl(f) => {
-                //     if f.returns.len() > 1 || (f.returns.len() == 1 && f.returns[0] != Type::Void) {
-                //         c_code.push_str(&self.emit_fn_decl(f, false));
-                //         c_code.push_str(";\n");
-                //     }
-                // }
                 Decl::ImplBlock(imp) => {
                     for method in &imp.methods {
                         if method.returns.len() > 1
@@ -273,7 +285,10 @@ impl Codegen {
         for decl in &program.decls {
             match decl {
                 Decl::FnDecl(f) => {
-                    c_code.push_str(&self.emit_fn_decl(f, false));
+                    // Use mangled name for imported functions, original for local
+                    let c_name = format!("{}_{}", self.current_package, f.name);
+
+                    c_code.push_str(&self.emit_fn_decl(f, c_name.as_str()));
                     c_code.push_str(" {\n");
                     c_code.push_str(&self.emit_fn_body(f));
                     c_code.push_str("}\n\n");
@@ -312,13 +327,15 @@ impl Codegen {
         cmake.push_str("set(CMAKE_C_STANDARD_REQUIRED ON)\n\n");
 
         cmake.push_str("add_library(nitid_runtime STATIC\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_array.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string16.c\n");
-        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/runtime/nitid_string32.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/array.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string16.c\n");
+        cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string32.c\n");
         cmake.push_str(")\n");
 
-        cmake.push_str("target_include_directories(nitid_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n");
+        cmake.push_str(
+            "target_include_directories(nitid_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})\n",
+        );
 
         cmake.push_str(&format!("add_executable({}\n", proj_name));
         for stem in file_stems {
@@ -327,8 +344,8 @@ impl Codegen {
         cmake.push_str(")\n\n");
 
         cmake.push_str(
-      "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/runtime)\n"
-    );
+            "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})\n",
+        );
         cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n");
 
         cmake
@@ -340,7 +357,7 @@ impl Codegen {
     ///
     /// `main` receives the standard `(int argc, char **argv)` signature.
     /// Multi-return functions get additional `*resN` output parameters.
-    fn emit_fn_decl(&self, f: &FnDecl, _forward: bool) -> String {
+    fn emit_fn_decl(&self, f: &FnDecl, c_name: &str) -> String {
         let mut s = String::new();
         let returns = &f.returns;
 
@@ -357,7 +374,7 @@ impl Codegen {
         } else {
             s.push_str("void ");
         }
-        s.push_str(&f.name);
+        s.push_str(c_name);
         s.push('(');
 
         // Parameters.
@@ -1026,7 +1043,7 @@ impl Codegen {
                 if let Expr::Ident(pkg_name, _) = target.as_ref() {
                     if self.package_names.contains(pkg_name) {
                         let args_str = self.emit_call_args_joined(args, current_fn);
-                        return format!("{}({})", method, args_str);
+                        return format!("{}_{}({})", pkg_name, method, args_str);
                     }
                 }
 
@@ -1244,17 +1261,33 @@ impl Codegen {
         } else if name == "printf" {
             self.emit_printf(args, current_fn)
         } else {
+            // Mangle if this is an imported function.
+            // let c_name = self
+            //     .foreign_sigs
+            //     .get(name)
+            //     .map(|(m, _, _)| m.as_str())
+            //     .unwrap_or(name)
+            //     .to_string();
+
+            let c_name = if self.fn_returns.contains_key(name) {
+                format!("{}_{}", self.current_package, name)
+            } else if let Some((m, _, _)) = self.foreign_sigs.get(name) {
+                m.clone()
+            } else {
+                format!("{}_{}", self.current_package, name)
+            };
+
             let returns = self.fn_returns.get(name);
             match returns {
                 Some(ret_types) if ret_types.len() > 1 => {
                     // Multi-return call in expression context — just emit
                     // the call with args (output params handled by DeclAssign).
                     let args_str = self.emit_call_args_joined(args, current_fn);
-                    format!("{}({})", name, args_str)
+                    format!("{}({})", c_name, args_str)
                 }
                 _ => {
                     let args_str = self.emit_call_args_joined(args, current_fn);
-                    format!("{}({})", name, args_str)
+                    format!("{}({})", c_name, args_str)
                 }
             }
         }
@@ -1343,6 +1376,7 @@ impl Codegen {
         if args_str.len() == 1 {
             format!("printf(\"%s\\n\", {})", args_str[0])
         } else {
+            // TODO: this is wrong. \n must be added at the end of the first arg, which should be a string literal.
             format!("printf({})", args_str.join(", "))
         }
     }
