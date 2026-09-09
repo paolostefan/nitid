@@ -1,5 +1,5 @@
 #include "nitid_test.h"
-#include "../nitid_string.h"
+#include "../string.h"
 
 TEST(string_from_empty) {
     nitid_string s = nitid_string_from("");

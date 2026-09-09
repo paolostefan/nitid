@@ -1,12 +1,12 @@
 #ifndef NITID_STRING16_H
 #define NITID_STRING16_H
 
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include "nitid_string.h"
+
+#include "nitid/string.h"
 
 #ifdef __cplusplus
 extern "C" {

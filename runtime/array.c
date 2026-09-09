@@ -1,7 +1,6 @@
-#include "nitid_array.h"
+#include "array.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 NITID_ARRAY_FROM_LIT_IMPL(i8)
 NITID_ARRAY_FROM_LIT_IMPL(i16)

@@ -1,5 +1,5 @@
 #include "nitid_test.h"
-#include "../nitid_string16.h"
+#include "../string16.h"
 
 TEST(string16_from_utf8_ascii) {
     nitid_string16 s = nitid_string16_from_utf8("hello");

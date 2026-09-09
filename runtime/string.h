@@ -1,9 +1,7 @@
 #ifndef NITID_STRING_H
 #define NITID_STRING_H
 
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus

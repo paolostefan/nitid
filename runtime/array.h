@@ -2,10 +2,10 @@
 #define NITID_ARRAY_H
 
 #include <stddef.h>
-#include <stdint.h>
+#include <string.h>
 #include <stdbool.h>
 
-#include "nitid_types.h"
+#include "types.h"
 
 typedef struct {
   size_t length;    // Number of current array members

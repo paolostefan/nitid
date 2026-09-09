@@ -1,4 +1,4 @@
-#include "nitid_string32.h"
+#include "string32.h"
 
 static uint32_t utf8_decode_cp(const char **s) {
     uint8_t b = (uint8_t)**s;

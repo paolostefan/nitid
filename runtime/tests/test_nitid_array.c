@@ -1,5 +1,5 @@
 #include "nitid_test.h"
-#include "../nitid_array.h"
+#include "../array.h"
 
 TEST(array_from_lit_empty) {
     int32_t vals[] = {0};
