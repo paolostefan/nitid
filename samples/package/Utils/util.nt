@@ -1,0 +1,5 @@
+package Utils;
+
+fn square(i32 x) -> u32 {
+  return x * x;
+}

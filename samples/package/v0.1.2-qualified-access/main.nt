@@ -1,0 +1,4 @@
+import Foo;
+
+println("add: %d", Foo.add(3, 4));
+println("sub: %d", Foo.sub(10, 3));

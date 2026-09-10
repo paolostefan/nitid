@@ -136,3 +136,63 @@ pub fn discover_valid_samples() -> Vec<String> {
     files.sort();
     files
 }
+
+// ---------------------------------------------------------------------------
+// Package test helpers
+// ---------------------------------------------------------------------------
+
+/// Discover all immediate subdirectories under `samples/package/` that
+/// contain a `main.nt` entry point. Returns `(dir_name, main_path)` pairs
+/// sorted by directory name.
+pub fn discover_package_dirs() -> Vec<(String, String)> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples").join("package");
+    let mut dirs = Vec::new();
+    for entry in std::fs::read_dir(&root).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let main = path.join("main.nt");
+        if main.exists() {
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            dirs.push((name, main.to_string_lossy().to_string()));
+        }
+    }
+    dirs.sort_by(|a, b| a.0.cmp(&b.0));
+    dirs
+}
+
+/// Compile the `main.nt` of a package directory.
+/// Returns the full `nitid::compile` result on success.
+pub fn compile_package_main(dir: &str) -> Result<
+    (nitid::ast::Program, Vec<nitid::codegen::CFile>, String),
+    String,
+> {
+    let main_path = format!("{}/main.nt", dir);
+    let content = std::fs::read_to_string(&main_path)
+        .map_err(|e| format!("Failed to read '{}': {}", main_path, e))?;
+    nitid::compile(&main_path, &content, "")
+}
+
+/// Compile a package main and return the concatenated C source text
+/// of all generated `.c` files.  Useful for asserting on mangled names, etc.
+pub fn get_package_c_output(dir: &str) -> Result<String, String> {
+    let (_, c_files, _) = compile_package_main(dir)?;
+    let mut out = String::new();
+    for cf in &c_files {
+        out.push_str(&cf.content);
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Helper: get the full path to a subdirectory under `samples/package/`.
+pub fn package_path(subdir: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join("package")
+        .join(subdir)
+        .to_string_lossy()
+        .to_string()
+}

@@ -1,0 +1,6 @@
+package Math;
+
+import Utils;
+
+fn multiply(i32 a, b) -> i32 { return Utils.square(a) * b; }
+

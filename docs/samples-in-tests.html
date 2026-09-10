@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fa8a9a4.js";
+            window.path_to_searchindex_js = "searchindex-35a7788b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0e7e34c0.js"></script>
@@ -185,7 +185,8 @@ the directory. Adding a new <code>.nt</code> file there automatically exercises 
 <pre><code>tests/
 ├── common/mod.rs   # Shared test helpers (batch runners, expectation parsing)
 ├── valid.rs        # Compiles every top-level sample, expecting success
-└── errors.rs       # Compiles every sample/errors/ file, expecting a stated failure
+├── errors.rs       # Compiles every sample/errors/ file, expecting a stated failure
+└── packages.rs     # Package/module system tests (v0.1.1–v0.1.6)
 </code></pre>
 <h2 id="how-the-tests-find-the-samples"><a class="header" href="#how-the-tests-find-the-samples">How the tests find the samples</a></h2>
 <p>Sample paths are resolved relative to the Cargo workspace root, not relative to the test files:</p>
@@ -237,6 +238,69 @@ error) and is not checked by the tests.</p>
 <li>If there is <strong>no</strong> expectation header → any error is accepted.</li>
 <li>Otherwise it compares the produced error against the expected exact/substring value from the header.</li>
 </ul>
+<h2 id="package-samples--testspackagesrs"><a class="header" href="#package-samples--testspackagesrs">Package samples — <code>tests/packages.rs</code></a></h2>
+<p>The <code>samples/package/</code> directory contains multi-file package samples, each in a <strong>version-focused subdirectory</strong> named
+after the roadmap feature it exercises (<code>v0.1.1-basic-import/</code>, <code>v0.1.2-qualified-access/</code>, etc.). Every subdirectory
+that contains a <code>main.nt</code> entry point is automatically discovered and compiled.</p>
+<pre><code>samples/package/
+├── main.nt                          # Existing Math/Utils cross-import demo
+├── Math/                            #   └── package Math (vector.nt, matrix.nt, internal/helpers.nt)
+├── Utils/                           #   └── package Utils (util.nt)
+├── v0.1.1-basic-import/             # File-level import resolution
+│   ├── main.nt                      #   import Foo; Foo.hello();
+│   └── Foo/greet.nt                #   package Foo; fn hello()
+├── v0.1.2-qualified-access/         # Foo.func() qualified calls
+│   ├── main.nt                      #   Foo.add(), Foo.sub()
+│   └── Foo/                         #   package Foo; arith + types (struct, enum)
+├── v0.1.3-import-alias/             # import Foo as f;
+│   ├── main.nt                      #   import Foo as f; f.hello();
+│   └── Foo/greet.nt                #   package Foo; fn hello()
+└── v0.1.4-transitive/               # A→B→C dependency chain
+    ├── main.nt                      #   import A; A.foo();
+    ├── A/a.nt                      #   package A; import B; fn foo() → B.bar()
+    └── B/b.nt                      #   package B; fn bar()
+</code></pre>
+<h3 id="roadmap-features-covered"><a class="header" href="#roadmap-features-covered">Roadmap features covered</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Version</th><th>Feature</th><th>What the tests verify</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>v0.1.1</strong></td><td>File-level import resolution</td><td><code>import Foo;</code> finds <code>Foo/</code> dir, parses <code>package Foo;</code>, merges into symbol table</td></tr>
+<tr><td><strong>v0.1.2</strong></td><td>Qualified access</td><td><code>Foo.add()</code> compiles; C output contains mangled <code>Foo_add</code>; struct/enum accessible via package prefix</td></tr>
+<tr><td><strong>v0.1.3</strong></td><td>Import aliasing</td><td><code>import Foo as f;</code> sets alias; <code>f.hello()</code> resolves; original name <code>Foo</code> is hidden after alias</td></tr>
+<tr><td><strong>v0.1.4</strong></td><td>Multi-file compilation</td><td>Transitive A→B→C chain compiles; C output has files for all three packages; <code>B_bar</code> and <code>A_foo</code> both mangled</td></tr>
+<tr><td><strong>v0.1.5</strong></td><td>Name conflict detection</td><td><code>parse_package_dir</code> rejects mismatched package declarations; <code>import Nonexistent</code> errors</td></tr>
+<tr><td><strong>v0.1.6</strong></td><td>Mangled C names</td><td>Imported functions produce <code>Pkg_func</code> C names, not bare <code>func</code>; two packages with same function name get distinct C symbols</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="package-test-helpers"><a class="header" href="#package-test-helpers">Package test helpers</a></h3>
+<p>Additional helpers in <code>common/mod.rs</code> (alongside the existing valid/error helpers):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>discover_package_dirs()</code></td><td>Find all immediate subdirs of <code>samples/package/</code> containing <code>main.nt</code> → <code>Vec&lt;(name, path)&gt;</code></td></tr>
+<tr><td><code>compile_package_main(dir)</code></td><td>Read <code>{dir}/main.nt</code>, run full pipeline → <code>Result&lt;(Program, Vec&lt;CFile&gt;, cmake), String&gt;</code></td></tr>
+<tr><td><code>get_package_c_output(dir)</code></td><td>Compile package main, concatenate all C file contents → <code>Result&lt;String, String&gt;</code></td></tr>
+<tr><td><code>package_path(subdir)</code></td><td>Resolve <code>samples/package/{subdir}</code> to an absolute path</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="inline-tests-no-sample-file-needed"><a class="header" href="#inline-tests-no-sample-file-needed">Inline tests (no sample file needed)</a></h3>
+<p>Some package tests are defined inline in <code>tests/packages.rs</code> without a corresponding sample file:</p>
+<ul>
+<li><strong><code>v0_1_3_alias_original_name_hidden</code></strong> — compiles <code>import Foo as f; Foo.hello();</code> inline and asserts it fails.</li>
+<li><strong><code>v0_1_5_duplicate_symbol_across_imports</code></strong> — compiles two conflicting imports inline.</li>
+<li><strong><code>v0_1_5_package_name_mismatch_error</code></strong> — creates a temp dir with mismatched <code>package</code> declarations, calls
+<code>nitid::parse_package_dir()</code> directly, asserts the error.</li>
+<li><strong><code>build_package_context_from_parsed_files</code></strong> / <strong><code>merge_contexts_combines_packages</code></strong> — unit-test the
+<code>build_package_context</code> and <code>merge_contexts</code> APIs by parsing source strings directly.</li>
+</ul>
 <h2 id="shared-helpers--testscommonmodrs"><a class="header" href="#shared-helpers--testscommonmodrs">Shared helpers — <code>tests/common/mod.rs</code></a></h2>
 <div class="table-wrapper">
 <table>
@@ -250,6 +314,10 @@ error) and is not checked by the tests.</p>
 <tr><td><code>run_error_file(path)</code></td><td>Compile one error sample, check it matches its header</td></tr>
 <tr><td><code>run_error_batch(dir)</code></td><td>Batch runner for error samples</td></tr>
 <tr><td><code>discover_valid_samples()</code></td><td>List top-level (non-error) <code>.nt</code> files, sorted</td></tr>
+<tr><td><code>discover_package_dirs()</code></td><td>Find package subdirs with <code>main.nt</code> → <code>Vec&lt;(name, path)&gt;</code></td></tr>
+<tr><td><code>compile_package_main(dir)</code></td><td>Compile a package’s <code>main.nt</code> entry point</td></tr>
+<tr><td><code>get_package_c_output(dir)</code></td><td>Compile and return concatenated C output text</td></tr>
+<tr><td><code>package_path(subdir)</code></td><td>Absolute path to <code>samples/package/{subdir}</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -261,6 +329,9 @@ transpiler rather than a single stage.</p>
 <li><strong>Top-level <code>samples/*.nt</code></strong> → must compile cleanly (fails <code>valid.rs</code> otherwise).</li>
 <li><strong><code>samples/errors/*.nt</code></strong> → must fail to compile; add a <code>// expect:</code> or <code>// expect-contains:</code> header (unless you
 accept any error) so <code>errors.rs</code> knows the expected failure mode.</li>
+<li><strong><code>samples/package/&lt;version-*&gt;/</code></strong> → must compile cleanly via <code>main.nt</code> entry point (fails <code>packages.rs</code> otherwise).
+Each subdirectory should be named after the roadmap feature it tests (e.g. <code>v0.1.1-basic-import/</code>).
+Package files use <code>package Foo;</code> declarations and <code>import Foo;</code> statements.</li>
 </ul>
 <p>Files are sorted by path and filtered by the <code>.nt</code> extension before batch compilation, so ordering is deterministic.</p>
 

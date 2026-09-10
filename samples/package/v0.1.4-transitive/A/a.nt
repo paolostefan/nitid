@@ -1,0 +1,5 @@
+package A;
+
+import B;
+
+fn foo() -> i32 { return B.bar(); }

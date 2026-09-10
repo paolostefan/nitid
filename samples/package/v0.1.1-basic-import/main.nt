@@ -1,0 +1,5 @@
+import Foo;
+
+println("hello from main");
+
+println("Foo says: %d", Foo.hello());

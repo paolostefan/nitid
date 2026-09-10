@@ -1,0 +1,3 @@
+package Math;
+
+fn dot_product(i32 a, b) -> i32 { return a*b; }

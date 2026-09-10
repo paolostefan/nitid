@@ -1,0 +1,3 @@
+import Foo as f;
+
+println("aliased call: %d", f.hello());

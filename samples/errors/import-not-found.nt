@@ -1,0 +1,4 @@
+// expect-contains: could not find package
+import Nonexistent;
+
+fn main { println("bad"); }

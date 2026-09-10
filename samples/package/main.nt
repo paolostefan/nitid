@@ -1,0 +1,5 @@
+import Math;
+
+println("Ciao fioi");
+
+println("25x14 fa %d", Math.multiply(25,14));
