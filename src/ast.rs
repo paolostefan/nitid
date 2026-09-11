@@ -11,7 +11,6 @@
 /// Most nodes carry a `Span` for error reporting, but the parser
 /// frequently fills it with dummy values (`Span::new("", 0, 0)`).
 /// Real source-location tracking is only partially implemented.
-
 use crate::types::Type;
 
 /// Source location: file name, line number, and column.
@@ -27,7 +26,11 @@ pub struct Span {
 impl Span {
     /// Create a new source-location span.
     pub fn new(file: &str, line: usize, col: usize) -> Self {
-        Self { file: file.to_string(), line, col }
+        Self {
+            file: file.to_string(),
+            line,
+            col,
+        }
     }
 }
 
@@ -167,6 +170,8 @@ pub struct FnDecl {
     pub returns: Vec<Type>,
     pub body: Vec<Stmt>,
     pub span: Span,
+    pub is_external: bool,
+    pub extern_abi: Option<String>,
 }
 
 /// A single function parameter, carrying one type and one or more names.
@@ -329,11 +334,25 @@ pub enum Expr {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
     // Arithmetic
-    Add, Sub, Mul, Div, Mod,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
     // Comparison
-    Eq, Ne, Lt, Gt, Le, Ge,
+    Eq,
+    Ne,
+    Lt,
+    Gt,
+    Le,
+    Ge,
     // Logical
-    And, Or,
+    And,
+    Or,
     // Bitwise / shift
-    BitAnd, BitOr, BitXor, Shl, Shr,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
 }

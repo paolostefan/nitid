@@ -156,13 +156,15 @@ impl Codegen {
         for decl in &program.decls {
             match decl {
                 Decl::FnDecl(f) => {
-                    let param_types: Vec<Type> = f
-                        .params
-                        .iter()
-                        .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
-                        .collect();
-                    self.fn_params.insert(f.name.clone(), param_types);
-                    self.fn_returns.insert(f.name.clone(), f.returns.clone());
+                    if !f.is_external {
+                        let param_types: Vec<Type> = f
+                            .params
+                            .iter()
+                            .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
+                            .collect();
+                        self.fn_params.insert(f.name.clone(), param_types);
+                        self.fn_returns.insert(f.name.clone(), f.returns.clone());
+                    }
                 }
                 Decl::ImplBlock(imp) => {
                     let struct_name = &imp.struct_name;
@@ -285,14 +287,26 @@ impl Codegen {
         for decl in &program.decls {
             match decl {
                 Decl::FnDecl(f) => {
-                    // Use mangled name for imported functions, original for local
-                    let c_name = format!("{}_{}", self.current_package, f.name);
+                    // Use mangled name for all functions, except extern fn's (FFI)
+                    if f.is_external {
+                        if let Some(abi) = &f.extern_abi {
+                            if abi != "C" {
+                                c_code.push_str("extern ");
+                                c_code.push_str(&format!("\"{abi}\" "));
+                            }
+                        }
 
-                    c_code.push_str(&self.emit_fn_decl(f, c_name.as_str()));
-                    c_code.push_str(" {\n");
-                    c_code.push_str(&self.emit_fn_body(f));
-                    c_code.push_str("}\n\n");
+                        c_code.push_str(&self.emit_fn_decl(f, &f.name));
+                        c_code.push_str(";\n\n");
+                    } else {
+                        let c_name = format!("{}_{}", self.current_package, f.name);
+                        c_code.push_str(&self.emit_fn_decl(f, &c_name));
+                        c_code.push_str(" {\n");
+                        c_code.push_str(&self.emit_fn_body(f));
+                        c_code.push_str("}\n\n");
+                    }
                 }
+
                 Decl::ImplBlock(imp) => {
                     for method in &imp.methods {
                         c_code.push_str(&self.emit_method_decl(imp, method, false));
@@ -1262,19 +1276,13 @@ impl Codegen {
             self.emit_printf(args, current_fn)
         } else {
             // Mangle if this is an imported function.
-            // let c_name = self
-            //     .foreign_sigs
-            //     .get(name)
-            //     .map(|(m, _, _)| m.as_str())
-            //     .unwrap_or(name)
-            //     .to_string();
-
             let c_name = if self.fn_returns.contains_key(name) {
                 format!("{}_{}", self.current_package, name)
             } else if let Some((m, _, _)) = self.foreign_sigs.get(name) {
                 m.clone()
             } else {
-                format!("{}_{}", self.current_package, name)
+                // TODO beware: this unmangles everything which is not in fn_returns/foreign_signs
+                name.to_string()
             };
 
             let returns = self.fn_returns.get(name);

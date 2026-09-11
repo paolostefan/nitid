@@ -1,0 +1,3 @@
+extern "C" fn abs(int s) -> int;
+
+printf("abs(-7) = %d\n", abs(-7));

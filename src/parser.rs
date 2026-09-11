@@ -178,7 +178,9 @@ impl Parser {
 
         // Declarations or dangling statements.
         while self.peek().is_some() {
-            if self.check(&TokenKind::Fn) {
+            if self.check(&TokenKind::Extern) {
+                decls.push(Decl::FnDecl(self.parse_extern_fn_decl()?));
+            } else if self.check(&TokenKind::Fn) {
                 decls.push(Decl::FnDecl(self.parse_fn_decl()?));
             } else if self.check(&TokenKind::Packed)
                 || self.check(&TokenKind::Align)
@@ -217,6 +219,8 @@ impl Parser {
                 returns: vec![Type::I32],
                 body: dangling_stmts,
                 span: Span::new(file, 0, 0),
+                is_external: false,
+                extern_abi: None,
             }));
         }
 
@@ -264,6 +268,64 @@ impl Parser {
 
     // ── Functions ─────────────────────────────────────────────
 
+    /// `extern "language"? fn ident param-list ("->" type-list)? ";"
+    fn parse_extern_fn_decl(&mut self) -> ParseResult<FnDecl> {
+        self.expect(&TokenKind::Extern)?;
+        let extern_abi = match self.peek_kind() {
+          Some(TokenKind::StringLit(s)) => {
+            let s = s.clone();
+            self.advance();
+            Some(s)
+          }
+          _ => None
+        };
+
+        let fn_tok = self.expect(&TokenKind::Fn)?;
+        let name = self.expect_ident()?;
+        let span = fn_tok.span.clone();
+
+        // Parameters: either `(...)` or just `;` (zero-param shorthand).
+        let params = if self.check(&TokenKind::LParen) {
+            self.parse_params()?
+        } else {
+            Vec::new()
+        };
+
+        // Return types.
+        let returns = if self.consume(&TokenKind::Arrow) {
+            if self.check(&TokenKind::LParen) {
+                // Multiple return types: `-> (type, type, ...)`
+                self.advance();
+                let mut types = Vec::new();
+                loop {
+                    types.push(self.parse_type()?);
+                    if !self.consume(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&TokenKind::RParen)?;
+                types
+            } else {
+                vec![self.parse_type()?]
+            }
+        } else {
+            vec![Type::Void]
+        };
+
+        // Extern functions must have no body, only a semicolon after the return type.
+        self.expect(&TokenKind::Semicolon)?;
+
+        Ok(FnDecl {
+            name,
+            params,
+            returns,
+            body:Vec::new(),
+            span,
+            is_external: true,
+            extern_abi
+        })
+    }
+
     /// `fn ident param-list ("->" type-list)? "{" stmt* "}"`
     fn parse_fn_decl(&mut self) -> ParseResult<FnDecl> {
         let fn_tok = self.expect(&TokenKind::Fn)?;
@@ -308,6 +370,8 @@ impl Parser {
             returns,
             body,
             span,
+            is_external: false,
+            extern_abi: None
         })
     }
 
