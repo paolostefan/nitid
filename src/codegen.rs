@@ -896,6 +896,16 @@ impl Codegen {
             }
             Expr::Ident(name, _) => name.clone(),
             Expr::Call { name, args, .. } => self.emit_call(name, args, current_fn),
+            Expr::UnaryOp {op, expr, ..} => {
+              let expr_code = self.emit_expr(expr, current_fn);
+              match op {
+                UnOp::Not => format!("!({})", expr_code),
+                UnOp::BinNot => format!("~({})", expr_code),
+                UnOp::Neg => format!("-({})", expr_code),
+                UnOp::Deref => format!("*({})", expr_code),
+                UnOp::Ref => format!("&({})", expr_code),
+              }
+            },
             Expr::BinaryOp {
                 left, op, right, ..
             } => {

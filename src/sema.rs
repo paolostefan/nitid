@@ -675,6 +675,10 @@ impl Sema {
                         })
                 }
             }
+            Expr::UnaryOp {expr, .. } => {
+              let expr_type = self.infer_expr_type(expr, scope, fn_sigs)?;
+              Ok(expr_type)
+            }
             Expr::BinaryOp {
                 left,
                 right,
@@ -1237,6 +1241,42 @@ fn infer_expr_type_free(
                         )
                     })
             }
+        }
+
+        Expr::UnaryOp {op, expr, span} => {
+          let expr_type = infer_expr_type_free(expr, scope, fn_sigs, struct_defs, enum_members)?;
+          match op {
+            UnOp::Neg => {
+              match expr_type {
+                Type::I8 | Type::I16 | Type::I32  | Type::I64 | Type::I128
+                | Type::F32 | Type::F64 => Ok(expr_type),
+                _ => Err(format!("{}:{}:{}: unary minus type mismatch",
+                                 span.file, span.line, span.col)),
+              }
+            },
+            UnOp::Not => {
+              match expr_type {
+                Type::Bool => Ok(Type::Bool),
+                _ => Err(format!("{}:{}:{}: boolean not type mismatch",
+                            span.file, span.line, span.col))
+              }
+            },
+            UnOp::BinNot => {
+              match expr_type {
+                Type::I8 | Type::I16 | Type::I32  | Type::I64 | Type::I128 => Ok(expr_type),
+                _ => Err(format!("{}:{}:{}: binary not type mismatch",
+                                 span.file, span.line, span.col)),
+              }
+            },
+            UnOp::Deref => {
+              match expr_type {
+                Type::TyPtr(_,_) => Ok(expr_type),
+                _ => Err(format!("{}:{}:{}: pointer type mismatch",
+                                 span.file, span.line, span.col))
+              }
+            },
+            UnOp::Ref => Ok(expr_type)
+          }
         }
         Expr::BinaryOp {
             left,

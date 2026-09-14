@@ -43,7 +43,9 @@ printf("x=%d\n", x);
 
 // Unary
 neg := -x;
-bool not := !0;
+bool_var := false;
+bool not = !bool_var;
+not = !(4 > 5);
 flip := ~x;
 
 printf("neg=%d, !0=%d, ~42=%d\n", neg, not, flip);

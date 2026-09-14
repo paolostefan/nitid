@@ -555,7 +555,7 @@ impl Lexer {
 
   // ── Entry point ───────────────────────────────────────────
 
-  /// Tokenise the entire input.
+  /// Tokenize the entire input.
   ///
   /// Returns a `Vec<Token>` on success, or an error string
   /// describing the first invalid character or unterminated literal.

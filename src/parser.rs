@@ -267,7 +267,7 @@ impl Parser {
 
   // ── Functions ─────────────────────────────────────────────
 
-  /// `extern "language"? fn ident param-list ("->" type-list)? ";"
+  /// `extern language? fn ident param-list ("->" type-list)? ";"
   fn parse_extern_fn_decl(&mut self) -> ParseResult<FnDecl> {
     self.expect(&TokenKind::Extern)?;
     let extern_abi = match self.peek_kind() {
@@ -526,7 +526,7 @@ impl Parser {
       if self.check(&TokenKind::RBrace) {
         break;
       }
-      let vname = self.expect_ident()?;
+      let variant_name = self.expect_ident()?;
       let vspan = self
           .peek()
           .map(|t| t.span.clone())
@@ -537,7 +537,7 @@ impl Parser {
         None
       };
       variants.push(EnumVariant {
-        name: vname,
+        name: variant_name,
         value,
         span: vspan,
       });
@@ -1456,39 +1456,52 @@ impl Parser {
     Ok(left)
   }
 
-  /// Unary operators: `-` (negate), `!` (logical not), `~` (bitwise not).
+  /// Unary operators: `-` (negate), `!` (logical not), `~` (bitwise not), `*` (deref), `&` (ref)
   ///
-  /// Note: the current implementation desugars unary operators into
-  /// binary operations using synthetic literals (e.g. `-x` → `0 - x`).
-  /// This works but loses the distinction in the AST if a later pass
-  /// needs it.
   fn parse_unary(&mut self) -> ParseResult<Expr> {
     if self.consume(&TokenKind::Minus) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      Ok(Expr::BinaryOp {
-        left: Box::new(Expr::IntLit(0, span.clone())),
-        op: BinOp::Sub,
-        right: Box::new(expr),
+      
+      Ok(Expr::UnaryOp {
+        op: UnOp::Neg,
+        expr: Box::new(expr),
         span,
       })
     } else if self.consume(&TokenKind::Bang) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      Ok(Expr::BinaryOp {
-        left: Box::new(Expr::BoolLit(false, span.clone())),
-        op: BinOp::Ne,
-        right: Box::new(Expr::BoolLit(true, span.clone())),
+      
+      Ok(Expr::UnaryOp {
+        op: UnOp::Not,
+        expr: Box::new(expr),
         span,
       })
-      // FIXME: proper unary not
     } else if self.consume(&TokenKind::Tilde) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      Ok(Expr::BinaryOp {
-        left: Box::new(Expr::IntLit(-1, span.clone())),
-        op: BinOp::BitXor,
-        right: Box::new(expr),
+      
+      Ok(Expr::UnaryOp {
+        op: UnOp::BinNot,
+        expr: Box::new(expr),
+        span,
+      })
+    } else if self.consume(&TokenKind::Star) {
+      let expr = self.parse_unary()?;
+      let span = expr.span();
+      
+      Ok(Expr::UnaryOp {
+        op: UnOp::Deref,
+        expr: Box::new(expr),
+        span,
+      })
+    } else if self.consume(&TokenKind::Ampersand) {
+      let expr = self.parse_unary()?;
+      let span = expr.span();
+      
+      Ok(Expr::UnaryOp {
+        op: UnOp::Ref,
+        expr: Box::new(expr),
         span,
       })
     } else {
@@ -1497,7 +1510,7 @@ impl Parser {
   }
 
   /// Primary expressions: literals, identifiers, function calls,
-  /// array literals, parenthesised expressions, and postfix
+  /// array literals, parenthesized expressions, and postfix
   /// index/function-call/++/-- operators.
   fn parse_primary(&mut self) -> ParseResult<Expr> {
     let tok = self.advance().ok_or_else(|| "Unexpected EOF".to_string())?;
@@ -1696,6 +1709,7 @@ impl Expr {
       | Expr::BoolLit(_, s)
       | Expr::Ident(_, s)
       | Expr::Call { span: s, .. }
+      | Expr::UnaryOp {span: s, .. }
       | Expr::BinaryOp { span: s, .. }
       | Expr::Assign { span: s, .. }
       | Expr::DeclAssign { span: s, .. }
@@ -1704,8 +1718,8 @@ impl Expr {
       | Expr::Index { span: s, .. }
       | Expr::FieldAccess { span: s, .. }
       | Expr::MethodCall { span: s, .. }
-      | Expr::StructLit { span: s, .. } => s.clone(),
-      Expr::ArrayLit(_, s) => s.clone(),
+      | Expr::StructLit { span: s, .. } 
+      | Expr::ArrayLit(_, s) => s.clone(),
     }
   }
 }
