@@ -13,15 +13,14 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef float f32;
-typedef double f64;
-
-// MSVC does not support __int128
 #if defined(_MSC_VER) && !defined(__llvm__) && !defined(__INTEL_COMPILER)
-  // No 128 bit integers math
+  // MSVC does not support __int128: no 128 bit integers math
 #else
   typedef __int128 i128;
   typedef unsigned __int128 u128;
 #endif
+
+typedef float f32;
+typedef double f64;
 
 #endif //NITID_TYPES_H
