@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ebec8b46.js";
+            window.path_to_searchindex_js = "searchindex-60fdf3d7.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0e7e34c0.js"></script>
+        <script src="toc-2178f07d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,9 +178,15 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="nitid-implementation-roadmap"><a class="header" href="#nitid-implementation-roadmap">Nitid Implementation Roadmap</a></h1>
-<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while, multi-return, for loops (C-style + range-based), break/continue, postfix ++/–, source-span errors, no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with bounds-checked access.</p>
-<p><strong>North Star (intermediate):</strong> By the end of <strong>v0.2</strong>, write a small demo (plasma / fire / GL triangle + shaders) in roughly 100–150 lines—low-level and explicit, with minimal boilerplate—Amiga-era C energy, modern tooling.</p>
-<p><strong>Note on resources:</strong> Before v0.3, resource lifetime is <strong>manual and explicit</strong> (<code>SDL_Destroy*</code>, <code>free</code>, etc.). RAII / safe references land in v0.3 and upgrade the graphics layer; they do not block the first demos.</p>
+<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while,
+multi-return, for loops (C-style + range-based), break/continue, postfix ++/–, source-span errors, no-implicit-cast
+enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based array traversal,
+structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with bounds-checked
+access.</p>
+<p><strong>North Star (intermediate):</strong> By the end of <strong>v0.2</strong>, write a small demo (plasma / fire / GL triangle + shaders) in
+roughly 100–150 lines—low-level and explicit, with minimal boilerplate—Amiga-era C energy, modern tooling.</p>
+<p><strong>Note on resources:</strong> Before v0.3, resource lifetime is <strong>manual and explicit</strong> (<code>SDL_Destroy*</code>, <code>free</code>, etc.). RAII /
+safe references land in v0.3 and upgrade the graphics layer; they do not block the first demos.</p>
 <hr>
 <h2 id="base-features"><a class="header" href="#base-features">Base features</a></h2>
 <h3 id="composite-types"><a class="header" href="#composite-types">Composite types</a></h3>
@@ -229,10 +235,12 @@
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export the same function name without linker conflicts.</p>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export the same function
+name without linker conflicts.</p>
 <hr>
 <h3 id="v020--ffi-raw-memory--graphics"><a class="header" href="#v020--ffi-raw-memory--graphics">v0.2.0 — FFI, raw memory &amp; graphics</a></h3>
-<p>Goal: open a window, draw via <strong>software framebuffer</strong> and/or <strong>OpenGL shaders</strong>, pump events, link <strong>SDL2</strong>—without drowning in boilerplate. Graphics is a first-class milestone, not a side quest.</p>
+<p>Goal: open a window, draw via <strong>software framebuffer</strong> and/or <strong>OpenGL shaders</strong>, pump events, link <strong>SDL2</strong>—without
+drowning in boilerplate. Graphics is a first-class milestone, not a side quest.</p>
 <h4 id="language--compiler"><a class="header" href="#language--compiler">Language / compiler</a></h4>
 <div class="table-wrapper">
 <table>
@@ -266,19 +274,24 @@
 </div>
 <p><strong>Design rules for v0.2</strong></p>
 <ul>
-<li><strong>Two visible layers:</strong> <code>sdl.*</code> / <code>gl.*</code> (almost 1:1 C) and <code>gfx.*</code> (comfortable; <code>.raw()</code> / <code>.ptr()</code> always available).</li>
-<li><strong>No GC; no hidden allocations in the render hot path.</strong> Static buffers or bump/frame arenas are fine even before full RAII.</li>
+<li><strong>Two visible layers:</strong> <code>sdl.*</code> / <code>gl.*</code> (almost 1:1 C) and <code>gfx.*</code> (comfortable; <code>.raw()</code> / <code>.ptr()</code> always
+available).</li>
+<li><strong>No GC; no hidden allocations in the render hot path.</strong> Static buffers or bump/frame arenas are fine even before full
+RAII.</li>
 <li><strong>Manual resource management</strong> is documented and expected (<code>DestroyWindow</code>, <code>glDelete*</code>, etc.).</li>
 <li>Bindings stay <strong>minimal</strong>—only what the examples need; grow driven by demos.</li>
 </ul>
 <p><strong>Exit criteria:</strong></p>
 <ul>
 <li>A Nitid program links against <strong>SDL2</strong> and opens a window.</li>
-<li>Same program (or a sibling example) renders either a <strong>software-framebuffer</strong> effect <em>or</em> an <strong>OpenGL</strong> shader demo (ideally both in-tree).</li>
+<li>Same program (or a sibling example) renders either a <strong>software-framebuffer</strong> effect <em>or</em> an <strong>OpenGL</strong> shader demo
+(ideally both in-tree).</li>
 <li>Event loop + input works; cleanup is explicit and leak-free under normal exit.</li>
-<li>A dangling FFI mistake may still be UB in unsafe paths; safe Nitid code should not need to touch raw GL/SDL without <code>unsafe</code>.</li>
+<li>A dangling FFI mistake may still be UB in unsafe paths; safe Nitid code should not need to touch raw GL/SDL without
+<code>unsafe</code>.</li>
 </ul>
-<p><strong>Explicitly deferred out of v0.2:</strong> full RAII, borrow checker, rich <code>Result</code> ergonomics (can use error codes), generics/traits, package manager, auto-bindgen.</p>
+<p><strong>Explicitly deferred out of v0.2:</strong> full RAII, borrow checker, rich <code>Result</code> ergonomics (can use error codes),
+generics/traits, package manager, auto-bindgen.</p>
 <hr>
 <h3 id="v030--memory-safety"><a class="header" href="#v030--memory-safety">v0.3.0 — Memory safety</a></h3>
 <div class="table-wrapper">
@@ -295,7 +308,8 @@
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> Dangling pointer or OOB in <em>safe</em> code → runtime panic (or compile-time rejection), not silent UB. SDL/GL wrappers can be used mostly without manual destroy in the common path.</p>
+<p><strong>Exit criteria:</strong> Dangling pointer or OOB in <em>safe</em> code → runtime panic (or compile-time rejection), not silent UB.
+SDL/GL wrappers can be used mostly without manual destroy in the common path.</p>
 <hr>
 <h3 id="v040--concurrency"><a class="header" href="#v040--concurrency">v0.4.0 — Concurrency</a></h3>
 <div class="table-wrapper">
@@ -311,7 +325,8 @@
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races. (Classic split: logic thread vs render thread becomes expressible.)</p>
+<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races. (Classic split: logic thread vs render
+thread becomes expressible.)</p>
 <hr>
 <h3 id="v050--standard-library--polish"><a class="header" href="#v050--standard-library--polish">v0.5.0 — Standard library &amp; polish</a></h3>
 <div class="table-wrapper">
@@ -371,10 +386,14 @@
 <hr>
 <h2 id="key-architectural-decisions-to-make"><a class="header" href="#key-architectural-decisions-to-make">Key architectural decisions to make</a></h2>
 <ol>
-<li><strong>Runtime library design</strong> — grow from <code>nitid_string</code> / <code>nitid_array</code> toward umbrella <code>nitid_runtime.h</code> (<code>ref</code>, channels, mutex, …). Graphics stays <strong>out</strong> of the core runtime: link SDL2/GL as external deps.</li>
-<li><strong>GL loading strategy</strong> — ship with one documented approach (e.g. glad as a vendored C shim vs runtime loader). Same for SDL2 vs SDL3: <strong>SDL2 first</strong> for ecosystem maturity; SDL3 as a later package.</li>
-<li><strong>Unsafe model</strong> — narrow and explicit: pointer deref, FFI calls, and aliasing tricks require <code>unsafe</code>; safe wrappers live in <code>std.gfx</code>.</li>
-<li><strong>Error style pre-match</strong> — SDL/GL examples may use <code>bool</code> + last-error or simple status enums until <code>Result</code>/<code>match</code> land.</li>
+<li><strong>Runtime library design</strong> — grow from <code>nitid_string</code> / <code>nitid_array</code> toward umbrella <code>nitid_runtime.h</code> (<code>ref</code>,
+channels, mutex, …). Graphics stays <strong>out</strong> of the core runtime: link SDL2/GL as external deps.</li>
+<li><strong>GL loading strategy</strong> — ship with one documented approach (e.g. glad as a vendored C shim vs runtime loader). Same
+for SDL2 vs SDL3: <strong>SDL2 first</strong> for ecosystem maturity; SDL3 as a later package.</li>
+<li><strong>Unsafe model</strong> — narrow and explicit: pointer deref, FFI calls, and aliasing tricks require <code>unsafe</code>; safe wrappers
+live in <code>std.gfx</code>.</li>
+<li><strong>Error style pre-match</strong> — SDL/GL examples may use <code>bool</code> + last-error or simple status enums until <code>Result</code>/<code>match</code>
+land.</li>
 </ol>
 <hr>
 <h2 id="suggested-v02-implementation-order"><a class="header" href="#suggested-v02-implementation-order">Suggested v0.2 implementation order</a></h2>
@@ -404,7 +423,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="IDE-integration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -418,7 +437,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="specs/1.nitid-language-specs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="IDE-integration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

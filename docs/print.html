@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ebec8b46.js";
+            window.path_to_searchindex_js = "searchindex-60fdf3d7.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0e7e34c0.js"></script>
+        <script src="toc-2178f07d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -536,9 +536,15 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 <p>Files are sorted by path and filtered by the <code>.nt</code> extension before batch compilation, so ordering is deterministic.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="nitid-implementation-roadmap"><a class="header" href="#nitid-implementation-roadmap">Nitid Implementation Roadmap</a></h1>
-<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while, multi-return, for loops (C-style + range-based), break/continue, postfix ++/–, source-span errors, no-implicit-cast enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based array traversal, structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with bounds-checked access.</p>
-<p><strong>North Star (intermediate):</strong> By the end of <strong>v0.2</strong>, write a small demo (plasma / fire / GL triangle + shaders) in roughly 100–150 lines—low-level and explicit, with minimal boilerplate—Amiga-era C energy, modern tooling.</p>
-<p><strong>Note on resources:</strong> Before v0.3, resource lifetime is <strong>manual and explicit</strong> (<code>SDL_Destroy*</code>, <code>free</code>, etc.). RAII / safe references land in v0.3 and upgrade the graphics layer; they do not block the first demos.</p>
+<p><strong>Current state:</strong> ~4200 LOC Rust + ~140 LOC C runtime. Lexer/parser/sema/codegen support scalar types, if/while,
+multi-return, for loops (C-style + range-based), break/continue, postfix ++/–, source-span errors, no-implicit-cast
+enforcement, array types (fixed/dynamic), array literals, array indexing (incl. negative), range-based array traversal,
+structs with methods, enums (typed/untyped with overflow checking), and a <code>nitid_array</code> runtime with bounds-checked
+access.</p>
+<p><strong>North Star (intermediate):</strong> By the end of <strong>v0.2</strong>, write a small demo (plasma / fire / GL triangle + shaders) in
+roughly 100–150 lines—low-level and explicit, with minimal boilerplate—Amiga-era C energy, modern tooling.</p>
+<p><strong>Note on resources:</strong> Before v0.3, resource lifetime is <strong>manual and explicit</strong> (<code>SDL_Destroy*</code>, <code>free</code>, etc.). RAII /
+safe references land in v0.3 and upgrade the graphics layer; they do not block the first demos.</p>
 <hr>
 <h2 id="base-features"><a class="header" href="#base-features">Base features</a></h2>
 <h3 id="composite-types"><a class="header" href="#composite-types">Composite types</a></h3>
@@ -587,10 +593,12 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export the same function name without linker conflicts.</p>
+<p><strong>Exit criteria:</strong> <code>import Math; Math.sqrt(16)</code> works across two <code>.nt</code> files. Two packages can export the same function
+name without linker conflicts.</p>
 <hr>
 <h3 id="v020--ffi-raw-memory--graphics"><a class="header" href="#v020--ffi-raw-memory--graphics">v0.2.0 — FFI, raw memory &amp; graphics</a></h3>
-<p>Goal: open a window, draw via <strong>software framebuffer</strong> and/or <strong>OpenGL shaders</strong>, pump events, link <strong>SDL2</strong>—without drowning in boilerplate. Graphics is a first-class milestone, not a side quest.</p>
+<p>Goal: open a window, draw via <strong>software framebuffer</strong> and/or <strong>OpenGL shaders</strong>, pump events, link <strong>SDL2</strong>—without
+drowning in boilerplate. Graphics is a first-class milestone, not a side quest.</p>
 <h4 id="language--compiler"><a class="header" href="#language--compiler">Language / compiler</a></h4>
 <div class="table-wrapper">
 <table>
@@ -624,19 +632,24 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 </div>
 <p><strong>Design rules for v0.2</strong></p>
 <ul>
-<li><strong>Two visible layers:</strong> <code>sdl.*</code> / <code>gl.*</code> (almost 1:1 C) and <code>gfx.*</code> (comfortable; <code>.raw()</code> / <code>.ptr()</code> always available).</li>
-<li><strong>No GC; no hidden allocations in the render hot path.</strong> Static buffers or bump/frame arenas are fine even before full RAII.</li>
+<li><strong>Two visible layers:</strong> <code>sdl.*</code> / <code>gl.*</code> (almost 1:1 C) and <code>gfx.*</code> (comfortable; <code>.raw()</code> / <code>.ptr()</code> always
+available).</li>
+<li><strong>No GC; no hidden allocations in the render hot path.</strong> Static buffers or bump/frame arenas are fine even before full
+RAII.</li>
 <li><strong>Manual resource management</strong> is documented and expected (<code>DestroyWindow</code>, <code>glDelete*</code>, etc.).</li>
 <li>Bindings stay <strong>minimal</strong>—only what the examples need; grow driven by demos.</li>
 </ul>
 <p><strong>Exit criteria:</strong></p>
 <ul>
 <li>A Nitid program links against <strong>SDL2</strong> and opens a window.</li>
-<li>Same program (or a sibling example) renders either a <strong>software-framebuffer</strong> effect <em>or</em> an <strong>OpenGL</strong> shader demo (ideally both in-tree).</li>
+<li>Same program (or a sibling example) renders either a <strong>software-framebuffer</strong> effect <em>or</em> an <strong>OpenGL</strong> shader demo
+(ideally both in-tree).</li>
 <li>Event loop + input works; cleanup is explicit and leak-free under normal exit.</li>
-<li>A dangling FFI mistake may still be UB in unsafe paths; safe Nitid code should not need to touch raw GL/SDL without <code>unsafe</code>.</li>
+<li>A dangling FFI mistake may still be UB in unsafe paths; safe Nitid code should not need to touch raw GL/SDL without
+<code>unsafe</code>.</li>
 </ul>
-<p><strong>Explicitly deferred out of v0.2:</strong> full RAII, borrow checker, rich <code>Result</code> ergonomics (can use error codes), generics/traits, package manager, auto-bindgen.</p>
+<p><strong>Explicitly deferred out of v0.2:</strong> full RAII, borrow checker, rich <code>Result</code> ergonomics (can use error codes),
+generics/traits, package manager, auto-bindgen.</p>
 <hr>
 <h3 id="v030--memory-safety"><a class="header" href="#v030--memory-safety">v0.3.0 — Memory safety</a></h3>
 <div class="table-wrapper">
@@ -653,7 +666,8 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> Dangling pointer or OOB in <em>safe</em> code → runtime panic (or compile-time rejection), not silent UB. SDL/GL wrappers can be used mostly without manual destroy in the common path.</p>
+<p><strong>Exit criteria:</strong> Dangling pointer or OOB in <em>safe</em> code → runtime panic (or compile-time rejection), not silent UB.
+SDL/GL wrappers can be used mostly without manual destroy in the common path.</p>
 <hr>
 <h3 id="v040--concurrency"><a class="header" href="#v040--concurrency">v0.4.0 — Concurrency</a></h3>
 <div class="table-wrapper">
@@ -669,7 +683,8 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 </tbody>
 </table>
 </div>
-<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races. (Classic split: logic thread vs render thread becomes expressible.)</p>
+<p><strong>Exit criteria:</strong> Two threads communicate over a channel without data races. (Classic split: logic thread vs render
+thread becomes expressible.)</p>
 <hr>
 <h3 id="v050--standard-library--polish"><a class="header" href="#v050--standard-library--polish">v0.5.0 — Standard library &amp; polish</a></h3>
 <div class="table-wrapper">
@@ -729,10 +744,14 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 <hr>
 <h2 id="key-architectural-decisions-to-make"><a class="header" href="#key-architectural-decisions-to-make">Key architectural decisions to make</a></h2>
 <ol>
-<li><strong>Runtime library design</strong> — grow from <code>nitid_string</code> / <code>nitid_array</code> toward umbrella <code>nitid_runtime.h</code> (<code>ref</code>, channels, mutex, …). Graphics stays <strong>out</strong> of the core runtime: link SDL2/GL as external deps.</li>
-<li><strong>GL loading strategy</strong> — ship with one documented approach (e.g. glad as a vendored C shim vs runtime loader). Same for SDL2 vs SDL3: <strong>SDL2 first</strong> for ecosystem maturity; SDL3 as a later package.</li>
-<li><strong>Unsafe model</strong> — narrow and explicit: pointer deref, FFI calls, and aliasing tricks require <code>unsafe</code>; safe wrappers live in <code>std.gfx</code>.</li>
-<li><strong>Error style pre-match</strong> — SDL/GL examples may use <code>bool</code> + last-error or simple status enums until <code>Result</code>/<code>match</code> land.</li>
+<li><strong>Runtime library design</strong> — grow from <code>nitid_string</code> / <code>nitid_array</code> toward umbrella <code>nitid_runtime.h</code> (<code>ref</code>,
+channels, mutex, …). Graphics stays <strong>out</strong> of the core runtime: link SDL2/GL as external deps.</li>
+<li><strong>GL loading strategy</strong> — ship with one documented approach (e.g. glad as a vendored C shim vs runtime loader). Same
+for SDL2 vs SDL3: <strong>SDL2 first</strong> for ecosystem maturity; SDL3 as a later package.</li>
+<li><strong>Unsafe model</strong> — narrow and explicit: pointer deref, FFI calls, and aliasing tricks require <code>unsafe</code>; safe wrappers
+live in <code>std.gfx</code>.</li>
+<li><strong>Error style pre-match</strong> — SDL/GL examples may use <code>bool</code> + last-error or simple status enums until <code>Result</code>/<code>match</code>
+land.</li>
 </ol>
 <hr>
 <h2 id="suggested-v02-implementation-order"><a class="header" href="#suggested-v02-implementation-order">Suggested v0.2 implementation order</a></h2>
@@ -753,6 +772,165 @@ Package files use <code>package Foo;</code> declarations and <code>import Foo;</
 <li>Package registry before three solid in-tree graphics demos</li>
 <li>Hiding C interop behind a black box</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ide-integration-jetbrains--lsp"><a class="header" href="#ide-integration-jetbrains--lsp">IDE integration (JetBrains &amp; LSP)</a></h1>
+<p><strong>Goal:</strong> editor support for <code>.nt</code> without rewriting the Nitid front-end in the IDE. Parsing, spans, and diagnostics
+stay in the Rust compiler; JetBrains (and other editors) consume them via a thin client.</p>
+<p><strong>Principle:</strong> one analysis pipeline (compiler crate → CLI/LSP). Avoid a duplicate Grammar-Kit/Kotlin parser until the
+language is stable.</p>
+<p><strong>Depends on:</strong> stable source spans (already used for errors) [1]. Cross-file navigation and completion improve a lot
+after <strong>v0.1 Module System</strong> [1].</p>
+<p><strong>Does not depend on:</strong> memory safety (v0.2), concurrency, or a full stdlib [1].</p>
+<hr>
+<h2 id="t0--file-type--syntax-coloring-no-semantic-parse"><a class="header" href="#t0--file-type--syntax-coloring-no-semantic-parse">T0 — File type &amp; syntax coloring (no semantic parse)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T0.1</td><td>Document <code>.nt</code> as the canonical extension</td></tr>
+<tr><td>T0.2</td><td>TextMate grammar (<code>nitid.tmLanguage.json</code>): keywords, comments, strings, numbers, basic types</td></tr>
+<tr><td>T0.3</td><td>JetBrains: associate <code>*.nt</code> via TextMate Bundles or a tiny plugin that ships the bundle</td></tr>
+<tr><td>T0.4</td><td>Short README: “open <code>.nt</code> in IDEA / VS Code”</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> <code>.nt</code> files open with readable highlighting in IntelliJ-based IDEs.</p>
+<hr>
+<h2 id="t1--machine-readable-diagnostics"><a class="header" href="#t1--machine-readable-diagnostics">T1 — Machine-readable diagnostics</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T1.1</td><td><code>nitid check &lt;file&gt; --format json</code> (or <code>--json</code>)</td></tr>
+<tr><td>T1.2</td><td>Each diagnostic: file, severity, message, range (<code>start</code>/<code>end</code> line &amp; character)</td></tr>
+<tr><td>T1.3</td><td>Ranges aligned with <strong>LSP UTF-16</strong> offsets (important for Unicode string literals) [1]</td></tr>
+<tr><td>T1.4</td><td>Golden tests for JSON diagnostics</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> a single-file type/parse error is consumable by an external tool without scraping human text.</p>
+<hr>
+<h2 id="t2--language-server-mvp-nitid-ls"><a class="header" href="#t2--language-server-mvp-nitid-ls">T2 — Language Server MVP (<code>nitid-ls</code>)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T2.1</td><td>Binary <code>nitid-ls</code> in the compiler workspace (e.g. <code>tower-lsp</code> / <code>lsp-server</code> + <code>lsp-types</code>)</td></tr>
+<tr><td>T2.2</td><td><code>initialize</code> capabilities: text sync</td></tr>
+<tr><td>T2.3</td><td><code>textDocument/didOpen</code>, <code>didChange</code>, <code>didSave</code></td></tr>
+<tr><td>T2.4</td><td><code>publishDiagnostics</code> from the existing lexer/parser/sema pipeline [1]</td></tr>
+<tr><td>T2.5</td><td>Full reparse per change is OK initially; debounce ~200–300 ms</td></tr>
+<tr><td>T2.6</td><td>Run analysis off the UI thread; support cancellation where possible</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> open a <code>.nt</code> buffer, get red squiggles for real compiler errors on edit/save.</p>
+<hr>
+<h2 id="t3--thin-jetbrains-plugin-lsp-client"><a class="header" href="#t3--thin-jetbrains-plugin-lsp-client">T3 — Thin JetBrains plugin (LSP client)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T3.1</td><td>Plugin skeleton (IntelliJ Platform Plugin Template)</td></tr>
+<tr><td>T3.2</td><td>Register Nitid file type for <code>*.nt</code></td></tr>
+<tr><td>T3.3</td><td>Start <code>nitid-ls</code> (PATH or settings path) via platform LSP API and/or LSP4IJ</td></tr>
+<tr><td>T3.4</td><td>Settings: server path, check on type vs on save, extra args</td></tr>
+<tr><td>T3.5</td><td>Install from disk / optional Marketplace later; do not require bundling native libs yet</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> stock IntelliJ/CLion user enables the plugin, points at <code>nitid-ls</code>, sees diagnostics with no manual
+JSON wiring.</p>
+<hr>
+<h2 id="t4--navigation--completion-after-modules"><a class="header" href="#t4--navigation--completion-after-modules">T4 — Navigation &amp; completion (after modules)</a></h2>
+<p><em>Target once <strong>v0.1</strong> import/package resolution works [1].</em></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T4.1</td><td>Per-file symbol table exposed to the LS</td></tr>
+<tr><td>T4.2</td><td><code>textDocument/definition</code> (functions, structs, fields, methods, enum variants) [1]</td></tr>
+<tr><td>T4.3</td><td><code>textDocument/documentSymbol</code> (structure view)</td></tr>
+<tr><td>T4.4</td><td><code>textDocument/hover</code> (type + short signature)</td></tr>
+<tr><td>T4.5</td><td><code>textDocument/completion</code> (keywords + in-scope symbols; then <code>Foo.</code> qualified after imports) [1]</td></tr>
+<tr><td>T4.6</td><td>Multi-file: resolve <code>import</code> / aliases via package graph (v0.1.1–v0.1.6) [1]</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> jump to definition across two packages; completion works for local and imported names.</p>
+<hr>
+<h2 id="t5--editor-polish"><a class="header" href="#t5--editor-polish">T5 — Editor polish</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Step</th><th>Deliverable</th></tr>
+</thead>
+<tbody>
+<tr><td>T5.1</td><td><code>nitid fmt</code> + LSP <code>textDocument/formatting</code></td></tr>
+<tr><td>T5.2</td><td>Optional <code>textDocument/references</code> (project index)</td></tr>
+<tr><td>T5.3</td><td>Run configuration templates (compile/run example); link flags later for SDL/etc.</td></tr>
+<tr><td>T5.4</td><td>VS Code extension as a second thin LSP client (same server)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Exit criteria:</strong> format-on-save and one-click run for a simple <code>.nt</code> program.</p>
+<hr>
+<h2 id="explicit-non-goals-near-term"><a class="header" href="#explicit-non-goals-near-term">Explicit non-goals (near term)</a></h2>
+<ul>
+<li>Full PSI / Grammar-Kit rewrite of the Nitid parser in Kotlin</li>
+<li>JNI embedding of the Rust parser inside the plugin (unless packaging becomes easy later)</li>
+<li>Debugger story tied to generated C (defer)</li>
+<li>Semantic IDE features blocked on RAII / borrow checker (v0.2+) [1]</li>
+</ul>
+<hr>
+<h2 id="suggested-implementation-order-checklist"><a class="header" href="#suggested-implementation-order-checklist">Suggested implementation order (checklist)</a></h2>
+<ol>
+<li>TextMate grammar + <code>.nt</code> association</li>
+<li><code>nitid check --format json</code> + span convention documented</li>
+<li><code>nitid-ls</code>: diagnostics only</li>
+<li>JetBrains plugin: file type + launch server + settings</li>
+<li>After v0.1 modules: definition, hover, completion, cross-file [1]</li>
+<li>Formatter + optional Marketplace release</li>
+</ol>
+<hr>
+<h2 id="design-rules"><a class="header" href="#design-rules">Design rules</a></h2>
+<ul>
+<li><strong>Single source of truth:</strong> lexer/parser/sema in Rust [1]; IDE never owns a second grammar for semantics</li>
+<li><strong>Optional fast path:</strong> TextMate or tree-sitter only for <em>color</em>; truth remains the compiler</li>
+<li><strong>Two layers later (if ever):</strong> LSP for everyone; native PSI only if JetBrains-deep refactor/inspect is required and
+syntax is frozen</li>
+<li><strong>Architecture fit:</strong> keep graphics/runtime libs out of the language server; LS talks to front-end analysis only [1]</li>
+</ul>
+<hr>
+<h2 id="roadmap-placement-suggestion"><a class="header" href="#roadmap-placement-suggestion">Roadmap placement (suggestion)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Tooling slice</th><th>Place near</th></tr>
+</thead>
+<tbody>
+<tr><td>T0–T3 (highlight, JSON check, LS MVP, JB plugin)</td><td>Parallel to <strong>v0.1</strong> or right after CLI stabilizes</td></tr>
+<tr><td>T4 (goto/completion cross-file)</td><td>After <strong>v0.1.0 Module System</strong> exit criteria [1]</td></tr>
+<tr><td>T5 (fmt, refs, run configs)</td><td>Around <strong>v0.4</strong> polish / whenever fmt exists</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h3 id="optional-one-liner-for-the-main-roadmap-index"><a class="header" href="#optional-one-liner-for-the-main-roadmap-index">Optional one-liner for the main roadmap index</a></h3>
+<blockquote>
+<p><strong>IDE / LSP:</strong> TextMate → <code>nitid check --json</code> → <code>nitid-ls</code> diagnostics → thin JetBrains LSP plugin →
+definition/completion after modules (v0.1). No duplicate IDE parser.</p>
+</blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="language-specification"><a href="#language-specification" class="header">Language Specification</a></h1>
 <p>Nitid syntax is largely borrowed from the C language, with a few notable exceptions:</p>

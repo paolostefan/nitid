@@ -3,6 +3,7 @@
 - [How It Works](how-it-works.md)
 - [How `samples/` drives the Rust tests](samples-in-tests.md)
 - [Language roadmap](ROADMAP.md)
+- [IDE integration roadmap](IDE-integration.md)
 - [Language Specification](specs/1.nitid-language-specs.md)
     - [Functions](specs/2.functions.md)
     - [Arrays](specs/3.arrays.md)
