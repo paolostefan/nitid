@@ -48,9 +48,9 @@ pub mod types;
 /// Simplified function signature for cross-file resolution.
 #[derive(Debug, Clone)]
 pub struct FunctionSig {
-    pub param_types: Vec<types::Type>,
-    pub return_types: Vec<types::Type>,
-    pub param_names: Vec<String>,
+  pub param_types: Vec<types::Type>,
+  pub return_types: Vec<types::Type>,
+  pub param_names: Vec<String>,
 }
 
 /// All declarations from a package, flattened across files.
@@ -59,24 +59,24 @@ pub struct FunctionSig {
 /// One PackageContext per imported package.
 #[derive(Debug, Clone)]
 pub struct PackageContext {
-    /// Functions: name -> (param types, return types, param names)
-    pub functions: HashMap<String, FunctionSig>,
-    /// Struct definitions: name -> list of (field name, field type)
-    pub structs: HashMap<String, Vec<(String, types::Type)>>,
-    /// Enum definitions: name -> list of (variant name, optional value)
-    pub enums: HashMap<String, Vec<(String, Option<i128>)>>,
+  /// Functions: name -> (param types, return types, param names)
+  pub functions: HashMap<String, FunctionSig>,
+  /// Struct definitions: name -> list of (field name, field type)
+  pub structs: HashMap<String, Vec<(String, types::Type)>>,
+  /// Enum definitions: name -> list of (variant name, optional value)
+  pub enums: HashMap<String, Vec<(String, Option<i128>)>>,
 }
 
 /// Read a file from `path` and transpile it.
 ///
 /// This is a convenience wrapper around [`compile`].
 pub fn compile_file(
-    path: &str,
-    c_src_dir: &str,
+  path: &str,
+  c_src_dir: &str,
 ) -> Result<(Program, Vec<codegen::CFile>, String), String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
-    compile(path, &content, c_src_dir)
+  let content =
+      fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
+  compile(path, &content, c_src_dir)
 }
 
 /// Read a `.nt` file and parse it into an AST
@@ -84,9 +84,9 @@ pub fn compile_file(
 /// Runs only the lexer+parser - no semantic analysis or codegen.
 /// This is used to import package files.
 pub fn parse_file(path: &str) -> Result<Program, String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
-    parser::Parser::parse(&content, path)
+  let content =
+      fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
+  parser::Parser::parse(&content, path)
 }
 
 /// Parse all `.nt` files in a package dir (recursively).
@@ -94,52 +94,52 @@ pub fn parse_file(path: &str) -> Result<Program, String> {
 /// Returns a Vec of parsed Programs, one per file.
 ///Files are parsed in alphabetical order for determinism.
 pub fn parse_package_dir(dir: &Path, expected_package: &str) -> Result<Vec<Program>, String> {
-    let mut files = collect_nt_files(dir)?;
-    files.sort(); // deterministic order
+  let mut files = collect_nt_files(dir)?;
+  files.sort(); // deterministic order
 
-    let mut programs = Vec::new();
-    for file_path in &files {
-        let path_str = file_path.to_string_lossy().to_string();
-        let program = parse_file(&path_str)?;
+  let mut programs = Vec::new();
+  for file_path in &files {
+    let path_str = file_path.to_string_lossy().to_string();
+    let program = parse_file(&path_str)?;
 
-        // Spec rule 3: verify package declaration matches.
-        if program.package != expected_package {
-            return Err(format!(
-                "{}: Package declaration '{}' does not match expected package '{}'",
-                path_str, program.package, expected_package
-            ));
-        }
-        eprintln!(
-            "[import] Parsed {}/{}",
-            expected_package,
-            file_path.file_name().unwrap_or_default().to_string_lossy()
-        );
-        programs.push(program);
+    // Spec rule 3: verify package declaration matches.
+    if program.package != expected_package {
+      return Err(format!(
+        "{}: Package declaration '{}' does not match expected package '{}'",
+        path_str, program.package, expected_package
+      ));
     }
+    eprintln!(
+      "[import] Parsed {}/{}",
+      expected_package,
+      file_path.file_name().unwrap_or_default().to_string_lossy()
+    );
+    programs.push(program);
+  }
 
-    Ok(programs)
+  Ok(programs)
 }
 
 /// Recursively collect all `.nt` files in a directory.
 fn collect_nt_files(dir: &Path) -> Result<Vec<std::path::PathBuf>, String> {
-    let mut files = Vec::new();
-    let entries = dir
-        .read_dir()
-        .map_err(|e| format!("Failed to read directory '{}': {}", dir.display(), e))?;
+  let mut files = Vec::new();
+  let entries = dir
+      .read_dir()
+      .map_err(|e| format!("Failed to read directory '{}': {}", dir.display(), e))?;
 
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read dir entry: {}", e))?;
-        let path = entry.path();
+  for entry in entries {
+    let entry = entry.map_err(|e| format!("Failed to read dir entry: {}", e))?;
+    let path = entry.path();
 
-        if path.is_dir() {
-            // Recurse into subdirs (subdirectory inheritance assumed)
-            files.extend(collect_nt_files(&path)?);
-        } else if path.extension().map_or(false, |ext| ext == "nt") {
-            files.push(path);
-        }
+    if path.is_dir() {
+      // Recurse into subdirs (subdirectory inheritance assumed)
+      files.extend(collect_nt_files(&path)?);
+    } else if path.extension().map_or(false, |ext| ext == "nt") {
+      files.push(path);
     }
+  }
 
-    Ok(files)
+  Ok(files)
 }
 
 /// Resolve an import name to a package directory path.
@@ -152,31 +152,31 @@ fn collect_nt_files(dir: &Path) -> Result<Vec<std::path::PathBuf>, String> {
 /// 2. parent dir of the importing file
 /// 3. None (not found)
 fn resolve_package_dir(importing_file: &str, package_name: &str) -> Option<std::path::PathBuf> {
-    let importing_dir = Path::new(importing_file).parent()?;
+  let importing_dir = Path::new(importing_file).parent()?;
 
-    // Search 1: sibling directory
-    let candidate = importing_dir.join(package_name);
-    if candidate.is_dir() && has_nt_files(&candidate) {
-        return Some(candidate);
-    }
+  // Search 1: sibling directory
+  let candidate = importing_dir.join(package_name);
+  if candidate.is_dir() && has_nt_files(&candidate) {
+    return Some(candidate);
+  }
 
-    // Search 2: parent directory
-    let parent = importing_dir.parent()?;
-    let candidate = parent.join(package_name);
-    if candidate.is_dir() && has_nt_files(&candidate) {
-        return Some(candidate);
-    }
+  // Search 2: parent directory
+  let parent = importing_dir.parent()?;
+  let candidate = parent.join(package_name);
+  if candidate.is_dir() && has_nt_files(&candidate) {
+    return Some(candidate);
+  }
 
-    None
+  None
 }
 
 /// Check if a directory contains any `.nt` files.
 fn has_nt_files(dir: &Path) -> bool {
-    dir.read_dir().ok().map_or(false, |entries| {
-        entries
-            .filter_map(|e| e.ok())
-            .any(|e| e.path().extension().map_or(false, |ext| ext == "nt"))
-    })
+  dir.read_dir().ok().map_or(false, |entries| {
+    entries
+        .filter_map(|e| e.ok())
+        .any(|e| e.path().extension().map_or(false, |ext| ext == "nt"))
+  })
 }
 
 /// Resolve and parse all imports in a program.
@@ -185,95 +185,95 @@ fn has_nt_files(dir: &Path) -> bool {
 /// parses all `.nt` files inside it, and returns them keyed
 /// by package name.
 pub fn load_imports(program: &Program) -> Result<HashMap<String, Vec<Program>>, String> {
-    let mut imported = HashMap::new();
-    let mut visiting = HashSet::new();
-    load_package(program, &mut imported, &mut visiting)?;
+  let mut imported = HashMap::new();
+  let mut visiting = HashSet::new();
+  load_package(program, &mut imported, &mut visiting)?;
 
-    Ok(imported)
+  Ok(imported)
 }
 
 fn load_package(
-    program: &Program,
-    imported: &mut HashMap<String, Vec<Program>>,
-    visiting: &mut HashSet<String>,
+  program: &Program,
+  imported: &mut HashMap<String, Vec<Program>>,
+  visiting: &mut HashSet<String>,
 ) -> Result<(), String> {
-    for imp in &program.imports {
-        let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
+  for imp in &program.imports {
+    let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
 
-        // Already fully loaded (from some other path) => skip
-        if imported.contains_key(&key) {
-            continue;
-        }
-
-        // On the current DFS path => genuine cycle
-        if !visiting.insert(key.clone()) {
-            return Err(format!(
-                "{}:{}:{}: circular import involving '{}'",
-                imp.span.file, imp.span.line, imp.span.col, key
-            ));
-        }
-
-        let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
-            format!(
-                "{}:{}:{}: could not find package '{}'",
-                imp.span.file, imp.span.line, imp.span.col, imp.name
-            )
-        })?;
-
-        let programs = parse_package_dir(&pkg_dir, &imp.name)?;
-        imported.insert(key.clone(), programs.clone());
-
-        // Transitive: this package's own imports.
-        for prog in programs {
-            load_package(&prog, imported, visiting)?;
-        }
-
-        visiting.remove(&key);
+    // Already fully loaded (from some other path) => skip
+    if imported.contains_key(&key) {
+      continue;
     }
-    Ok(())
+
+    // On the current DFS path => genuine cycle
+    if !visiting.insert(key.clone()) {
+      return Err(format!(
+        "{}:{}:{}: circular import involving '{}'",
+        imp.span.file, imp.span.line, imp.span.col, key
+      ));
+    }
+
+    let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
+      format!(
+        "{}:{}:{}: could not find package '{}'",
+        imp.span.file, imp.span.line, imp.span.col, imp.name
+      )
+    })?;
+
+    let programs = parse_package_dir(&pkg_dir, &imp.name)?;
+    imported.insert(key.clone(), programs.clone());
+
+    // Transitive: this package's own imports.
+    for prog in programs {
+      load_package(&prog, imported, visiting)?;
+    }
+
+    visiting.remove(&key);
+  }
+  Ok(())
 }
 
 fn load_imports_inner(
-    program: &Program,
-    imported: &mut HashMap<String, Vec<Program>>,
-    visited: &mut HashSet<String>,
+  program: &Program,
+  imported: &mut HashMap<String, Vec<Program>>,
+  visited: &mut HashSet<String>,
 ) -> Result<HashMap<String, Vec<Program>>, String> {
-    for imp in &program.imports {
-        let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
+  for imp in &program.imports {
+    let key = imp.alias.as_ref().unwrap_or(&imp.name).clone();
 
-        if !visited.insert(key.clone()) {
-            return Err(format!(
-                "{}:{}:{}: Circular or duplicate import key '{}'",
-                imp.span.file, imp.span.line, imp.span.col, key
-            ));
-        }
-
-        if imported.contains_key(&key) {
-            return Err(format!(
-                "{}:{}:{}: Duplicate import key '{}'",
-                imp.span.file, imp.span.line, imp.span.col, key
-            ));
-        }
-
-        let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
-            format!(
-                "{}:{}:{}: Could not find package '{}' (no directory named '{}' found)",
-                imp.span.file, imp.span.line, imp.span.col, imp.name, imp.name
-            )
-        })?;
-
-        let programs = parse_package_dir(&pkg_dir, &imp.name)?;
-        eprintln!(
-            "[import] Loaded package '{}' ({} files)",
-            imp.name,
-            programs.len()
-        );
-
-        // import alias (if any) or package name
-        imported.insert(key, programs);
+    if !visited.insert(key.clone()) {
+      return Err(format!(
+        "{}:{}:{}: Circular or duplicate import key '{}'",
+        imp.span.file, imp.span.line, imp.span.col, key
+      ));
     }
 
-    Ok(imported.clone())
+    if imported.contains_key(&key) {
+      return Err(format!(
+        "{}:{}:{}: Duplicate import key '{}'",
+        imp.span.file, imp.span.line, imp.span.col, key
+      ));
+    }
+
+    let pkg_dir = resolve_package_dir(&program.file, &imp.name).ok_or_else(|| {
+      format!(
+        "{}:{}:{}: Could not find package '{}' (no directory named '{}' found)",
+        imp.span.file, imp.span.line, imp.span.col, imp.name, imp.name
+      )
+    })?;
+
+    let programs = parse_package_dir(&pkg_dir, &imp.name)?;
+    eprintln!(
+      "[import] Loaded package '{}' ({} files)",
+      imp.name,
+      programs.len()
+    );
+
+    // import alias (if any) or package name
+    imported.insert(key, programs);
+  }
+
+  Ok(imported.clone())
 }
 
 /// Build a PackageContext from a list of parsed programs (one package)
@@ -281,60 +281,60 @@ fn load_imports_inner(
 /// Extracts all function, struct and enum declarations from every file in the package into a flat,
 /// unified view.
 pub fn build_package_context(programs: &[Program]) -> PackageContext {
-    let mut ctx = PackageContext {
-        functions: HashMap::new(),
-        structs: HashMap::new(),
-        enums: HashMap::new(),
-    };
+  let mut ctx = PackageContext {
+    functions: HashMap::new(),
+    structs: HashMap::new(),
+    enums: HashMap::new(),
+  };
 
-    for program in programs {
-        for decl in &program.decls {
-            match decl {
-                ast::Decl::FnDecl(f) => {
-                    let param_types: Vec<types::Type> = f
-                        .params
-                        .iter()
-                        .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
-                        .collect();
-                    let param_names: Vec<String> =
-                        f.params.iter().flat_map(|p| p.names.clone()).collect();
-                    ctx.functions.insert(
-                        f.name.clone(),
-                        FunctionSig {
-                            param_types,
-                            return_types: f.returns.clone(),
-                            param_names,
-                        },
-                    );
-                }
-                ast::Decl::StructDecl(s) => {
-                    let fields: Vec<(String, types::Type)> = s
-                        .fields
-                        .iter()
-                        .map(|f| (f.name.clone(), f.typ.clone()))
-                        .collect();
-                    ctx.structs.insert(s.name.clone(), fields);
-                }
-                ast::Decl::EnumDecl(e) => {
-                    let variants: Vec<(String, Option<i128>)> = e
-                        .variants
-                        .iter()
-                        .map(|v| {
-                            let val = match &v.value {
-                                Some(ast::Expr::IntLit(n, _)) => Some(*n),
-                                _ => None,
-                            };
-                            (v.name.clone(), val)
-                        })
-                        .collect();
-                    ctx.enums.insert(e.name.clone(), variants);
-                }
-                // ImplBlock methods are handled via struct_methods in sema.as
-                _ => {}
-            }
+  for program in programs {
+    for decl in &program.decls {
+      match decl {
+        ast::Decl::FnDecl(f) => {
+          let param_types: Vec<types::Type> = f
+              .params
+              .iter()
+              .flat_map(|p| std::iter::repeat(p.typ.clone()).take(p.names.len()))
+              .collect();
+          let param_names: Vec<String> =
+              f.params.iter().flat_map(|p| p.names.clone()).collect();
+          ctx.functions.insert(
+            f.name.clone(),
+            FunctionSig {
+              param_types,
+              return_types: f.returns.clone(),
+              param_names,
+            },
+          );
         }
+        ast::Decl::StructDecl(s) => {
+          let fields: Vec<(String, types::Type)> = s
+              .fields
+              .iter()
+              .map(|f| (f.name.clone(), f.typ.clone()))
+              .collect();
+          ctx.structs.insert(s.name.clone(), fields);
+        }
+        ast::Decl::EnumDecl(e) => {
+          let variants: Vec<(String, Option<i128>)> = e
+              .variants
+              .iter()
+              .map(|v| {
+                let val = match &v.value {
+                  Some(ast::Expr::IntLit(n, _)) => Some(*n),
+                  _ => None,
+                };
+                (v.name.clone(), val)
+              })
+              .collect();
+          ctx.enums.insert(e.name.clone(), variants);
+        }
+        // ImplBlock methods are handled via struct_methods in sema.as
+        _ => {}
+      }
     }
-    ctx
+  }
+  ctx
 }
 
 /// Combine multiple PackageContexts into one.
@@ -342,25 +342,25 @@ pub fn build_package_context(programs: &[Program]) -> PackageContext {
 /// Used when a file imports several packages. Later contexts shadow earlier ones
 /// on name conflicts (last-one-wins).
 pub fn merge_contexts(contexts: &[PackageContext]) -> PackageContext {
-    let mut merged = PackageContext {
-        functions: HashMap::new(),
-        structs: HashMap::new(),
-        enums: HashMap::new(),
-    };
+  let mut merged = PackageContext {
+    functions: HashMap::new(),
+    structs: HashMap::new(),
+    enums: HashMap::new(),
+  };
 
-    for ctx in contexts {
-        merged
-            .functions
-            .extend(ctx.functions.iter().map(|(k, v)| (k.clone(), v.clone())));
-        merged
-            .structs
-            .extend(ctx.structs.iter().map(|(k, v)| (k.clone(), v.clone())));
-        merged
-            .enums
-            .extend(ctx.enums.iter().map(|(k, v)| (k.clone(), v.clone())));
-    }
-
+  for ctx in contexts {
     merged
+        .functions
+        .extend(ctx.functions.iter().map(|(k, v)| (k.clone(), v.clone())));
+    merged
+        .structs
+        .extend(ctx.structs.iter().map(|(k, v)| (k.clone(), v.clone())));
+    merged
+        .enums
+        .extend(ctx.enums.iter().map(|(k, v)| (k.clone(), v.clone())));
+  }
+
+  merged
 }
 
 /// Run the full transpilation pipeline on `content`.
@@ -374,78 +374,78 @@ pub fn merge_contexts(contexts: &[PackageContext]) -> PackageContext {
 /// `(Program, Vec<CFile>, cmake_project_string)` on success,
 /// or a human-readable error message.
 pub fn compile(
-    path: &str,
-    content: &str,
-    c_src_dir: &str,
+  path: &str,
+  content: &str,
+  c_src_dir: &str,
 ) -> Result<(Program, Vec<codegen::CFile>, String), String> {
-    let mut program = parser::Parser::parse(content, path)?;
+  let mut program = parser::Parser::parse(content, path)?;
 
-    // Load and parse imports.
-    let imports = load_imports(&program)?;
+  // Load and parse imports.
+  let imports = load_imports(&program)?;
 
-    // Build a per-package context map.
-    let pkg_contexts: HashMap<String, PackageContext> = imports
+  // Build a per-package context map.
+  let pkg_contexts: HashMap<String, PackageContext> = imports
+      .iter()
+      .map(|(name, programs)| (name.clone(), build_package_context(programs)))
+      .collect();
+
+  // Every function exported by every imported package.
+  let mut foreign_sigs: HashMap<String, (String, Vec<types::Type>, Vec<types::Type>)> =
+      HashMap::new();
+  for (pkg_name, ctx) in &pkg_contexts {
+    for (name, sig) in &ctx.functions {
+      // Mangle: "multiply" in package "Math" -> "Math_multiply"
+      let mangled = format!("{}_{}", pkg_name, name);
+      foreign_sigs.insert(
+        name.clone(),
+        (mangled, sig.param_types.clone(), sig.return_types.clone()),
+      );
+    }
+  }
+
+  // Pass the package map to sema.
+  let mut sema_ctx = sema::Sema::new();
+  sema_ctx.analyze(&mut program, Some(&pkg_contexts))?;
+
+  let mut cg = codegen::Codegen::new();
+  let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
+  let (mut c_files, _) =
+      cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
+
+  // Emit a .c file for every file in every imported package.
+  for (pkg_name, programs) in &imports {
+    // Prevent self-functions from appearing as "foreign"
+    let pkg_foreign = foreign_sigs
         .iter()
-        .map(|(name, programs)| (name.clone(), build_package_context(programs)))
+        .filter(|(_, (mangled, _, _))| !mangled.starts_with(&format!("{}_", pkg_name)))
+        .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
-    // Every function exported by every imported package.
-    let mut foreign_sigs: HashMap<String, (String, Vec<types::Type>, Vec<types::Type>)> =
-        HashMap::new();
-    for (pkg_name, ctx) in &pkg_contexts {
-        for (name, sig) in &ctx.functions {
-            // Mangle: "multiply" in package "Math" -> "Math_multiply"
-            let mangled = format!("{}_{}", pkg_name, name);
-            foreign_sigs.insert(
-                name.clone(),
-                (mangled, sig.param_types.clone(), sig.return_types.clone()),
-            );
-        }
+    for prog in programs {
+      let base_name = Path::new(&prog.file)
+          .file_stem()
+          .and_then(|s| s.to_str())
+          .unwrap_or("pkg");
+      let c_text = cg.generate_c(prog, package_names.clone(), &pkg_foreign);
+      c_files.push(codegen::CFile {
+        path: format!("{}/{}.c", c_src_dir, base_name),
+        content: c_text,
+      });
     }
+  }
 
-    // Pass the package map to sema.
-    let mut sema_ctx = sema::Sema::new();
-    sema_ctx.analyze(&mut program, Some(&pkg_contexts))?;
+  // Stems for add_executable, derived from every emitted .c.
+  let stems: Vec<String> = c_files
+      .iter()
+      .map(|cf| {
+        Path::new(&cf.path)
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned()
+      })
+      .collect();
+  let cmake = cg.emit_cmake(&program, &stems);
 
-    let mut cg = codegen::Codegen::new();
-    let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
-    let (mut c_files, _) =
-        cg.generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)?;
-
-    // Emit a .c file for every file in every imported package.
-    for (pkg_name, programs) in &imports {
-        // Prevent self-functions from appearing as "foreign"
-        let pkg_foreign = foreign_sigs
-            .iter()
-            .filter(|(_, (mangled, _, _))| !mangled.starts_with(&format!("{}_", pkg_name)))
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-
-        for prog in programs {
-            let base_name = Path::new(&prog.file)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("pkg");
-            let c_text = cg.generate_c(prog, package_names.clone(), &pkg_foreign);
-            c_files.push(codegen::CFile {
-                path: format!("{}/{}.c", c_src_dir, base_name),
-                content: c_text,
-            });
-        }
-    }
-
-    // Stems for add_executable, derived from every emitted .c.
-    let stems: Vec<String> = c_files
-        .iter()
-        .map(|cf| {
-            Path::new(&cf.path)
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    let cmake = cg.emit_cmake(&program, &stems);
-
-    Ok((program, c_files, cmake))
+  Ok((program, c_files, cmake))
 }

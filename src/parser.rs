@@ -931,7 +931,7 @@ impl Parser {
         }))
       }
       _ => Err(format!("{}:{}:{}: expected type or identifier, found {}",
-                       span.file, span.line, span.col, type_tok.kind.c_str() ))
+                       span.file, span.line, span.col, type_tok.kind.c_str()))
     }
   }
 
