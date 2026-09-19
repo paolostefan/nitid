@@ -1437,11 +1437,11 @@ impl Codegen {
         }
       }
     }
+
     let args_str: Vec<String> = args.iter().map(|a| self.emit_expr(a, current_fn)).collect();
     if args_str.len() == 1 {
       format!("printf(\"%s\\n\", {})", args_str[0])
     } else {
-      // TODO: this is wrong. \n must be added at the end of the first arg, which should be a string literal.
       format!("printf({})", args_str.join(", "))
     }
   }
