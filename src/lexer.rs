@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 /// Lexer (tokenizer) for the Nitid language.
 ///
 /// Converts a raw source string into a sequence of `Token` values
@@ -21,19 +22,15 @@ pub enum TokenKind {
   Package,
   Import,
   As,
+
   Extern,
   Fn,
   Return,
-  If,
-  Else,
-  While,
-  For,
-  Let,
+
+  Let, // are let and var really needed?
   Var,
-  True,
-  False,
-  Break,
-  Continue,
+  Mutable,
+
   Fixed,
   Struct,
   Impl,
@@ -41,6 +38,16 @@ pub enum TokenKind {
   Packed,
   Align,
   Enum,
+
+  True,
+  False,
+
+  If,
+  Else,
+  While,
+  For,
+  Break,
+  Continue,
 
   // ── Identifiers & literals ───────────────────────────────
   /// User-defined identifier, e.g. a variable or function name.
@@ -99,6 +106,80 @@ pub enum TokenKind {
   // ── Special ──────────────────────────────────────────────
   Hash,
   Underscore,
+}
+
+impl TokenKind {
+  pub fn c_str(&self) -> Cow<'static, str> {
+    match self {
+      Self::Type(_) => Cow::Borrowed("type"),
+      Self::Ident(_) => Cow::Borrowed("identifier"),
+      Self::Star => Cow::Borrowed("star"),
+      Self::Shl => Cow::Borrowed("shl"),
+      Self::Package => Cow::Borrowed("package"),
+      Self::Import => Cow::Borrowed("import"),
+      Self::As => Cow::Borrowed("as"),
+      Self::Extern => Cow::Borrowed("extern"),
+      Self::Fn => Cow::Borrowed("fn"),
+      Self::Return => Cow::Borrowed("return"),
+      Self::Let => Cow::Borrowed("let"),
+      Self::Var => Cow::Borrowed("var"),
+      Self::Mutable => Cow::Borrowed("mutable"),
+      Self::Fixed => Cow::Borrowed("fixed"),
+      Self::Struct => Cow::Borrowed("struct"),
+      Self::Impl => Cow::Borrowed("impl"),
+      Self::Self_ => Cow::Borrowed("self_"),
+      Self::Packed => Cow::Borrowed("packed"),
+      Self::Align => Cow::Borrowed("align"),
+      Self::Enum => Cow::Borrowed("enum"),
+      Self::True => Cow::Borrowed("true"),
+      Self::False => Cow::Borrowed("false"),
+      Self::If => Cow::Borrowed("if"),
+      Self::Else => Cow::Borrowed("else"),
+      Self::While => Cow::Borrowed("while"),
+      Self::For => Cow::Borrowed("for"),
+      Self::Break => Cow::Borrowed("break"),
+      Self::Continue => Cow::Borrowed("continue"),
+      Self::IntLit(_) => Cow::Borrowed("intlit"),
+      Self::FloatLit(_) => Cow::Borrowed("floatlit"),
+      Self::StringLit(_) => Cow::Borrowed("stringlit"),
+      Self::CharLit(_) => Cow::Borrowed("charlit"),
+      Self::Semicolon => Cow::Borrowed("semicolon"),
+      Self::Colon => Cow::Borrowed("colon"),
+      Self::Comma => Cow::Borrowed("comma"),
+      Self::Dot => Cow::Borrowed("dot"),
+      Self::Arrow => Cow::Borrowed("arrow"),
+      Self::ColonEq => Cow::Borrowed("coloneq"),
+      Self::Eq => Cow::Borrowed("eq"),
+      Self::LParen => Cow::Borrowed("lparen"),
+      Self::RParen => Cow::Borrowed("rparen"),
+      Self::LBrace => Cow::Borrowed("lbrace"),
+      Self::RBrace => Cow::Borrowed("rbrace"),
+      Self::LBracket => Cow::Borrowed("lbracket"),
+      Self::RBracket => Cow::Borrowed("rbracket"),
+      Self::Plus => Cow::Borrowed("plus"),
+      Self::Minus => Cow::Borrowed("minus"),
+      Self::Slash => Cow::Borrowed("slash"),
+      Self::Percent => Cow::Borrowed("percent"),
+      Self::PlusPlus => Cow::Borrowed("plusplus"),
+      Self::MinusMinus => Cow::Borrowed("minusminus"),
+      Self::Ampersand => Cow::Borrowed("ampersand"),
+      Self::Pipe => Cow::Borrowed("pipe"),
+      Self::Caret => Cow::Borrowed("caret"),
+      Self::Tilde => Cow::Borrowed("tilde"),
+      Self::Lt => Cow::Borrowed("lt"),
+      Self::Gt => Cow::Borrowed("gt"),
+      Self::Le => Cow::Borrowed("le"),
+      Self::Ge => Cow::Borrowed("ge"),
+      Self::EqEq => Cow::Borrowed("eqeq"),
+      Self::Ne => Cow::Borrowed("ne"),
+      Self::AndAnd => Cow::Borrowed("andand"),
+      Self::OrOr => Cow::Borrowed("oror"),
+      Self::Shr => Cow::Borrowed("shr"),
+      Self::Bang => Cow::Borrowed("bang"),
+      Self::Hash => Cow::Borrowed("hash"),
+      Self::Underscore => Cow::Borrowed("underscore"),
+    }
+  }
 }
 
 /// A single token with its source location.
@@ -204,6 +285,8 @@ impl Lexer {
       "for" => Some(TokenKind::For),
       "let" => Some(TokenKind::Let),
       "var" => Some(TokenKind::Var),
+      "mut" => Some(TokenKind::Mutable),
+      "mutable" => Some(TokenKind::Mutable),
       "true" => Some(TokenKind::True),
       "false" => Some(TokenKind::False),
       "break" => Some(TokenKind::Break),

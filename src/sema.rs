@@ -21,6 +21,7 @@ use crate::types::{Type, is_string_type};
 /// * Overflow / underflow protection.
 /// * Dead code detection.
 use std::collections::HashMap;
+use crate::types::Type::TyPtr;
 
 /// Info about a struct definition: its fields and layout attributes.
 #[derive(Debug, Clone)]
@@ -675,9 +676,20 @@ impl Sema {
                         })
                 }
             }
-            Expr::UnaryOp {expr, .. } => {
+            Expr::UnaryOp {op, expr, .. } => {
               let expr_type = self.infer_expr_type(expr, scope, fn_sigs)?;
-              Ok(expr_type)
+              match op {
+
+                UnOp::Deref => {
+                  match expr_type {
+                    TyPtr(elem,_) => Ok(*elem),
+                    _ => Err(format!("deref operation on non-ptr ({})",
+                                     expr_type))
+                  }
+                },
+                UnOp::Ref => Ok(TyPtr(Box::new(expr_type), false)),
+                _=>Ok(expr_type)
+              }
             }
             Expr::BinaryOp {
                 left,
@@ -690,7 +702,20 @@ impl Sema {
                 let lt_r = resolve_enum_type(&lt, &self.enum_defs).clone();
                 let rt_r = resolve_enum_type(&rt, &self.enum_defs).clone();
                 match op {
-                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
+                    BinOp::Add | BinOp::Sub => {
+                        if lt_r == rt_r {
+                            Ok(lt_r)
+                        } else if matches!(lt_r, TyPtr(_,_)) && is_integral_type(&rt_r) {
+                            Ok(lt_r)
+                        }
+                        else {
+                            Err(format!(
+                                "{}:{}:{}: Type mismatch in arithmetic",
+                                span.file, span.line, span.col
+                            ))
+                        }
+                    }
+                    BinOp::Mul | BinOp::Div | BinOp::Mod => {
                         if lt_r == rt_r {
                             Ok(lt_r)
                         } else {
@@ -1176,7 +1201,8 @@ where
                 ));
             }
             // A negative literal can never be a valid length. Unary minus
-            // is desugared to `0 - lit`, which extract_index_literal folds.
+            // parses as `Expr::UnaryOp { UnOp::Neg, IntLit }`, which
+            // extract_index_literal folds.
             if let Some(val) = extract_index_literal(&args[0]) {
                 if val < 0 {
                     return Err(format!(
@@ -1262,20 +1288,21 @@ fn infer_expr_type_free(
               }
             },
             UnOp::BinNot => {
-              match expr_type {
-                Type::I8 | Type::I16 | Type::I32  | Type::I64 | Type::I128 => Ok(expr_type),
-                _ => Err(format!("{}:{}:{}: binary not type mismatch",
-                                 span.file, span.line, span.col)),
+              if is_integral_type(&expr_type) {
+                Ok(expr_type)
+              } else {
+                Err(format!("{}:{}:{}: binary not type mismatch",
+                            span.file, span.line, span.col))
               }
             },
             UnOp::Deref => {
               match expr_type {
-                Type::TyPtr(_,_) => Ok(expr_type),
+                TyPtr(elem,_) => Ok(*elem),
                 _ => Err(format!("{}:{}:{}: pointer type mismatch",
                                  span.file, span.line, span.col))
               }
             },
-            UnOp::Ref => Ok(expr_type)
+            UnOp::Ref => Ok(TyPtr(Box::new(expr_type), false))
           }
         }
         Expr::BinaryOp {
@@ -1296,7 +1323,20 @@ fn infer_expr_type_free(
                 _ => rt.clone(),
             };
             match op {
-                BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
+                BinOp::Add | BinOp::Sub => {
+                    if lt_r == rt_r {
+                        Ok(lt_r)
+                    } else if matches!(lt_r, TyPtr(_,_)) &&
+                        is_integral_type(&rt_r) {
+                        Ok(lt_r)
+                    } else {
+                        Err(format!(
+                            "{}:{}:{}: Type mismatch in arithmetic",
+                            span.file, span.line, span.col
+                        ))
+                    }
+                }
+                BinOp::Mul | BinOp::Div | BinOp::Mod => {
                     if lt_r == rt_r {
                         Ok(lt_r)
                     } else {
@@ -1518,6 +1558,25 @@ fn infer_expr_type_free(
 fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, String> {
     match expr {
         Expr::IntLit(val, _) => Ok(*val),
+        Expr::UnaryOp {
+            op: UnOp::Neg,
+            expr,
+            ..
+        } => {
+            if let Expr::IntLit(val, _) = expr.as_ref() {
+                val.checked_neg().ok_or_else(|| {
+                    format!(
+                        "{}:{}:{}: Enum value overflow",
+                        span.file, span.line, span.col
+                    )
+                })
+            } else {
+                Err(format!(
+                    "{}:{}:{}: Enum variant value must be an integer literal",
+                    span.file, span.line, span.col
+                ))
+            }
+        }
         Expr::BinaryOp {
             left,
             op: BinOp::Sub,
@@ -1546,13 +1605,25 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, String> {
     }
 }
 
-/// Extract a literal integer from an index expression, handling the
-/// parser's unary-minus desugaring (`-n` → `0 - n` → `-n`).
+/// Extract a literal integer from an index expression, handling
+/// `Expr::UnaryOp { UnOp::Neg, IntLit }` (the parser's unary minus; the
+/// legacy `0 - n` binary shape is also accepted for compatibility).
 ///
 /// Returns `None` if the index is not a compile-time known literal.
 fn extract_index_literal(index: &Expr) -> Option<i128> {
     match index {
         Expr::IntLit(val, _) => Some(*val),
+        Expr::UnaryOp {
+            op: UnOp::Neg,
+            expr,
+            ..
+        } => {
+            if let Expr::IntLit(val, _) = expr.as_ref() {
+                Some(-val)
+            } else {
+                None
+            }
+        }
         Expr::BinaryOp {
             left,
             op: BinOp::Sub,
@@ -1634,7 +1705,7 @@ fn is_numeric_type(t: &Type) -> bool {
 }
 
 /// Returns `true` if `t` is an integral type (integer only, no floats).
-fn is_integral_type(t: &Type) -> bool {
+pub fn is_integral_type(t: &Type) -> bool {
     matches!(
         t,
         Type::I8
@@ -1671,13 +1742,26 @@ fn literal_fits_target(expr: &Expr, target: &Type) -> bool {
     match expr {
         Expr::IntLit(val, _) => int_lit_fits(*val, target),
         Expr::FloatLit(val, _) => float_lit_fits(*val, target),
+        Expr::UnaryOp {
+            op: UnOp::Neg,
+            expr,
+            ..
+        } => {
+            if let Expr::IntLit(val, _) = expr.as_ref() {
+                int_lit_fits(-val, target)
+            } else {
+                true
+            }
+        }
         Expr::BinaryOp {
             left,
             op: BinOp::Sub,
             right,
             ..
         } => {
-            // Detect `0 - lit` (unary minus desugared by the parser).
+            // Detect unary minus: parser emits `Expr::UnaryOp { Neg, {
+            //   IntLit }`; the legacy `0 - lit` binary shape is accepted
+            // for compatibility.
             if let Expr::IntLit(0, _) = left.as_ref() {
                 if let Expr::IntLit(rval, _) = right.as_ref() {
                     return int_lit_fits(-rval, target);

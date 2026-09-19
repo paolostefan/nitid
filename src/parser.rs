@@ -713,6 +713,18 @@ impl Parser {
       return self.parse_var_decl_stmt();
     }
 
+    // `mut`/`mutable` keyword → pointer variable declaration
+    if self.check(&TokenKind::Mutable) {
+      return self.parse_ptr_var_decl_stmt();
+    }
+
+    // Look-ahead to identify pointer declarations
+    if matches!(self.peek_kind(), Some(TokenKind::Type(_)))
+        && matches!(self.peek_nth_kind(1), Some(TokenKind::Star))
+    {
+      return self.parse_ptr_var_decl_stmt();
+    }
+
     // Look-ahead to distinguish declarations from expression statements.
     if matches!(self.peek_kind(), Some(TokenKind::Type(_)))
         || matches!(self.peek_kind(), Some(TokenKind::Ident(_)))
@@ -850,6 +862,77 @@ impl Parser {
       array_size,
       is_fixed,
     }))
+  }
+
+  /// `mutable? type "*" name (= expr)? ;`
+  /// `mutable? name := expr ;`
+  fn parse_ptr_var_decl_stmt(&mut self) -> ParseResult<Stmt> {
+    let is_mutable = self.consume(&TokenKind::Mutable);
+    let type_tok = self.peek().cloned();
+    let span = type_tok
+        .as_ref()
+        .map(|t| t.span.clone())
+        .unwrap_or_else(|| Span::new(&self.file, 0, 0));
+
+    let type_tok = type_tok.ok_or_else(|| "Expected a type name or variable after 'mut'/'mutable'".to_string())?;
+
+    // Next token can either be a type, or a variable name.
+    match &type_tok.kind {
+      TokenKind::Type(_) => {
+
+        // type identifier found, try `mutable? type "*" name (= expr)? ;`
+        let base_typ = self.parse_type()?;
+
+        // type * identifier
+        self.expect(&TokenKind::Star)?;
+        let mut names = vec![self.expect_ident()?];
+
+        // (, identifier)*
+        while self.consume(&TokenKind::Comma) {
+          self.expect(&TokenKind::Star)?;
+          names.push(self.expect_ident()?);
+        }
+
+        // (= expr)?
+        let init = if self.consume(&TokenKind::Eq) {
+          Some(self.parse_expr()?)
+        } else {
+          None
+        };
+
+        // ;
+        self.expect(&TokenKind::Semicolon)?;
+        let typ = Type::TyPtr(Box::new(base_typ), is_mutable);
+
+        Ok(Stmt::VarDecl(VarDecl {
+          typ: Some(typ),
+          names,
+          init,
+          span,
+          array_size: None,
+          is_fixed: false,
+        }))
+      }
+      TokenKind::Ident(_) => {
+        // try parsing 'name' identifier: `mutable? name := expr ;`
+        let names = vec![self.expect_ident()?];
+        self.expect(&TokenKind::ColonEq)?;
+        let init = Some(self.parse_expr()?);
+
+        self.expect(&TokenKind::Semicolon)?;
+
+        Ok(Stmt::VarDecl(VarDecl {
+          typ: None,
+          names,
+          init,
+          span,
+          array_size: None,
+          is_fixed: false,
+        }))
+      }
+      _ => Err(format!("{}:{}:{}: expected type or identifier, found {}",
+                       span.file, span.line, span.col, type_tok.kind.c_str() ))
+    }
   }
 
   /// `fixed? type name (, name)* ":=" expr ";"`
@@ -1462,7 +1545,7 @@ impl Parser {
     if self.consume(&TokenKind::Minus) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      
+
       Ok(Expr::UnaryOp {
         op: UnOp::Neg,
         expr: Box::new(expr),
@@ -1471,7 +1554,7 @@ impl Parser {
     } else if self.consume(&TokenKind::Bang) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      
+
       Ok(Expr::UnaryOp {
         op: UnOp::Not,
         expr: Box::new(expr),
@@ -1480,7 +1563,7 @@ impl Parser {
     } else if self.consume(&TokenKind::Tilde) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      
+
       Ok(Expr::UnaryOp {
         op: UnOp::BinNot,
         expr: Box::new(expr),
@@ -1489,7 +1572,7 @@ impl Parser {
     } else if self.consume(&TokenKind::Star) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      
+
       Ok(Expr::UnaryOp {
         op: UnOp::Deref,
         expr: Box::new(expr),
@@ -1498,7 +1581,7 @@ impl Parser {
     } else if self.consume(&TokenKind::Ampersand) {
       let expr = self.parse_unary()?;
       let span = expr.span();
-      
+
       Ok(Expr::UnaryOp {
         op: UnOp::Ref,
         expr: Box::new(expr),
@@ -1709,7 +1792,7 @@ impl Expr {
       | Expr::BoolLit(_, s)
       | Expr::Ident(_, s)
       | Expr::Call { span: s, .. }
-      | Expr::UnaryOp {span: s, .. }
+      | Expr::UnaryOp { span: s, .. }
       | Expr::BinaryOp { span: s, .. }
       | Expr::Assign { span: s, .. }
       | Expr::DeclAssign { span: s, .. }
@@ -1718,7 +1801,7 @@ impl Expr {
       | Expr::Index { span: s, .. }
       | Expr::FieldAccess { span: s, .. }
       | Expr::MethodCall { span: s, .. }
-      | Expr::StructLit { span: s, .. } 
+      | Expr::StructLit { span: s, .. }
       | Expr::ArrayLit(_, s) => s.clone(),
     }
   }

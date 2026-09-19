@@ -25,7 +25,9 @@ use crate::types::{Type, is_string_type};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops::Deref;
 use std::path::Path;
+use crate::types::Type::TyPtr;
 
 /// A C source file ready to be written to disk.
 pub struct CFile {
@@ -560,7 +562,7 @@ impl Codegen {
                                     ));
                                 }
                             } else if let Some(ref init_expr) = v.init {
-                                let t = self.infer_expr_type_str(init_expr);
+                                let t = self.infer_init_type(init_expr).c_str();
                                 s.push_str(&format!("{} {}", t, v.names[0]));
                                 s.push_str(&format!(
                                     " = {}",
@@ -659,6 +661,20 @@ impl Codegen {
             Expr::StringLit(..) => Type::String,
             Expr::CharLit(..) => Type::U8,
             Expr::BoolLit(..) => Type::Bool,
+            Expr::UnaryOp { op, expr: elem, .. } => {
+              match op {
+                UnOp::Ref => Type::TyPtr(Box::new(self.infer_init_type(elem)), false),
+                _ =>  self.infer_init_type(elem),
+              }
+            }
+            Expr::BinaryOp { left, .. } => {
+              let lt_type = match left.deref() {
+                Expr::Ident(name, _) => self.lookup_var_type(name).unwrap_or(Type::I32),
+                _ => self.infer_init_type(left)
+              };
+              // it should be the same even when left is a pointer and right is an integral
+              lt_type
+            }
             Expr::ArrayLit(elems, _) => {
                 let elem = if elems.is_empty() {
                     Type::I32
@@ -792,7 +808,7 @@ impl Codegen {
                 s.push_str(&self.emit_multi_assign(&v.names, init, ""));
             } else {
                 let init_type = self.infer_init_type(init);
-                let inferred = self.infer_expr_type_str(init);
+                let inferred = init_type.c_str();
                 self.declare_var(&v.names[0], init_type.clone());
                 s.push_str(&format!(
                     "    {} {} = {};\n",
@@ -903,7 +919,7 @@ impl Codegen {
                 UnOp::BinNot => format!("~({})", expr_code),
                 UnOp::Neg => format!("-({})", expr_code),
                 UnOp::Deref => format!("*({})", expr_code),
-                UnOp::Ref => format!("&({})", expr_code),
+                UnOp::Ref => format!("&({})", self.emit_lvalue(expr, current_fn)),
               }
             },
             Expr::BinaryOp {
@@ -941,7 +957,7 @@ impl Codegen {
                 format!("{} {} {}", l, op_str, r)
             }
             Expr::Assign { left, right, .. } => {
-                let left_str = self.emit_expr(left, current_fn);
+                let left_str = self.emit_lvalue(left, current_fn);
                 let right_str = match left.as_ref() {
                     Expr::Ident(name, _) => match self.lookup_var_type(name) {
                         Some(ref typ) if is_string_type(typ) => {
@@ -958,7 +974,7 @@ impl Codegen {
                     self.emit_multi_assign(names, right, current_fn)
                 } else {
                     let init_type = self.infer_init_type(right);
-                    let inferred = self.infer_expr_type_str(right);
+                    let inferred = init_type.c_str();
                     self.declare_var(&names[0], init_type.clone());
                     format!(
                         "{} {} = {}",
@@ -1043,10 +1059,10 @@ impl Codegen {
                 }
             }
             Expr::PostIncrement { target, .. } => {
-                format!("{}++", self.emit_expr(target, current_fn))
+                format!("{}++", self.emit_lvalue(target, current_fn))
             }
             Expr::PostDecrement { target, .. } => {
-                format!("{}--", self.emit_expr(target, current_fn))
+                format!("{}--", self.emit_lvalue(target, current_fn))
             }
             Expr::FieldAccess { target, field, .. } => {
                 let target_str = self.emit_expr(target, current_fn);
@@ -1163,6 +1179,19 @@ impl Codegen {
                     None
                 }
             }
+            Expr::UnaryOp {
+                op: UnOp::Neg,
+                expr,
+                ..
+            } => {
+                if let Expr::IntLit(val, _) = expr.as_ref() {
+                    let abs = *val as u64;
+                    if abs <= sz {
+                        return Some((sz - abs).to_string());
+                    }
+                }
+                None
+            }
             Expr::BinaryOp {
                 left,
                 op: BinOp::Sub,
@@ -1212,6 +1241,17 @@ impl Codegen {
                     None
                 }
             }),
+            Expr::UnaryOp{op, expr:sub_expr, ..} => {
+              let typ = self.typeof_expr(sub_expr);
+              match op {
+                UnOp::Deref => match typ {
+                  Some(TyPtr(elem, _)) => Some(*elem),
+                  _ => typ
+                }
+                UnOp::Ref => Some(TyPtr(Box::new(typ.unwrap_or(Type::I32)), false)),
+                _ => typ
+              }
+            }
             Expr::BinaryOp { left, op, .. } => {
                 let lt = self.typeof_expr(left)?;
                 if is_string_type(&lt) {
@@ -1388,6 +1428,13 @@ impl Codegen {
                         expr_str
                     );
                 }
+                if let Some(typ) = self.typeof_expr(&args[0]) {
+                  let (spec, cast) = Codegen::c_print_specifier(&typ);
+                  let ex = self.emit_expr(&args[0], current_fn);
+
+                  let arg = if cast { format!("(long long)({})", ex) } else { ex };
+                  return format!("printf(\"{}\\n\", {})", spec, arg);
+                }
             }
         }
         let args_str: Vec<String> = args.iter().map(|a| self.emit_expr(a, current_fn)).collect();
@@ -1449,21 +1496,6 @@ impl Codegen {
             b'\'' => "'\\''".to_string(),
             0x20..=0x7e => format!("'{}'", val as char),
             _ => format!("'\\x{:02x}'", val),
-        }
-    }
-
-    /// Guess a C type string for an expression (used for `:=` inference).
-    fn infer_expr_type_str(&self, expr: &Expr) -> String {
-        match expr {
-            Expr::IntLit(..) => "int".to_string(),
-            Expr::FloatLit(..) => "double".to_string(),
-            Expr::StringLit(..) => "nitid_string".to_string(),
-            Expr::CharLit(..) => "uint8_t".to_string(),
-            Expr::BoolLit(..) => "bool".to_string(),
-            Expr::ArrayLit(..) => "nitid_array".to_string(),
-            Expr::Index { target, .. } => self.infer_array_elem_type(target).c_str().to_string(),
-            Expr::StructLit { struct_name, .. } => struct_name.clone(),
-            _ => "int".to_string(),
         }
     }
 
@@ -1587,15 +1619,50 @@ impl Codegen {
         }
     }
 
-    // ── CMake emission ───────────────────────────────────────
+  fn emit_lvalue(&mut self, expr: &Expr, current_fn: &str) -> String {
+    match expr {
+     Expr::Index {target, index, ..} => {
+       let sized = self.infer_array_info(target).map(|(_,s)| s).unwrap_or(false);
+       if sized {
+         return self.emit_expr(expr, current_fn); // arr[i]
+       }
+       let elem_type = self.infer_array_elem_type(target).c_str(); // eg "i32"
+       let target_expr = self.emit_expr(target, current_fn); // eg "foo" (variable name
+       let index_literal = self.emit_expr(index, current_fn);  // eg "12"
+       format!("(({} *){}.data)[{}]", elem_type, target_expr, index_literal)
+     }
+      _ => self.emit_expr(expr, current_fn)
+    }
+  }
 
-    // ── Enum helpers ──────────────────────────────────────────
+  fn c_print_specifier(typ: &Type) -> (&str, bool) {
+    match typ {
+      Type::I128 => ("%lld", true),
+      Type::U128 => ("%llu", true),
+      Type::I64 => ("%ld", false),
+      Type::U64 => ("%lu", false),
+      Type::F32 | Type::F64 => ("%f", false),
+      Type::U8 | Type::U16 | Type::U32 => ("%u", false),
+      _ => ("%d", false)
+    }
+  }
 }
 
 /// Convert an enum variant value expression to a C integer literal string.
 fn enum_value_to_c(expr: &Expr) -> String {
     match expr {
         Expr::IntLit(val, _) => val.to_string(),
+        Expr::UnaryOp {
+            op: UnOp::Neg,
+            expr,
+            ..
+        } => {
+            if let Expr::IntLit(val, _) = expr.as_ref() {
+                format!("{}", -val)
+            } else {
+                "0".to_string()
+            }
+        }
         Expr::BinaryOp {
             left,
             op: BinOp::Sub,

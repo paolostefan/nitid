@@ -1,0 +1,11 @@
+// expect-contains: Expected ColonEq
+x := 42;
+
+// Pointers are always const unless explicitly marked as mutable by "mut" or "mutable"
+int *p = &x;
+*p = 100;
+
+println(*p);
+
+arr := int[]{10,20,30,40,50};
+mutable base
