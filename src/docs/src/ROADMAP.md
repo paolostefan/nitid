@@ -64,7 +64,7 @@ drowning in boilerplate. Graphics is a first-class milestone, not a side quest.
 | #      | Feature                          | What’s involved                                                                                                                                  |
 |--------|----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | v0.2.1 | `extern "C"` / foreign functions | Declare and call C functions; stable ABI to generated C (or direct linker symbols).                                                              |
-| v0.2.2 | Raw pointers                     | `*T` / `*mut T` (or equivalent spelling): load/store, cast, pointer arithmetic where needed for GL/SDL buffers.                                  |
+| v0.2.2 | Raw pointers                     | `T *` / `mut T *` / `mutable T *`: load/store, cast, pointer arithmetic where needed for GL/SDL buffers.                                         |
 | v0.2.3 | `repr(C)` / layout control       | Struct layout matching C; opaque types (`SDL_Window`, `GLuint` wrappers, etc.). `sizeof` / `alignof` builtins as needed.                         |
 | v0.2.4 | C-compatible extras              | C string literals / `*const u8` helpers; function pointers (callbacks) at least for common SDL/GL patterns; explicit `unsafe` for deref and FFI. |
 | v0.2.5 | Link flags / build glue          | Pass-through `-l`/`-L` (or `link_lib "SDL2"`, `link_lib "GL"`); optional `pkg-config`; ability to compile/link a small C shim if required.       |

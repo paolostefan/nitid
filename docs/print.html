@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-60fdf3d7.js";
+            window.path_to_searchindex_js = "searchindex-80ec53df.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -607,7 +607,7 @@ drowning in boilerplate. Graphics is a first-class milestone, not a side quest.<
 </thead>
 <tbody>
 <tr><td>v0.2.1</td><td><code>extern "C"</code> / foreign functions</td><td>Declare and call C functions; stable ABI to generated C (or direct linker symbols).</td></tr>
-<tr><td>v0.2.2</td><td>Raw pointers</td><td><code>*T</code> / <code>*mut T</code> (or equivalent spelling): load/store, cast, pointer arithmetic where needed for GL/SDL buffers.</td></tr>
+<tr><td>v0.2.2</td><td>Raw pointers</td><td><code>T *</code> / <code>mut T *</code> / <code>mutable T *</code>: load/store, cast, pointer arithmetic where needed for GL/SDL buffers.</td></tr>
 <tr><td>v0.2.3</td><td><code>repr(C)</code> / layout control</td><td>Struct layout matching C; opaque types (<code>SDL_Window</code>, <code>GLuint</code> wrappers, etc.). <code>sizeof</code> / <code>alignof</code> builtins as needed.</td></tr>
 <tr><td>v0.2.4</td><td>C-compatible extras</td><td>C string literals / <code>*const u8</code> helpers; function pointers (callbacks) at least for common SDL/GL patterns; explicit <code>unsafe</code> for deref and FFI.</td></tr>
 <tr><td>v0.2.5</td><td>Link flags / build glue</td><td>Pass-through <code>-l</code>/<code>-L</code> (or <code>link_lib "SDL2"</code>, <code>link_lib "GL"</code>); optional <code>pkg-config</code>; ability to compile/link a small C shim if required.</td></tr>

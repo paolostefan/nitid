@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Sema"]};
+window.SIDEBAR_ITEMS = {"fn":["is_integral_type"],"struct":["Sema"]};
