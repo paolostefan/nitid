@@ -65,7 +65,7 @@ drowning in boilerplate. Graphics is a first-class milestone, not a side quest.
 |--------|----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | v0.2.1 | `extern "C"` / foreign functions | Declare and call C functions; stable ABI to generated C (or direct linker symbols).                                                              |
 | v0.2.2 | Raw pointers                     | `T *` / `mut T *` / `mutable T *`: load/store, cast, pointer arithmetic where needed for GL/SDL buffers.                                         |
-| v0.2.3 | `repr(C)` / layout control       | Struct layout matching C; opaque types (`SDL_Window`, `GLuint` wrappers, etc.). `sizeof` / `alignof` builtins as needed.                         |
+| v0.2.3 | Opaque types & layout builtins   | Opaque types (`SDL_Window`, `GLuint` wrappers, etc.); `sizeof` / `alignof` builtins as needed. Struct layout is already C-compatible by default (codegen preserves declaration order; the C compiler applies C ABI). Rust-style `repr(C)` annotation deferred — revisit only if a non-C backend or an FFI field-type lint is wanted. |
 | v0.2.4 | C-compatible extras              | C string literals / `*const u8` helpers; function pointers (callbacks) at least for common SDL/GL patterns; explicit `unsafe` for deref and FFI. |
 | v0.2.5 | Link flags / build glue          | Pass-through `-l`/`-L` (or `link_lib "SDL2"`, `link_lib "GL"`); optional `pkg-config`; ability to compile/link a small C shim if required.       |
 
@@ -171,7 +171,7 @@ thread becomes expressible.)
 
 ### v1.0.0 — Stability
 
-- Language + FFI layout (`repr(C)`) spec frozen enough for external bindings.
+- Language + FFI layout rules spec frozen enough for external bindings. Decide once and for all whether `repr(C)` gets resurrected as an FFI-safety lint (rejected fields must be C-compatible) — default layout already matches C.
 - Stdlib and `gfx`/`sdl`/`gl` packages versioned with compatibility promises.
 - Documented unsafe obligations and panic model.
 
@@ -193,7 +193,7 @@ thread becomes expressible.)
 ## Suggested v0.2 implementation order
 
 1. `extern "C"` + link flags + hello `SDL_Init` / `SDL_Quit`
-2. Opaque pointers + `repr(C)` structs + event poll loop + window clear
+2. Opaque types + structs + event poll loop + window clear
 3. Software framebuffer present path + plasma/fire demo
 4. `SDL_GL_CreateContext` + GL function loading + triangle
 5. Shader from source + uniform time

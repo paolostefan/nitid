@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-80ec53df.js";
+            window.path_to_searchindex_js = "searchindex-405405b1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -608,7 +608,7 @@ drowning in boilerplate. Graphics is a first-class milestone, not a side quest.<
 <tbody>
 <tr><td>v0.2.1</td><td><code>extern "C"</code> / foreign functions</td><td>Declare and call C functions; stable ABI to generated C (or direct linker symbols).</td></tr>
 <tr><td>v0.2.2</td><td>Raw pointers</td><td><code>T *</code> / <code>mut T *</code> / <code>mutable T *</code>: load/store, cast, pointer arithmetic where needed for GL/SDL buffers.</td></tr>
-<tr><td>v0.2.3</td><td><code>repr(C)</code> / layout control</td><td>Struct layout matching C; opaque types (<code>SDL_Window</code>, <code>GLuint</code> wrappers, etc.). <code>sizeof</code> / <code>alignof</code> builtins as needed.</td></tr>
+<tr><td>v0.2.3</td><td>Opaque types &amp; layout builtins</td><td>Opaque types (<code>SDL_Window</code>, <code>GLuint</code> wrappers, etc.); <code>sizeof</code> / <code>alignof</code> builtins as needed. Struct layout is already C-compatible by default (codegen preserves declaration order; the C compiler applies C ABI). Rust-style <code>repr(C)</code> annotation deferred — revisit only if a non-C backend or an FFI field-type lint is wanted.</td></tr>
 <tr><td>v0.2.4</td><td>C-compatible extras</td><td>C string literals / <code>*const u8</code> helpers; function pointers (callbacks) at least for common SDL/GL patterns; explicit <code>unsafe</code> for deref and FFI.</td></tr>
 <tr><td>v0.2.5</td><td>Link flags / build glue</td><td>Pass-through <code>-l</code>/<code>-L</code> (or <code>link_lib "SDL2"</code>, <code>link_lib "GL"</code>); optional <code>pkg-config</code>; ability to compile/link a small C shim if required.</td></tr>
 </tbody>
@@ -737,7 +737,7 @@ thread becomes expressible.)</p>
 <hr>
 <h3 id="v100--stability"><a class="header" href="#v100--stability">v1.0.0 — Stability</a></h3>
 <ul>
-<li>Language + FFI layout (<code>repr(C)</code>) spec frozen enough for external bindings.</li>
+<li>Language + FFI layout rules spec frozen enough for external bindings. Decide once and for all whether <code>repr(C)</code> gets resurrected as an FFI-safety lint (rejected fields must be C-compatible) — default layout already matches C.</li>
 <li>Stdlib and <code>gfx</code>/<code>sdl</code>/<code>gl</code> packages versioned with compatibility promises.</li>
 <li>Documented unsafe obligations and panic model.</li>
 </ul>
@@ -757,7 +757,7 @@ land.</li>
 <h2 id="suggested-v02-implementation-order"><a class="header" href="#suggested-v02-implementation-order">Suggested v0.2 implementation order</a></h2>
 <ol>
 <li><code>extern "C"</code> + link flags + hello <code>SDL_Init</code> / <code>SDL_Quit</code></li>
-<li>Opaque pointers + <code>repr(C)</code> structs + event poll loop + window clear</li>
+<li>Opaque types + structs + event poll loop + window clear</li>
 <li>Software framebuffer present path + plasma/fire demo</li>
 <li><code>SDL_GL_CreateContext</code> + GL function loading + triangle</li>
 <li>Shader from source + uniform time</li>
