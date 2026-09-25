@@ -22,9 +22,10 @@ pub enum Expect {
 
 /// Compile a .nt file and return Ok(()) on success.
 pub fn compile_file(path: &str) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read '{}': {}", path, e))?;
-    nitid::compile(path, &content, "").map(|_| ())
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
+    nitid::compile(path, &content, "").map(|_| ())?;
+    Ok(())
 }
 
 /// Run every .nt file in `dir`, expecting compilation to succeed.
@@ -69,23 +70,21 @@ pub fn extract_expect(content: &str) -> Option<Expect> {
 /// the expectation embedded in its comments.
 /// Returns `Ok(())` if the error matches, or a description of what went wrong.
 pub fn run_error_file(path: &str) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read '{}': {}", path, e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
     let expect = extract_expect(&content);
 
     let result = nitid::compile(path, &content, "");
     match (result, &expect) {
-        (Ok(_), _) => {
-            Err(format!("Expected compilation error, but it succeeded"))
-        }
+        (Ok(_), _) => Err(format!("Expected compilation error, but it succeeded")),
         (Err(_err), None) => {
             // No expectation set — any error is accepted
             Ok(())
         }
         (Err(err), Some(exp)) => {
             let ok = match exp {
-                Expect::Exact(expected) => err == *expected,
-                Expect::Contains(sub) => err.contains(sub.as_str()),
+                Expect::Exact(expected) => err.message == *expected,
+                Expect::Contains(sub) => err.message.contains(sub.as_str()),
             };
             if ok {
                 Ok(())
@@ -94,7 +93,7 @@ pub fn run_error_file(path: &str) -> Result<(), String> {
                     Expect::Exact(e) => format!("exact match '{}'", e),
                     Expect::Contains(c) => format!("contains '{}'", c),
                 };
-                Err(format!("Expected {}, got error '{}'", desc, err))
+                Err(format!("Expected {}, got error '{}'", desc, err.message))
             }
         }
     }
@@ -114,7 +113,12 @@ pub fn run_error_batch(dir: &str) -> Vec<String> {
     for entry in &entries {
         let path_str = entry.path().to_string_lossy().to_string();
         if let Err(e) = run_error_file(&path_str) {
-            let name = entry.path().file_name().unwrap().to_string_lossy().to_string();
+            let name = entry
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             failures.push(format!("{}: {}", name, e));
         }
     }
@@ -145,7 +149,9 @@ pub fn discover_valid_samples() -> Vec<String> {
 /// contain a `main.nt` entry point. Returns `(dir_name, main_path)` pairs
 /// sorted by directory name.
 pub fn discover_package_dirs() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples").join("package");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join("package");
     let mut dirs = Vec::new();
     for entry in std::fs::read_dir(&root).unwrap() {
         let entry = entry.unwrap();
@@ -165,14 +171,13 @@ pub fn discover_package_dirs() -> Vec<(String, String)> {
 
 /// Compile the `main.nt` of a package directory.
 /// Returns the full `nitid::compile` result on success.
-pub fn compile_package_main(dir: &str) -> Result<
-    (nitid::ast::Program, Vec<nitid::codegen::CFile>, String),
-    String,
-> {
+pub fn compile_package_main(
+    dir: &str,
+) -> Result<(nitid::ast::Program, Vec<nitid::codegen::CFile>, String), String> {
     let main_path = format!("{}/main.nt", dir);
     let content = std::fs::read_to_string(&main_path)
         .map_err(|e| format!("Failed to read '{}': {}", main_path, e))?;
-    nitid::compile(&main_path, &content, "")
+    Ok(nitid::compile(&main_path, &content, "")?)
 }
 
 /// Compile a package main and return the concatenated C source text

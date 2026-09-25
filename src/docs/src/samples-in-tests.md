@@ -48,15 +48,15 @@ compilation, and each one states *how* it should fail via a comment header befor
 // error raised in src/sema.rs:154
 // All variables must be declared before use
 
-x := y + z;
+x : = y + z;
 ```
 
 Two header conventions are recognized (first match in the header wins):
 
-| Header | Meaning |
-|--------|---------|
-| `// expect: <exact message>` | The error string must **equal** this exactly |
-| `// expect-contains: <substring>` | The error string must **contain** this substring |
+| Header                            | Meaning                                                  |
+|-----------------------------------|----------------------------------------------------------|
+| `// expect: <exact message>`      | The Diagnostic `message` must **equal** this exactly     |
+| `// expect-contains: <substring>` | The Diagnostic `message` must **contain** this substring |
 
 The `// error raised in src/xxx.rs:N` annotation is documentation-only (it names the source location that raised the
 error) and is not checked by the tests.
@@ -65,7 +65,8 @@ error) and is not checked by the tests.
 
 - If compilation **succeeds** when an error expectation is set → failure ("expected a compilation error").
 - If there is **no** expectation header → any error is accepted.
-- Otherwise it compares the produced error against the expected exact/substring value from the header.
+- Otherwise it compares the Diagnostic `message` against the expected exact/substring value from the header. Location is
+  not part of that check.
 
 ## Package samples — `tests/packages.rs`
 
@@ -95,25 +96,25 @@ samples/package/
 
 ### Roadmap features covered
 
-| Version | Feature | What the tests verify |
-|---------|---------|----------------------|
-| **v0.1.1** | File-level import resolution | `import Foo;` finds `Foo/` dir, parses `package Foo;`, merges into symbol table |
-| **v0.1.2** | Qualified access | `Foo.add()` compiles; C output contains mangled `Foo_add`; struct/enum accessible via package prefix |
-| **v0.1.3** | Import aliasing | `import Foo as f;` sets alias; `f.hello()` resolves; original name `Foo` is hidden after alias |
-| **v0.1.4** | Multi-file compilation | Transitive A→B→C chain compiles; C output has files for all three packages; `B_bar` and `A_foo` both mangled |
-| **v0.1.5** | Name conflict detection | `parse_package_dir` rejects mismatched package declarations; `import Nonexistent` errors |
-| **v0.1.6** | Mangled C names | Imported functions produce `Pkg_func` C names, not bare `func`; two packages with same function name get distinct C symbols |
+| Version    | Feature                      | What the tests verify                                                                                                       |
+|------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| **v0.1.1** | File-level import resolution | `import Foo;` finds `Foo/` dir, parses `package Foo;`, merges into symbol table                                             |
+| **v0.1.2** | Qualified access             | `Foo.add()` compiles; C output contains mangled `Foo_add`; struct/enum accessible via package prefix                        |
+| **v0.1.3** | Import aliasing              | `import Foo as f;` sets alias; `f.hello()` resolves; original name `Foo` is hidden after alias                              |
+| **v0.1.4** | Multi-file compilation       | Transitive A→B→C chain compiles; C output has files for all three packages; `B_bar` and `A_foo` both mangled                |
+| **v0.1.5** | Name conflict detection      | `parse_package_dir` rejects mismatched package declarations; `import Nonexistent` errors                                    |
+| **v0.1.6** | Mangled C names              | Imported functions produce `Pkg_func` C names, not bare `func`; two packages with same function name get distinct C symbols |
 
 ### Package test helpers
 
 Additional helpers in `common/mod.rs` (alongside the existing valid/error helpers):
 
-| Function | Purpose |
-|----------|---------|
-| `discover_package_dirs()` | Find all immediate subdirs of `samples/package/` containing `main.nt` → `Vec<(name, path)>` |
-| `compile_package_main(dir)` | Read `{dir}/main.nt`, run full pipeline → `Result<(Program, Vec<CFile>, cmake), String>` |
-| `get_package_c_output(dir)` | Compile package main, concatenate all C file contents → `Result<String, String>` |
-| `package_path(subdir)` | Resolve `samples/package/{subdir}` to an absolute path |
+| Function                    | Purpose                                                                                     |
+|-----------------------------|---------------------------------------------------------------------------------------------|
+| `discover_package_dirs()`   | Find all immediate subdirs of `samples/package/` containing `main.nt` → `Vec<(name, path)>` |
+| `compile_package_main(dir)` | Read `{dir}/main.nt`, run full pipeline → `Result<(Program, Vec<CFile>, cmake), String>`    |
+| `get_package_c_output(dir)` | Compile package main, concatenate all C file contents → `Result<String, String>`            |
+| `package_path(subdir)`      | Resolve `samples/package/{subdir}` to an absolute path                                      |
 
 ### Inline tests (no sample file needed)
 
@@ -128,20 +129,21 @@ Some package tests are defined inline in `tests/packages.rs` without a correspon
 
 ## Shared helpers — `tests/common/mod.rs`
 
-| Function | Purpose |
-|----------|---------|
-| `compile_file(path)` | Read a `.nt` file and run the full pipeline |
-| `run_ok_batch(dir)` | Compile every `.nt` in a directory, expecting success |
-| `extract_expect(content)` | Parse the expectation header from a `.nt` file |
-| `run_error_file(path)` | Compile one error sample, check it matches its header |
-| `run_error_batch(dir)` | Batch runner for error samples |
-| `discover_valid_samples()` | List top-level (non-error) `.nt` files, sorted |
-| `discover_package_dirs()` | Find package subdirs with `main.nt` → `Vec<(name, path)>` |
-| `compile_package_main(dir)` | Compile a package's `main.nt` entry point |
-| `get_package_c_output(dir)` | Compile and return concatenated C output text |
-| `package_path(subdir)` | Absolute path to `samples/package/{subdir}` |
+| Function                    | Purpose                                                   |
+|-----------------------------|-----------------------------------------------------------|
+| `compile_file(path)`        | Read a `.nt` file and run the full pipeline               |
+| `run_ok_batch(dir)`         | Compile every `.nt` in a directory, expecting success     |
+| `extract_expect(content)`   | Parse the expectation header from a `.nt` file            |
+| `run_error_file(path)`      | Compile one error sample, check it matches its header     |
+| `run_error_batch(dir)`      | Batch runner for error samples                            |
+| `discover_valid_samples()`  | List top-level (non-error) `.nt` files, sorted            |
+| `discover_package_dirs()`   | Find package subdirs with `main.nt` → `Vec<(name, path)>` |
+| `compile_package_main(dir)` | Compile a package's `main.nt` entry point                 |
+| `get_package_c_output(dir)` | Compile and return concatenated C output text             |
+| `package_path(subdir)`      | Absolute path to `samples/package/{subdir}`               |
 
-Each file is compiled through the **full four-phase pipeline** exposed as the public API `nitid::compile(path, &content, "")`
+Each file is compiled through the **full four-phase pipeline** exposed as the public API
+`nitid::compile(path, &content, "")`
 — lexing, parsing, semantic analysis, and code generation (`src/lib.rs:376`) — so every sample exercises the entire
 transpiler rather than a single stage.
 

@@ -1,6 +1,3 @@
-use crate::ast::*;
-use crate::lexer::{Lexer, Token, TokenKind};
-use crate::types::Type;
 /// Recursive-descent parser for the Nitid language.
 ///
 /// Phase 2 of the transpilation pipeline.  Consumes a stream of
@@ -44,10 +41,16 @@ use crate::types::Type;
 /// - Many `Span` values are dummy `Span::new("", 0, 0)` — source-location
 ///   tracking for error messages is only partially wired through.
 /// - `for` loops (C-style and range) are fully implemented.
-use std::collections::HashSet;
 
-/// Convenience alias — every parse method returns either a value or an error string.
-type ParseResult<T> = Result<T, String>;
+use crate::diagnostic::{Diagnostic, Phase};
+use crate::lexer::{Lexer, Token, TokenKind};
+use crate::types::Type;
+use std::collections::HashSet;
+use crate::ast::{BinOp, Decl, EnumDecl, EnumVariant, Expr, FnDecl, ImplBlock, Import, Param, Program, Span, Stmt, StructDecl, StructField, UnOp, VarDecl};
+
+
+/// Convenience alias — every parse method returns either a value or a Diagnostic.
+type ParseResult<T> = Result<T, Diagnostic>;
 
 /// Recursive-descent parser.
 ///
@@ -58,6 +61,7 @@ pub struct Parser {
   pos: usize,
   file: String,
   enum_names: HashSet<String>,
+  struct_names: HashSet<String>,
 }
 
 impl Parser {
@@ -70,6 +74,7 @@ impl Parser {
       pos: 0,
       file: file.to_string(),
       enum_names: HashSet::new(),
+      struct_names: HashSet::new(),
     }
   }
 
@@ -114,12 +119,17 @@ impl Parser {
       match self.peek() {
         Some(tok) => {
           let found = format!("{:?}", tok.kind);
-          Err(format!(
-            "{}:{}:{}: Expected {:?}, found {}",
-            tok.span.file, tok.span.line, tok.span.col, kind, found
+          Err(Diagnostic::new(
+            Phase::Parse,
+            Span::new(&tok.span.file, tok.span.line, tok.span.col),
+            format!("Expected {:?}, found {}", kind, found),
           ))
         }
-        None => Err(format!("{}: Expected {:?}, found EOF", self.file, kind)),
+        None => Err(Diagnostic::new(
+          Phase::Parse,
+          Span::new(&self.file, 0, 0),
+          format!("Expected {:?}, found EOF", kind),
+        )),
       }
     }
   }
@@ -177,24 +187,35 @@ impl Parser {
 
     // Declarations or dangling statements.
     while self.peek().is_some() {
-      if self.check(&TokenKind::Extern) {
-        decls.push(Decl::FnDecl(self.parse_extern_fn_decl()?));
-      } else if self.check(&TokenKind::Fn) {
-        decls.push(Decl::FnDecl(self.parse_fn_decl()?));
-      } else if self.check(&TokenKind::Packed)
-          || self.check(&TokenKind::Align)
-          || self.check(&TokenKind::Struct)
-      {
-        decls.push(Decl::StructDecl(self.parse_struct_decl()?));
-      } else if self.check(&TokenKind::Impl) {
-        decls.push(Decl::ImplBlock(self.parse_impl_block()?));
-      } else if self.check(&TokenKind::Enum) {
-        let enum_decl = self.parse_enum_decl()?;
-        self.enum_names.insert(enum_decl.name.clone());
-        decls.push(Decl::EnumDecl(enum_decl));
-      } else {
-        let stmt = self.parse_stmt()?;
-        dangling_stmts.push(stmt);
+      match self.peek_kind() {
+        Some(TokenKind::Extern) => {
+          decls.push(Decl::FnDecl(self.parse_extern_fn_decl()?));
+        }
+        Some(TokenKind::Fn) => {
+          decls.push(Decl::FnDecl(self.parse_fn_decl()?));
+        }
+        Some(TokenKind::Opaque) => {
+          let struct_decl = self.parse_opaque_struct_decl()?;
+          self.struct_names.insert(struct_decl.name.clone());
+          decls.push(Decl::StructDecl(struct_decl));
+        }
+        Some(TokenKind::Packed | TokenKind::Align | TokenKind::Struct) => {
+          let struct_decl = self.parse_struct_decl()?;
+          self.struct_names.insert(struct_decl.name.clone());
+          decls.push(Decl::StructDecl(struct_decl));
+        }
+        Some(TokenKind::Impl) => {
+          decls.push(Decl::ImplBlock(self.parse_impl_block()?));
+        }
+        Some(TokenKind::Enum) => {
+          let enum_decl = self.parse_enum_decl()?;
+          self.enum_names.insert(enum_decl.name.clone());
+          decls.push(Decl::EnumDecl(enum_decl));
+        }
+        _ => {
+          let stmt = self.parse_stmt()?;
+          dangling_stmts.push(stmt);
+        }
       }
     }
 
@@ -242,13 +263,32 @@ impl Parser {
       }
       Some(_kind) => {
         let tok = self.peek().unwrap();
-        Err(format!(
-          "{}:{}:{}: Expected identifier, found {:?}",
-          tok.span.file, tok.span.line, tok.span.col, tok.kind
+        Err(Diagnostic::new(
+          Phase::Parse,
+          Span::new(&tok.span.file, tok.span.line, tok.span.col),
+          format!("Expected identifier, found {:?}", tok.kind),
         ))
       }
-      None => Err(format!("{}: Expected identifier, found EOF", self.file)),
+      None => Err(Diagnostic::new(
+        Phase::Parse,
+        Span::new(&self.file, 0, 0),
+        "Expected identifier, found EOF",
+      )),
     }
+  }
+
+  /// Check whether a token kind represents a type name.
+  ///
+  /// Types can be written with the `Type` token kind (emitted by the lexer)
+  /// or as a generic `Ident` that happens to name a type (e.g. `int` could
+  /// appear as either depending on context).
+  fn recognize_type(&self, kind: &TokenKind) -> bool {
+    matches!(kind, TokenKind::Type(_))
+        || matches!(kind, TokenKind::Ident(s)
+                                if Type::from_str(s).is_some()
+                                  || self.enum_names.contains(s)
+                                  || self.struct_names.contains(s)
+            )
   }
 
   /// `import ident (as ident)? ;`
@@ -276,7 +316,7 @@ impl Parser {
         self.advance();
         Some(s)
       }
-      _ => None
+      _ => None,
     };
 
     let fn_tok = self.expect(&TokenKind::Fn)?;
@@ -297,7 +337,7 @@ impl Parser {
         self.advance();
         let mut types = Vec::new();
         loop {
-          types.push(self.parse_type()?);
+          types.push(self.parse_return_type()?);
           if !self.consume(&TokenKind::Comma) {
             break;
           }
@@ -305,7 +345,7 @@ impl Parser {
         self.expect(&TokenKind::RParen)?;
         types
       } else {
-        vec![self.parse_type()?]
+        vec![self.parse_return_type()?]
       }
     } else {
       vec![Type::Void]
@@ -345,7 +385,7 @@ impl Parser {
         self.advance();
         let mut types = Vec::new();
         loop {
-          types.push(self.parse_type()?);
+          types.push(self.parse_return_type()?);
           if !self.consume(&TokenKind::Comma) {
             break;
           }
@@ -353,7 +393,7 @@ impl Parser {
         self.expect(&TokenKind::RParen)?;
         types
       } else {
-        vec![self.parse_type()?]
+        vec![self.parse_return_type()?]
       }
     } else {
       vec![Type::Void]
@@ -396,7 +436,7 @@ impl Parser {
         // If the next token is a type name, this comma starts a new parameter.
         if self
             .peek_kind()
-            .map(|k| is_type_kind(k, &self.enum_names))
+            .map(|k| self.recognize_type(k))
             .unwrap_or(false)
         {
           transition = true;
@@ -421,6 +461,26 @@ impl Parser {
 
   // ── Structs & impls ──────────────────────────────────────
 
+  /// `"opaque" "struct" ident
+  fn parse_opaque_struct_decl(&mut self) -> ParseResult<StructDecl> {
+    self.consume(&TokenKind::Opaque);
+
+    let tok = self.expect(&TokenKind::Struct)?;
+    let span = tok.span.clone();
+
+    let name = self.expect_ident()?;
+    self.consume(&TokenKind::Semicolon);
+
+    Ok(StructDecl {
+      name,
+      fields: Vec::new(),
+      packed: false,
+      align: None,
+      span,
+      is_opaque: true,
+    })
+  }
+
   /// `("packed"? "align" "(" int ")"?)? "struct" ident "{" (ident ":" type ";")* "}"`
   fn parse_struct_decl(&mut self) -> ParseResult<StructDecl> {
     let mut packed = false;
@@ -431,17 +491,22 @@ impl Parser {
         packed = true;
       } else if self.consume(&TokenKind::Align) {
         self.expect(&TokenKind::LParen)?;
-        let n_tok = self
-            .advance()
-            .ok_or_else(|| "Expected integer literal in align".to_string())?;
+        let n_tok = self.advance().ok_or_else(|| {
+          Diagnostic::new(
+            Phase::Parse,
+            Span::new(&self.file, 0, 0),
+            "Expected integer literal in align",
+          )
+        })?;
         let n = match &n_tok.kind {
-          TokenKind::IntLit(s) => s
-              .parse::<u64>()
-              .map_err(|_| "Invalid align value".to_string())?,
+          TokenKind::IntLit(s) => s.parse::<u64>().map_err(|_| {
+            Diagnostic::new(Phase::Parse, n_tok.span.clone(), "Invalid align value")
+          })?,
           _ => {
-            return Err(format!(
-              "Expected integer literal in align, found {:?}",
-              n_tok.kind
+            return Err(Diagnostic::new(
+              Phase::Parse,
+              n_tok.span.clone(),
+              format!("Expected integer literal in align, found {:?}", n_tok.kind),
             ));
           }
         };
@@ -456,6 +521,7 @@ impl Parser {
     let span = tok.span.clone();
     let name = self.expect_ident()?;
     self.expect(&TokenKind::LBrace)?;
+
     let mut fields = Vec::new();
     while !self.check(&TokenKind::RBrace) && self.peek().is_some() {
       let field_name = self.expect_ident()?;
@@ -464,7 +530,9 @@ impl Parser {
           .map(|t| t.span.clone())
           .unwrap_or_else(|| span.clone());
       self.expect(&TokenKind::Colon)?;
-      let field_type = self.parse_type()?;
+
+      // Allow pointers as struct fields
+      let field_type = self.parse_return_type()?;
       self.expect(&TokenKind::Semicolon)?;
       fields.push(StructField {
         name: field_name,
@@ -481,14 +549,15 @@ impl Parser {
       packed,
       align,
       span,
+      is_opaque: false,
     })
   }
 
   /// `"impl" ident "{" fn_decl* "}"`
   fn parse_impl_block(&mut self) -> ParseResult<ImplBlock> {
-    let tok = self
-        .advance()
-        .ok_or_else(|| "Expected 'impl'".to_string())?;
+    let tok = self.advance().ok_or_else(|| {
+      Diagnostic::new(Phase::Parse, Span::new(&self.file, 0, 0), "Expected 'impl'")
+    })?;
     let span = tok.span.clone();
     let struct_name = self.expect_ident()?;
     self.expect(&TokenKind::LBrace)?;
@@ -572,9 +641,10 @@ impl Parser {
             Expr::IntLit(v, _) => *v,
             _ => {
               let sp2 = size_expr.span();
-              return Err(format!(
-                "{}:{}:{}: Array size must be an integer literal",
-                sp2.file, sp2.line, sp2.col
+              return Err(Diagnostic::new(
+                Phase::Parse,
+                Span::new(&sp2.file, sp2.line, sp2.col),
+                "Array size must be an integer literal",
               ));
             }
           };
@@ -590,9 +660,10 @@ impl Parser {
             Expr::IntLit(v, _) => *v,
             _ => {
               let sp2 = size_expr.span();
-              return Err(format!(
-                "{}:{}:{}: Array size must be an integer literal",
-                sp2.file, sp2.line, sp2.col
+              return Err(Diagnostic::new(
+                Phase::Parse,
+                Span::new(&sp2.file, sp2.line, sp2.col),
+                "Array size must be an integer literal",
               ));
             }
           };
@@ -608,10 +679,13 @@ impl Parser {
           t
         } else if self.enum_names.contains(&s) {
           Type::Enum(s)
+        } else if self.struct_names.contains(&s) {
+          Type::Struct(s)
         } else {
-          return Err(format!(
-            "{}:{}:{}: Unknown type '{}'",
-            sp.file, sp.line, sp.col, s
+          return Err(Diagnostic::new(
+            Phase::Parse,
+            Span::new(&sp.file, sp.line, sp.col),
+            format!("Unknown type '{}'", s),
           ));
         };
         // Array type: `Type [ Expr? ]`
@@ -622,9 +696,10 @@ impl Parser {
               Expr::IntLit(v, _) => *v,
               _ => {
                 let sp2 = size_expr.span();
-                return Err(format!(
-                  "{}:{}:{}: Array size must be an integer literal",
-                  sp2.file, sp2.line, sp2.col
+                return Err(Diagnostic::new(
+                  Phase::Parse,
+                  Span::new(&sp2.file, sp2.line, sp2.col),
+                  "Array size must be an integer literal",
                 ));
               }
             };
@@ -643,15 +718,17 @@ impl Parser {
           Some(t) => t.span.clone(),
           None => Span::new(&self.file, 0, 0),
         };
-        Err(format!(
-          "{}:{}:{}: Expected type, found {:?}",
-          sp.file,
-          sp.line,
-          sp.col,
-          self.peek().unwrap().kind
+        Err(Diagnostic::new(
+          Phase::Parse,
+          Span::new(&sp.file, sp.line, sp.col),
+          format!("Expected type, found {:?}", self.peek().unwrap().kind),
         ))
       }
-      None => Err(format!("{}: Expected type, found EOF", self.file)),
+      None => Err(Diagnostic::new(
+        Phase::Parse,
+        Span::new(&self.file, 0, 0),
+        "Expected type, found EOF",
+      )),
     }
   }
 
@@ -681,27 +758,33 @@ impl Parser {
     if self.check(&TokenKind::Return) {
       return self.parse_return_stmt();
     }
+
     if self.check(&TokenKind::If) {
       return self.parse_if_stmt();
     }
+
     if self.check(&TokenKind::While) {
       return self.parse_while_stmt();
     }
+
     if self.check(&TokenKind::For) {
       return self.parse_for_stmt();
     }
+
     if self.check(&TokenKind::Break) {
       let tok = self.advance().unwrap();
       let span = tok.span.clone();
       self.expect(&TokenKind::Semicolon)?;
       return Ok(Stmt::Break(span));
     }
+
     if self.check(&TokenKind::Continue) {
       let tok = self.advance().unwrap();
       let span = tok.span.clone();
       self.expect(&TokenKind::Semicolon)?;
       return Ok(Stmt::Continue(span));
     }
+
     if self.check(&TokenKind::LBrace) {
       self.advance();
       let stmts = self.parse_stmts_until(&TokenKind::RBrace)?;
@@ -719,9 +802,15 @@ impl Parser {
     }
 
     // Look-ahead to identify pointer declarations
-    if matches!(self.peek_kind(), Some(TokenKind::Type(_)))
-        && matches!(self.peek_nth_kind(1), Some(TokenKind::Star))
-    {
+    let is_ptr_decl = match self.peek_kind() {
+      Some(TokenKind::Type(_)) => matches!(self.peek_nth_kind(1), Some(TokenKind::Star)),
+      Some(TokenKind::Ident(n)) => {
+        self.struct_names.contains(n)
+            && matches!(self.peek_nth_kind(1), Some(TokenKind::Star))
+      }
+      _ => false,
+    };
+    if is_ptr_decl {
       return self.parse_ptr_var_decl_stmt();
     }
 
@@ -745,6 +834,7 @@ impl Parser {
         self.pos = saved;
 
         match tok3 {
+          Some(TokenKind::LBrace) => return self.parse_direct_struct_decl_stmt(),
           Some(TokenKind::ColonEq) => return self.parse_decl_assign_stmt(),
           Some(TokenKind::Eq) => return self.parse_var_decl_stmt(),
           Some(TokenKind::Semicolon) => return self.parse_var_decl_stmt(),
@@ -823,9 +913,10 @@ impl Parser {
         Expr::IntLit(v, _) => array_size = Some(*v as u64),
         _ => {
           let sp = size_expr.span();
-          return Err(format!(
-            "{}:{}:{}: Array size must be an integer literal",
-            sp.file, sp.line, sp.col
+          return Err(Diagnostic::new(
+            Phase::Parse,
+            Span::new(&sp.file, sp.line, sp.col),
+            "Array size must be an integer literal",
           ));
         }
       }
@@ -874,81 +965,104 @@ impl Parser {
         .map(|t| t.span.clone())
         .unwrap_or_else(|| Span::new(&self.file, 0, 0));
 
-    let type_tok = type_tok.ok_or_else(|| "Expected a type name or variable after 'mut'/'mutable'".to_string())?;
+    let type_tok = type_tok.ok_or_else(|| {
+      Diagnostic::new(
+        Phase::Parse,
+        span.clone(),
+        "Expected a type name or variable after 'mut'/'mutable'",
+      )
+    })?;
 
-    // Next token can either be a type, or a variable name.
-    match &type_tok.kind {
-      TokenKind::Type(_) => {
+    // Next token can either be a type, a struct name, or a variable name.
+    // If it's a type or a struct name, the behavior must be the same.
 
-        // type identifier found, try `mutable? type "*" name (= expr)? ;`
-        let base_typ = self.parse_type()?;
+    let is_type_pfx = matches!(&type_tok.kind, TokenKind::Type(_))
+        || matches!(&type_tok.kind, TokenKind::Ident(n)
+        if self.struct_names.contains(n)
+      && matches!(self.peek_nth_kind(1), Some(TokenKind::Star)));
 
-        // type * identifier
+    if is_type_pfx {
+      // type identifier found, try `mutable? type "*" name (= expr)? ;`
+      let base_typ = self.parse_type()?;
+
+      // type * identifier
+      self.expect(&TokenKind::Star)?;
+      let mut names = vec![self.expect_ident()?];
+
+      // (, identifier)*
+      while self.consume(&TokenKind::Comma) {
         self.expect(&TokenKind::Star)?;
-        let mut names = vec![self.expect_ident()?];
-
-        // (, identifier)*
-        while self.consume(&TokenKind::Comma) {
-          self.expect(&TokenKind::Star)?;
-          names.push(self.expect_ident()?);
-        }
-
-        // (= expr)?
-        let init = if self.consume(&TokenKind::Eq) {
-          Some(self.parse_expr()?)
-        } else {
-          None
-        };
-
-        // ;
-        self.expect(&TokenKind::Semicolon)?;
-        let typ = Type::TyPtr(Box::new(base_typ), is_mutable);
-
-        Ok(Stmt::VarDecl(VarDecl {
-          typ: Some(typ),
-          names,
-          init,
-          span,
-          array_size: None,
-          is_fixed: false,
-        }))
+        names.push(self.expect_ident()?);
       }
-      TokenKind::Ident(_) => {
-        // try parsing 'name' identifier: `mutable? name := expr ;`
-        let names = vec![self.expect_ident()?];
-        self.expect(&TokenKind::ColonEq)?;
-        let init = Some(self.parse_expr()?);
 
-        self.expect(&TokenKind::Semicolon)?;
+      // (= expr)?
+      let init = if self.consume(&TokenKind::Eq) {
+        Some(self.parse_expr()?)
+      } else {
+        None
+      };
 
-        Ok(Stmt::VarDecl(VarDecl {
-          typ: None,
-          names,
-          init,
-          span,
-          array_size: None,
-          is_fixed: false,
-        }))
-      }
-      _ => Err(format!("{}:{}:{}: expected type or identifier, found {}",
-                       span.file, span.line, span.col, type_tok.kind.c_str()))
+      // ;
+      self.expect(&TokenKind::Semicolon)?;
+      let typ = Type::TyPtr(Box::new(base_typ), is_mutable);
+
+      Ok(Stmt::VarDecl(VarDecl {
+        typ: Some(typ),
+        names,
+        init,
+        span,
+        array_size: None,
+        is_fixed: false,
+      }))
+    } else if matches!(&type_tok.kind, TokenKind::Ident(_)) {
+      // try parsing 'name' identifier: `mutable? name := expr ;`
+      let names = vec![self.expect_ident()?];
+      self.expect(&TokenKind::ColonEq)?;
+      let init = Some(self.parse_expr()?);
+
+      self.expect(&TokenKind::Semicolon)?;
+
+      Ok(Stmt::VarDecl(VarDecl {
+        typ: None,
+        names,
+        init,
+        span,
+        array_size: None,
+        is_fixed: false,
+      }))
+    } else {
+      Err(Diagnostic::new(
+        Phase::Parse,
+        Span::new(&span.file, span.line, span.col),
+        format!(
+          "expected type or identifier, found {}",
+          type_tok.kind.c_str()
+        ),
+      ))
     }
   }
 
-  /// `fixed? type name (, name)* ":=" expr ";"`
+  /// Parse a declaration-assignment.
   ///
-  /// Declaration-assignment with (optionally) explicit type.
+  /// Grammar (see specs/3.arrays.md):
+  /// ```text
+  /// name (, name)* ":=" expr ;                                  // inferred type
+  /// type name (, name)* ":=" expr ;                             // explicit type
+  /// name (, name)* ":=" fixed? type [N]? ( "{" "…" "}" )? ;     // array annotation
+  /// name (, name)* ":=" TypeName{ field: expr, "…" } ;          // struct/enum literal
+  /// ```
+  /// A leading `fixed type name …` is handled by `parse_var_decl_stmt`
+  /// in `parse_stmt`, never here.
   fn parse_decl_assign_stmt(&mut self) -> ParseResult<Stmt> {
-    let is_fixed = self.consume(&TokenKind::Fixed);
     let mut names = Vec::new();
 
-    // If the first token is a type name, parse explicit type.
-    if is_fixed
-        || self
+    // ── Explicit-type prefix: `type name (, name)* := expr ;` ──────────
+    let has_type_prefix = self
         .peek_kind()
-        .map(|k| is_type_kind(k, &self.enum_names))
+        .map(|k| self.recognize_type(k))
         .unwrap_or(false)
-    {
+        && !matches!(self.peek_nth_kind(1), Some(TokenKind::LBrace)); // `TypeName{…}` is an expr
+    if has_type_prefix {
       let type_tok = self.peek().cloned();
       let typ = self.parse_type()?;
       let span = type_tok
@@ -967,11 +1081,11 @@ impl Parser {
         init: Some(expr),
         span,
         array_size: None,
-        is_fixed,
+        is_fixed: false,
       }));
     }
 
-    // No explicit type — infer from initializer.
+    // ── Inferred type: `name (, name)* ":=" … ;` ───────────────────────
     let first_ident = self.peek().cloned();
     names.push(self.expect_ident()?);
     let span = first_ident
@@ -981,21 +1095,27 @@ impl Parser {
       names.push(self.expect_ident()?);
     }
     self.expect(&TokenKind::ColonEq)?;
-    // After `:=`, if we see a type-like start, parse as type annotation
-    // (e.g. `a := int[35]` or `a := fixed int[5]`).
-    // Also handle alternate array syntax: `a := [35 int]` or `a := fixed [35 int]`.
+
+    // After `:=`, decide between an expression and a type annotation:
+    //   - `TypeName{ … }` is a struct/enum literal expression;
+    //   - `fixed? type …` or `[N type]` is an explicit type annotation
+    //     (e.g. `a := int[35]`, `b := fixed int[300]{…}`, `c := fixed [35 int]`).
+    let is_fixed_annot = self.consume(&TokenKind::Fixed);
+    let is_struct_lit = matches!(self.peek_kind(), Some(TokenKind::Ident(_)))
+        && matches!(self.peek_nth_kind(1), Some(TokenKind::LBrace));
     let is_bracket_array = matches!(self.peek_kind(), Some(TokenKind::LBracket))
         && matches!(self.peek_nth_kind(1), Some(TokenKind::IntLit(_)))
         && self
         .peek_nth_kind(2)
-        .map(|k| is_type_kind(k, &self.enum_names))
+        .map(|k| self.recognize_type(k))
         .unwrap_or(false);
-    let is_fixed_annot = self.consume(&TokenKind::Fixed);
+
     if is_fixed_annot
-        || self
+        || (!is_struct_lit
+        && self
         .peek_kind()
-        .map(|k| is_type_kind(k, &self.enum_names))
-        .unwrap_or(false)
+        .map(|k| self.recognize_type(k))
+        .unwrap_or(false))
         || is_bracket_array
     {
       let typ = self.parse_type()?;
@@ -1031,6 +1151,16 @@ impl Parser {
       array_size: None,
       is_fixed: false,
     }))
+  }
+
+  /// Thin wrapper for return types.
+  fn parse_return_type(&mut self) -> ParseResult<Type> {
+    let base = self.parse_type()?;
+    if self.consume(&TokenKind::Star) {
+      Ok(Type::TyPtr(Box::new(base), false))
+    } else {
+      Ok(base)
+    }
   }
 
   /// `"return" expr-list? ";"`
@@ -1592,28 +1722,71 @@ impl Parser {
     }
   }
 
+  fn parse_struct_literal(&mut self, struct_name: String, span: Span) -> ParseResult<Expr> {
+    self.expect(&TokenKind::LBrace)?;
+
+    let mut fields = Vec::new();
+
+    if !self.check(&TokenKind::RBrace) {
+      loop {
+        let field_name = self.expect_ident()?;
+        self.expect(&TokenKind::Colon)?;
+        let field_val = self.parse_expr()?;
+        fields.push((field_name, field_val));
+
+        if !self.consume(&TokenKind::Comma) {
+          break;
+        }
+      }
+    }
+
+    self.expect(&TokenKind::RBrace)?;
+
+    Ok(Expr::StructLit {
+      struct_name,
+      fields,
+      span,
+    })
+  }
+
   /// Primary expressions: literals, identifiers, function calls,
   /// array literals, parenthesized expressions, and postfix
   /// index/function-call/++/-- operators.
   fn parse_primary(&mut self) -> ParseResult<Expr> {
-    let tok = self.advance().ok_or_else(|| "Unexpected EOF".to_string())?;
+    let tok = self.advance().ok_or_else(|| {
+      Diagnostic::new(Phase::Parse, Span::new(&self.file, 0, 0), "Unexpected EOF")
+    })?;
     let span = tok.span.clone();
 
     let mut expr = match tok.kind {
       TokenKind::IntLit(s) => {
         let val = if s.starts_with("0x") || s.starts_with("0X") {
-          i128::from_str_radix(&s[2..], 16)
-              .map_err(|e| format!("Invalid hex literal '{}': {}", s, e))?
+          i128::from_str_radix(&s[2..], 16).map_err(|e| {
+            Diagnostic::new(
+              Phase::Parse,
+              span.clone(),
+              format!("Invalid hex literal '{}': {}", s, e),
+            )
+          })?
         } else {
-          s.parse::<i128>()
-              .map_err(|e| format!("Invalid int literal '{}': {}", s, e))?
+          s.parse::<i128>().map_err(|e| {
+            Diagnostic::new(
+              Phase::Parse,
+              span.clone(),
+              format!("Invalid int literal '{}': {}", s, e),
+            )
+          })?
         };
         Expr::IntLit(val, span)
       }
       TokenKind::FloatLit(s) => {
-        let val = s
-            .parse::<f64>()
-            .map_err(|e| format!("Invalid float literal '{}': {}", s, e))?;
+        let val = s.parse::<f64>().map_err(|e| {
+          Diagnostic::new(
+            Phase::Parse,
+            span.clone(),
+            format!("Invalid float literal '{}': {}", s, e),
+          )
+        })?;
         Expr::FloatLit(val, span)
       }
       TokenKind::StringLit(s) => Expr::StringLit(s, span),
@@ -1646,26 +1819,7 @@ impl Parser {
       }
       TokenKind::Ident(name) => {
         if self.check(&TokenKind::LBrace) {
-          // Struct literal: `Name{ field: expr, ... }`
-          self.advance(); // {
-          let mut fields = Vec::new();
-          if !self.check(&TokenKind::RBrace) {
-            loop {
-              let field_name = self.expect_ident()?;
-              self.expect(&TokenKind::Colon)?;
-              let field_val = self.parse_expr()?;
-              fields.push((field_name, field_val));
-              if !self.consume(&TokenKind::Comma) {
-                break;
-              }
-            }
-          }
-          self.expect(&TokenKind::RBrace)?;
-          Expr::StructLit {
-            struct_name: name,
-            fields,
-            span,
-          }
+          self.parse_struct_literal(name, span)?
         } else if self.check(&TokenKind::LParen) {
           // Function call: `ident(args...)`
           self.advance(); // (
@@ -1714,9 +1868,10 @@ impl Parser {
         Expr::ArrayLit(elems, span)
       }
       kind => {
-        return Err(format!(
-          "{}:{}:{}: Unexpected token {:?}",
-          span.file, span.line, span.col, kind
+        return Err(Diagnostic::new(
+          Phase::Parse,
+          Span::new(&span.file, span.line, span.col),
+          format!("Unexpected token {:?}", kind),
         ));
       }
     };
@@ -1769,16 +1924,38 @@ impl Parser {
 
     Ok(expr)
   }
-}
 
-/// Check whether a token kind represents a type name.
-///
-/// Types can be written with the `Type` token kind (emitted by the lexer)
-/// or as a generic `Ident` that happens to name a type (e.g. `int` could
-/// appear as either depending on context).
-fn is_type_kind(kind: &TokenKind, enum_names: &HashSet<String>) -> bool {
-  matches!(kind, TokenKind::Type(_))
-      || matches!(kind, TokenKind::Ident(s) if Type::from_str(s).is_some() || enum_names.contains(s))
+  fn parse_direct_struct_decl_stmt(&mut self) -> ParseResult<Stmt> {
+    let type_tok = self.peek().cloned().ok_or_else(||{
+      Diagnostic::new(
+        Phase::Parse,
+        Span::new(&self.file, 0,0),
+        "Expected struct type",
+      )
+    })?;
+
+    let typ = self.parse_type();
+    let Ok(Type::Struct(struct_name)) = typ else {
+      return Err(Diagnostic::new(
+        Phase::Parse,
+        type_tok.span.clone(),
+        "Direct initializer requires a struct type",
+      ));
+    };
+
+    let name = self.expect_ident()?;
+    let init = self.parse_struct_literal(struct_name.clone(), type_tok.span.clone())?;
+    self.expect(&TokenKind::Semicolon)?;
+
+    Ok(Stmt::VarDecl(VarDecl {
+      typ: Some(Type::Struct(struct_name)),
+      names: vec![name],
+      init: Some(init),
+      span: type_tok.span,
+      array_size: None,
+      is_fixed: false,
+    }))
+  }
 }
 
 impl Expr {

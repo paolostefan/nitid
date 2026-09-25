@@ -10,11 +10,23 @@ fn all_valid_samples() {
   let files = common::discover_valid_samples();
   assert!(!files.is_empty(), "No valid .nt sample files found");
   let failures = common::run_ok_batch(
-    &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("samples").to_string_lossy(),
+    &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .to_string_lossy(),
   );
   assert!(
     failures.is_empty(),
     "Valid sample compilation failures:\n  {}",
     failures.join("\n  ")
   );
+}
+
+#[test]
+fn typed_declaration_accepts_direct_struct_literal() {
+  nitid::compile(
+    "direct_struct_init_FAKE.nt",
+    "struct Point {x:int;y:int;}\nPoint p{x: 1, y: -1};\n",
+    "",
+  )
+      .expect("direct struct literal should compile");
 }
