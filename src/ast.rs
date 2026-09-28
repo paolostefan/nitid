@@ -201,6 +201,7 @@ pub struct VarDecl {
     pub span: Span,
     pub array_size: Option<u64>,
     pub is_fixed: bool,
+    pub is_mutable: bool,
 }
 
 /// Every kind of statement in Nitid.

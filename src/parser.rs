@@ -952,6 +952,7 @@ impl Parser {
       span,
       array_size,
       is_fixed,
+      is_mutable: false,
     }))
   }
 
@@ -1013,6 +1014,7 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: false,
+        is_mutable,
       }))
     } else if matches!(&type_tok.kind, TokenKind::Ident(_)) {
       // try parsing 'name' identifier: `mutable? name := expr ;`
@@ -1029,6 +1031,7 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: false,
+        is_mutable
       }))
     } else {
       Err(Diagnostic::new(
@@ -1082,6 +1085,7 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: false,
+        is_mutable: false
       }));
     }
 
@@ -1139,6 +1143,7 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: is_fixed_annot,
+        is_mutable: false,
       }));
     }
     let expr = self.parse_expr()?;
@@ -1150,6 +1155,7 @@ impl Parser {
       span,
       array_size: None,
       is_fixed: false,
+      is_mutable: false,
     }))
   }
 
@@ -1298,6 +1304,7 @@ impl Parser {
         span: type_span,
         array_size: None,
         is_fixed: false,
+        is_mutable: false,
       })))
     } else if matches!(self.peek_kind(), Some(TokenKind::Ident(_))) {
       let saved = self.pos;
@@ -1319,6 +1326,7 @@ impl Parser {
           span: span.clone(),
           array_size: None,
           is_fixed: false,
+          is_mutable: false,
         })))
       } else {
         // `expr ;` → expression init
@@ -1954,6 +1962,7 @@ impl Parser {
       span: type_tok.span,
       array_size: None,
       is_fixed: false,
+      is_mutable: false,
     }))
   }
 }

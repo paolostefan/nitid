@@ -1,5 +1,32 @@
 package main;
 
+// Struct pointers
+struct MyStruct {
+  x: i16;
+  y: i16;
+  name: string;
+};
+
+ms := MyStruct{ x:12, y:-15, name:"Ciao, eh?"};
+
+// Compact pointer declaration
+ms_ptr := &ms;
+
+// Explicit pointer type
+MyStruct *ms_ptr2 = ms_ptr;
+
+// Explicit pointer type with literal
+MyStruct *ms_ptr3 = &MyStruct{ x: -16000, y: 32000, name: "Gonzo"};
+
+// Mutable pointers are preceded by "mut" or "mutable"
+arr := int[]{10, 20, 30, 40, 50};
+mutable base := &arr[0];
+third := base + 2;
+println(*third);
+
+// Legitimate mutation of mutable pointer
+base = base + 1;
+
 x := 42;
 
 // Pointers are always const unless explicitly marked as mutable by "mut" or "mutable"
@@ -8,8 +35,5 @@ int *p = &x;
 
 println(*p);
 
-arr := int[]{10,20,30,40,50};
-mutable base := &arr[0];
-third := base + 2;
-
-println(*third);
+// Alternate syntax
+mut last := &arr[4];

@@ -671,7 +671,7 @@ impl Codegen {
             Expr::CharLit(..) => Type::U8,
             Expr::BoolLit(..) => Type::Bool,
             Expr::UnaryOp { op, expr: elem, .. } => match op {
-                UnOp::Ref => Type::TyPtr(Box::new(self.infer_init_type(elem)), false),
+                UnOp::Ref => TyPtr(Box::new(self.infer_init_type(elem)), false),
                 _ => self.infer_init_type(elem),
             },
             Expr::BinaryOp { left, .. } => {
@@ -691,6 +691,7 @@ impl Codegen {
                 Type::TyArray(Box::new(elem), None)
             }
             Expr::StructLit { struct_name, .. } => Type::Struct(struct_name.clone()),
+            Expr::Ident(ident_name, ..) => self.lookup_var_type(ident_name).unwrap_or(Type::I32),
             // Enum member identifiers are unknown to codegen; fall through to I32 (C enum = int).
             _ => Type::I32,
         }
@@ -814,7 +815,10 @@ impl Codegen {
             if v.names.len() > 1 {
                 s.push_str(&self.emit_multi_assign(&v.names, init, ""));
             } else {
-                let init_type = self.infer_init_type(init);
+                let mut init_type = self.infer_init_type(init);
+                if let TyPtr(elem, _) = init_type {
+                    init_type = TyPtr(elem, v.is_mutable);
+                }
                 let inferred = init_type.c_str();
                 self.declare_var(&v.names[0], init_type.clone());
                 s.push_str(&format!(

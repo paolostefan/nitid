@@ -1,0 +1,7 @@
+opaque struct SDL_Window;
+
+extern "C" fn SDL_CreateWindow() -> SDL_Window *;
+
+SDL_Window *a = SDL_CreateWindow();
+
+println("Hello world :-P");

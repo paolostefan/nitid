@@ -1,0 +1,15 @@
+// This sample shows the allowed initialization techniques for structs
+
+struct Point {
+  x: i32;
+  y: i32;
+};
+
+// Nitid style declaration+assignment
+p := Point{ x: -1000, y: 5000 };
+
+// C-style (explicit type) verbose declaration
+Point p0 = Point{ x:0, y:0 };
+
+// C-style (explicit type) compact declaration
+Point p1{ x:123, y:-489 };
