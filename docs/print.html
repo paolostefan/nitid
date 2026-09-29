@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-405405b1.js";
+            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -416,7 +416,7 @@ compilation, and each one states <em>how</em> it should fail via a comment heade
 // error raised in src/sema.rs:154
 // All variables must be declared before use
 
-x := y + z;
+x : = y + z;
 <span class="boring">}</span></code></pre>
 <p>Two header conventions are recognized (first match in the header wins):</p>
 <div class="table-wrapper">
@@ -425,8 +425,8 @@ x := y + z;
 <tr><th>Header</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>// expect: &lt;exact message&gt;</code></td><td>The error string must <strong>equal</strong> this exactly</td></tr>
-<tr><td><code>// expect-contains: &lt;substring&gt;</code></td><td>The error string must <strong>contain</strong> this substring</td></tr>
+<tr><td><code>// expect: &lt;exact message&gt;</code></td><td>The Diagnostic <code>message</code> must <strong>equal</strong> this exactly</td></tr>
+<tr><td><code>// expect-contains: &lt;substring&gt;</code></td><td>The Diagnostic <code>message</code> must <strong>contain</strong> this substring</td></tr>
 </tbody>
 </table>
 </div>
@@ -436,7 +436,8 @@ error) and is not checked by the tests.</p>
 <ul>
 <li>If compilation <strong>succeeds</strong> when an error expectation is set → failure (“expected a compilation error”).</li>
 <li>If there is <strong>no</strong> expectation header → any error is accepted.</li>
-<li>Otherwise it compares the produced error against the expected exact/substring value from the header.</li>
+<li>Otherwise it compares the Diagnostic <code>message</code> against the expected exact/substring value from the header. Location is
+not part of that check.</li>
 </ul>
 <h2 id="package-samples--testspackagesrs"><a class="header" href="#package-samples--testspackagesrs">Package samples — <code>tests/packages.rs</code></a></h2>
 <p>The <code>samples/package/</code> directory contains multi-file package samples, each in a <strong>version-focused subdirectory</strong> named
@@ -521,7 +522,8 @@ that contains a <code>main.nt</code> entry point is automatically discovered and
 </tbody>
 </table>
 </div>
-<p>Each file is compiled through the <strong>full four-phase pipeline</strong> exposed as the public API <code>nitid::compile(path, &amp;content, "")</code>
+<p>Each file is compiled through the <strong>full four-phase pipeline</strong> exposed as the public API
+<code>nitid::compile(path, &amp;content, "")</code>
 — lexing, parsing, semantic analysis, and code generation (<code>src/lib.rs:376</code>) — so every sample exercises the entire
 transpiler rather than a single stage.</p>
 <h2 id="conventions-for-adding-samples"><a class="header" href="#conventions-for-adding-samples">Conventions for adding samples</a></h2>
@@ -720,6 +722,26 @@ thread becomes expressible.)</p>
 </table>
 </div>
 <hr>
+<h3 id="editor-support--t0-done"><a class="header" href="#editor-support--t0-done">Editor support — T0 done</a></h3>
+<p>Syntax coloring for <code>.nt</code> already ships, and it does not need the compiler to be finished:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>What</th><th>Where</th></tr>
+</thead>
+<tbody>
+<tr><td>TextMate grammar (<code>scopeName: source.nitid</code>) + manifest</td><td><code>editors/nitid-syntax/</code></td></tr>
+<tr><td>One folder accepted by both JetBrains IDEs and VS Code</td><td><code>editors/nitid-syntax/package.json</code></td></tr>
+<tr><td>Install instructions for JetBrains IDEs / VS Code / Neovim</td><td><code>editors/README.md</code></td></tr>
+<tr><td>Drift guard: lexer vocabulary vs. grammar + manifest</td><td><code>tests/grammar.rs</code> + <code>KEYWORD_TABLE</code></td></tr>
+<tr><td>Documented canonical extension</td><td><code>specs/1.nitid-language-specs.md</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Install in IntelliJ via <code>Settings | Editor | TextMate Bundles</code> — no plugin needed. The remaining
+IDE work — <code>nitid check --format json</code>, <code>nitid-ls</code>, the thin JetBrains LSP plugin, navigation and completion — is
+tracked step by step in <a href="#ide-integration-jetbrains--lsp">IDE integration</a>.</p>
+<hr>
 <h3 id="v070--nice-to-have"><a class="header" href="#v070--nice-to-have">v0.7.0 — Nice to have</a></h3>
 <div class="table-wrapper">
 <table>
@@ -783,19 +805,23 @@ after <strong>v0.1 Module System</strong> [1].</p>
 <p><strong>Does not depend on:</strong> memory safety (v0.2), concurrency, or a full stdlib [1].</p>
 <hr>
 <h2 id="t0--file-type--syntax-coloring-no-semantic-parse"><a class="header" href="#t0--file-type--syntax-coloring-no-semantic-parse">T0 — File type &amp; syntax coloring (no semantic parse)</a></h2>
+<p><strong>Status: done.</strong> Ships in <code>editors/</code> — see <a href="https://github.com/paolostefan/nitid/blob/main/editors/README.md">
+<code>editors/README.md</code></a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Step</th><th>Deliverable</th></tr>
 </thead>
 <tbody>
-<tr><td>T0.1</td><td>Document <code>.nt</code> as the canonical extension</td></tr>
-<tr><td>T0.2</td><td>TextMate grammar (<code>nitid.tmLanguage.json</code>): keywords, comments, strings, numbers, basic types</td></tr>
-<tr><td>T0.3</td><td>JetBrains: associate <code>*.nt</code> via TextMate Bundles or a tiny plugin that ships the bundle</td></tr>
-<tr><td>T0.4</td><td>Short README: “open <code>.nt</code> in IDEA / VS Code”</td></tr>
+<tr><td>T0.1</td><td>Document <code>.nt</code> as the canonical extension — <code>specs/1.nitid-language-specs.md</code> ✅</td></tr>
+<tr><td>T0.2</td><td>TextMate grammar (<code>nitid.tmLanguage.json</code>): keywords, comments, strings, numbers, basic types ✅</td></tr>
+<tr><td>T0.3</td><td>JetBrains: associate <code>*.nt</code> via TextMate Bundles (no plugin needed) ✅</td></tr>
+<tr><td>T0.4</td><td>Short README: “open <code>.nt</code> in IDEA / VS Code” ✅</td></tr>
 </tbody>
 </table>
 </div>
+<p>The grammar’s keyword/type lists are checked against the lexer’s <code>KEYWORD_TABLE</code> / <code>TYPES</code> by
+<code>tests/grammar.rs</code>, so the language and its highlighting cannot drift apart silently.</p>
 <p><strong>Exit criteria:</strong> <code>.nt</code> files open with readable highlighting in IntelliJ-based IDEs.</p>
 <hr>
 <h2 id="t1--machine-readable-diagnostics"><a class="header" href="#t1--machine-readable-diagnostics">T1 — Machine-readable diagnostics</a></h2>
@@ -939,6 +965,10 @@ definition/completion after modules (v0.1). No duplicate IDE parser.</p>
 <li>functions have an explicit <code>fn</code> keyword (see <a href="#functions">Functions</a>);</li>
 <li>packages.</li>
 </ul>
+<h2 id="file-extension"><a class="header" href="#file-extension">File extension</a></h2>
+<p>Nitid source files use the extension <code>.nt</code>. It is the only extension recognized by the compiler, and the extension
+registered by the editor grammar (<code>editors/</code>, scope <code>source.nitid</code>).</p>
+<p>Transpiled output is C, and follows C conventions (<code>.c</code> / <code>.h</code>).</p>
 <h2 id="types"><a class="header" href="#types">Types</a></h2>
 <p>Base data types follow.</p>
 <ul>
@@ -972,19 +1002,19 @@ definition/completion after modules (v0.1). No duplicate IDE parser.</p>
 <h2 id="variables"><a class="header" href="#variables">Variables</a></h2>
 <h3 id="declaration"><a class="header" href="#declaration">Declaration</a></h3>
 <p>Variables can be declared by specifying their type before their names, just as in C:</p>
-<pre><code class="language-c">int v;   
+<pre><code class="language-nitid">int v;   
 i128 largeInt;    
 </code></pre>
 <h3 id="assignment"><a class="header" href="#assignment">Assignment</a></h3>
 <p>Variables can be assigned a literal or the value of a variable of the same type:</p>
-<pre><code class="language-c">int a;       // Declare a    
+<pre><code class="language-nitid">int a;       // Declare a    
 a = 123;     // Assign a    
 int b = 456; // Declare and assign b    
 </code></pre>
-<h3 id="declare-and-assign-at-once"><a class="header" href="#declare-and-assign-at-once">Declare and assign at once</a></h3>
+<h3 id="implicit-type-declare-and-assign"><a class="header" href="#implicit-type-declare-and-assign">Implicit-type declare and assign</a></h3>
 <p>If there’s no ambiguity, the variable type can be omitted when using <code>:=</code> to declare and assign value at once.
 Otherwise, the parser default to the best guess depending on the context.</p>
-<pre><code class="language-go">s := "Hello, world!"; // UTF-8 string type    
+<pre><code class="language-nitid">s := "Hello, world!"; // UTF-8 string type    
 c := 'A';             // 8-bit char/int type    
 i := 12;              // assuming 32-bit int type    
 precise_i := i64(12); // explicitly asking for a 64-bit int    
@@ -1092,14 +1122,12 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
 </div>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="functions"><a href="#functions" class="header">Functions</a></h1>
-<p>In Nitid, a function is declared and implemented in the same place, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.<br>The function body must be enclosed in curly braces just like in C, Rust, Go, Java…</p>
-<h3 id="function-arguments"><a class="header" href="#function-arguments">Function arguments</a></h3>
+<p>In Nitid, a function is declared and implemented in the same place, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.<br>The function body must be enclosed in curly braces (just like in C, Rust, Go, Java…).</p>
+<h3 id="function-parameters"><a class="header" href="#function-parameters">Function parameters</a></h3>
 <p>Function arguments must be specified <strong>between parentheses</strong>, as a comma-separated list, right after the function name.
 Functions that do not require arguments can <strong>omit argument parentheses</strong>.</p>
 <p>The type of each arg must be specified <strong>before</strong> the argument name.<br>If multiple, consecutive args are of the same type, the type name can be specified before the <strong>first one</strong> only (just like in Go).</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with different type arguments  
+<pre><code class="language-nitid">// Function with different type arguments  
 fn funcName(i16 Arg1, string Arg2) {  
   // ...  
 }  
@@ -1117,26 +1145,22 @@ fn argLessFunction() {
 fn anotherArgLessFunction {  
   // ...  
 }  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="function-return-values"><a class="header" href="#function-return-values">Function return values</a></h3>
 <p>Function returning one or more values must have <code>-&gt;</code> right after their name and (optional) argument list.</p>
 <p>Functions returning just one value must specify the return type right after <code>-&gt;</code>.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with one return value  
+<pre><code class="language-nitid">// Function with one return value
 fn sumFileSizes(string path1, path2, path3) -&gt; i64 {  
-    // ...  
+    // ...
 }  
 
 // Function without args returning one value  
 fn calcGlobalTemperature -&gt; float {  
-  // ...  
+  // ...
 }
-<span class="boring">}</span></code></pre>
+</code></pre>
 <p>Functions returning more than one value must specify all the return types, comma-separated and enclosed in parentheses, as follows.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with 3 return values  
+<pre><code class="language-nitid">// Function with 3 return values  
 fn getFileSizes(string path1, path2, path3) -&gt; (i64, i64, i64) {  
     // ...  
 }  
@@ -1145,17 +1169,15 @@ fn getFileSizes(string path1, path2, path3) -&gt; (i64, i64, i64) {
 fn getPiggiesName -&gt; (string, string, string) {  
   // ...  
 }  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="function-calls"><a class="header" href="#function-calls">Function calls</a></h3>
 <p>Functions -even the ones taking no args- must be called by specifying their name followed by parentheses, optionally enclosing arguments.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Call a func with no args  
+<pre><code class="language-nitid">// Call a func with no args  
 argLessFunction();  
   
 // Call a func with args  
 funcName(42, "No stairway to heaven");  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="special-functions"><a class="header" href="#special-functions">Special functions</a></h3>
 <p>The only special function name handled by Nitid is <code>main</code>.<br>If a package contains a function named  <code>main</code>, that package will be built as a CMake executable target and the executable entry point will be its <code>main</code> function.</p>
 <div style="break-before: page; page-break-before: always;"></div>

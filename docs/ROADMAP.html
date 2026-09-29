@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-405405b1.js";
+            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -361,6 +361,26 @@ thread becomes expressible.)</p>
 </tbody>
 </table>
 </div>
+<hr>
+<h3 id="editor-support--t0-done"><a class="header" href="#editor-support--t0-done">Editor support — T0 done</a></h3>
+<p>Syntax coloring for <code>.nt</code> already ships, and it does not need the compiler to be finished:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>What</th><th>Where</th></tr>
+</thead>
+<tbody>
+<tr><td>TextMate grammar (<code>scopeName: source.nitid</code>) + manifest</td><td><code>editors/nitid-syntax/</code></td></tr>
+<tr><td>One folder accepted by both JetBrains IDEs and VS Code</td><td><code>editors/nitid-syntax/package.json</code></td></tr>
+<tr><td>Install instructions for JetBrains IDEs / VS Code / Neovim</td><td><code>editors/README.md</code></td></tr>
+<tr><td>Drift guard: lexer vocabulary vs. grammar + manifest</td><td><code>tests/grammar.rs</code> + <code>KEYWORD_TABLE</code></td></tr>
+<tr><td>Documented canonical extension</td><td><code>specs/1.nitid-language-specs.md</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Install in IntelliJ via <code>Settings | Editor | TextMate Bundles</code> — no plugin needed. The remaining
+IDE work — <code>nitid check --format json</code>, <code>nitid-ls</code>, the thin JetBrains LSP plugin, navigation and completion — is
+tracked step by step in <a href="IDE-integration.html">IDE integration</a>.</p>
 <hr>
 <h3 id="v070--nice-to-have"><a class="header" href="#v070--nice-to-have">v0.7.0 — Nice to have</a></h3>
 <div class="table-wrapper">

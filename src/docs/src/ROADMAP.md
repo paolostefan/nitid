@@ -158,6 +158,24 @@ thread becomes expressible.)
 
 ---
 
+### Editor support — T0 done
+
+Syntax coloring for `.nt` already ships, and it does not need the compiler to be finished:
+
+| What                                                        | Where                                          |
+|-------------------------------------------------------------|------------------------------------------------|
+| TextMate grammar (`scopeName: source.nitid`) + manifest      | `editors/nitid-syntax/`                        |
+| One folder accepted by both JetBrains IDEs and VS Code       | `editors/nitid-syntax/package.json`            |
+| Install instructions for JetBrains IDEs / VS Code / Neovim  | `editors/README.md`                            |
+| Drift guard: lexer vocabulary vs. grammar + manifest         | `tests/grammar.rs` + `KEYWORD_TABLE`           |
+| Documented canonical extension                               | `specs/1.nitid-language-specs.md`              |
+
+Install in IntelliJ via `Settings | Editor | TextMate Bundles` — no plugin needed. The remaining
+IDE work — `nitid check --format json`, `nitid-ls`, the thin JetBrains LSP plugin, navigation and completion — is
+tracked step by step in [IDE integration](IDE-integration.md).
+
+---
+
 ### v0.7.0 — Nice to have
 
 | #      | Feature               | What’s involved                                                          |

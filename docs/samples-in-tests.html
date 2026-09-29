@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-405405b1.js";
+            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -216,7 +216,7 @@ compilation, and each one states <em>how</em> it should fail via a comment heade
 // error raised in src/sema.rs:154
 // All variables must be declared before use
 
-x := y + z;
+x : = y + z;
 <span class="boring">}</span></code></pre>
 <p>Two header conventions are recognized (first match in the header wins):</p>
 <div class="table-wrapper">
@@ -225,8 +225,8 @@ x := y + z;
 <tr><th>Header</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>// expect: &lt;exact message&gt;</code></td><td>The error string must <strong>equal</strong> this exactly</td></tr>
-<tr><td><code>// expect-contains: &lt;substring&gt;</code></td><td>The error string must <strong>contain</strong> this substring</td></tr>
+<tr><td><code>// expect: &lt;exact message&gt;</code></td><td>The Diagnostic <code>message</code> must <strong>equal</strong> this exactly</td></tr>
+<tr><td><code>// expect-contains: &lt;substring&gt;</code></td><td>The Diagnostic <code>message</code> must <strong>contain</strong> this substring</td></tr>
 </tbody>
 </table>
 </div>
@@ -236,7 +236,8 @@ error) and is not checked by the tests.</p>
 <ul>
 <li>If compilation <strong>succeeds</strong> when an error expectation is set → failure (“expected a compilation error”).</li>
 <li>If there is <strong>no</strong> expectation header → any error is accepted.</li>
-<li>Otherwise it compares the produced error against the expected exact/substring value from the header.</li>
+<li>Otherwise it compares the Diagnostic <code>message</code> against the expected exact/substring value from the header. Location is
+not part of that check.</li>
 </ul>
 <h2 id="package-samples--testspackagesrs"><a class="header" href="#package-samples--testspackagesrs">Package samples — <code>tests/packages.rs</code></a></h2>
 <p>The <code>samples/package/</code> directory contains multi-file package samples, each in a <strong>version-focused subdirectory</strong> named
@@ -321,7 +322,8 @@ that contains a <code>main.nt</code> entry point is automatically discovered and
 </tbody>
 </table>
 </div>
-<p>Each file is compiled through the <strong>full four-phase pipeline</strong> exposed as the public API <code>nitid::compile(path, &amp;content, "")</code>
+<p>Each file is compiled through the <strong>full four-phase pipeline</strong> exposed as the public API
+<code>nitid::compile(path, &amp;content, "")</code>
 — lexing, parsing, semantic analysis, and code generation (<code>src/lib.rs:376</code>) — so every sample exercises the entire
 transpiler rather than a single stage.</p>
 <h2 id="conventions-for-adding-samples"><a class="header" href="#conventions-for-adding-samples">Conventions for adding samples</a></h2>

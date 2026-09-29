@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TokenKind"],"struct":["Lexer","Token"]};
+window.SIDEBAR_ITEMS = {"constant":["KEYWORD_TABLE","TYPES"],"enum":["TokenKind"],"fn":["keywords"],"struct":["Lexer","Token"]};

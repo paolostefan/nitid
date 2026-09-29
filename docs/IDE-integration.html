@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-405405b1.js";
+            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -187,19 +187,23 @@ after <strong>v0.1 Module System</strong> [1].</p>
 <p><strong>Does not depend on:</strong> memory safety (v0.2), concurrency, or a full stdlib [1].</p>
 <hr>
 <h2 id="t0--file-type--syntax-coloring-no-semantic-parse"><a class="header" href="#t0--file-type--syntax-coloring-no-semantic-parse">T0 — File type &amp; syntax coloring (no semantic parse)</a></h2>
+<p><strong>Status: done.</strong> Ships in <code>editors/</code> — see <a href="https://github.com/paolostefan/nitid/blob/main/editors/README.md">
+<code>editors/README.md</code></a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Step</th><th>Deliverable</th></tr>
 </thead>
 <tbody>
-<tr><td>T0.1</td><td>Document <code>.nt</code> as the canonical extension</td></tr>
-<tr><td>T0.2</td><td>TextMate grammar (<code>nitid.tmLanguage.json</code>): keywords, comments, strings, numbers, basic types</td></tr>
-<tr><td>T0.3</td><td>JetBrains: associate <code>*.nt</code> via TextMate Bundles or a tiny plugin that ships the bundle</td></tr>
-<tr><td>T0.4</td><td>Short README: “open <code>.nt</code> in IDEA / VS Code”</td></tr>
+<tr><td>T0.1</td><td>Document <code>.nt</code> as the canonical extension — <code>specs/1.nitid-language-specs.md</code> ✅</td></tr>
+<tr><td>T0.2</td><td>TextMate grammar (<code>nitid.tmLanguage.json</code>): keywords, comments, strings, numbers, basic types ✅</td></tr>
+<tr><td>T0.3</td><td>JetBrains: associate <code>*.nt</code> via TextMate Bundles (no plugin needed) ✅</td></tr>
+<tr><td>T0.4</td><td>Short README: “open <code>.nt</code> in IDEA / VS Code” ✅</td></tr>
 </tbody>
 </table>
 </div>
+<p>The grammar’s keyword/type lists are checked against the lexer’s <code>KEYWORD_TABLE</code> / <code>TYPES</code> by
+<code>tests/grammar.rs</code>, so the language and its highlighting cannot drift apart silently.</p>
 <p><strong>Exit criteria:</strong> <code>.nt</code> files open with readable highlighting in IntelliJ-based IDEs.</p>
 <hr>
 <h2 id="t1--machine-readable-diagnostics"><a class="header" href="#t1--machine-readable-diagnostics">T1 — Machine-readable diagnostics</a></h2>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-405405b1.js";
+            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -177,14 +177,12 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <p>In Nitid, a function is declared and implemented in the same place, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.<br>The function body must be enclosed in curly braces just like in C, Rust, Go, Java…</p>
-<h3 id="function-arguments"><a class="header" href="#function-arguments">Function arguments</a></h3>
+                        <p>In Nitid, a function is declared and implemented in the same place, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.<br>The function body must be enclosed in curly braces (just like in C, Rust, Go, Java…).</p>
+<h3 id="function-parameters"><a class="header" href="#function-parameters">Function parameters</a></h3>
 <p>Function arguments must be specified <strong>between parentheses</strong>, as a comma-separated list, right after the function name.
 Functions that do not require arguments can <strong>omit argument parentheses</strong>.</p>
 <p>The type of each arg must be specified <strong>before</strong> the argument name.<br>If multiple, consecutive args are of the same type, the type name can be specified before the <strong>first one</strong> only (just like in Go).</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with different type arguments  
+<pre><code class="language-nitid">// Function with different type arguments  
 fn funcName(i16 Arg1, string Arg2) {  
   // ...  
 }  
@@ -202,26 +200,22 @@ fn argLessFunction() {
 fn anotherArgLessFunction {  
   // ...  
 }  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="function-return-values"><a class="header" href="#function-return-values">Function return values</a></h3>
 <p>Function returning one or more values must have <code>-&gt;</code> right after their name and (optional) argument list.</p>
 <p>Functions returning just one value must specify the return type right after <code>-&gt;</code>.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with one return value  
+<pre><code class="language-nitid">// Function with one return value
 fn sumFileSizes(string path1, path2, path3) -&gt; i64 {  
-    // ...  
+    // ...
 }  
 
 // Function without args returning one value  
 fn calcGlobalTemperature -&gt; float {  
-  // ...  
+  // ...
 }
-<span class="boring">}</span></code></pre>
+</code></pre>
 <p>Functions returning more than one value must specify all the return types, comma-separated and enclosed in parentheses, as follows.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Function with 3 return values  
+<pre><code class="language-nitid">// Function with 3 return values  
 fn getFileSizes(string path1, path2, path3) -&gt; (i64, i64, i64) {  
     // ...  
 }  
@@ -230,17 +224,15 @@ fn getFileSizes(string path1, path2, path3) -&gt; (i64, i64, i64) {
 fn getPiggiesName -&gt; (string, string, string) {  
   // ...  
 }  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="function-calls"><a class="header" href="#function-calls">Function calls</a></h3>
 <p>Functions -even the ones taking no args- must be called by specifying their name followed by parentheses, optionally enclosing arguments.</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Call a func with no args  
+<pre><code class="language-nitid">// Call a func with no args  
 argLessFunction();  
   
 // Call a func with args  
 funcName(42, "No stairway to heaven");  
-<span class="boring">}</span></code></pre>
+</code></pre>
 <h3 id="special-functions"><a class="header" href="#special-functions">Special functions</a></h3>
 <p>The only special function name handled by Nitid is <code>main</code>.<br>If a package contains a function named  <code>main</code>, that package will be built as a CMake executable target and the executable entry point will be its <code>main</code> function.</p>
 

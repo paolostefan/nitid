@@ -187,6 +187,59 @@ impl TokenKind {
     }
 }
 
+/// Every reserved word recognized by the lexer, mapped to its token kind.
+///
+/// This table is the **single source of truth** for the Nitid vocabulary:
+/// the TextMate grammar in `editors/` must stay in sync with it, which is
+/// enforced by `tests/grammar.rs`.
+///
+/// Note that `mut` and `mutable` are aliases: both produce [`TokenKind::Mutable`].
+pub const KEYWORD_TABLE: &[(&str, TokenKind)] = &[
+    ("package", TokenKind::Package),
+    ("import", TokenKind::Import),
+    ("as", TokenKind::As),
+    ("extern", TokenKind::Extern),
+    ("fn", TokenKind::Fn),
+    ("return", TokenKind::Return),
+    ("if", TokenKind::If),
+    ("else", TokenKind::Else),
+    ("while", TokenKind::While),
+    ("for", TokenKind::For),
+    ("let", TokenKind::Let),
+    ("var", TokenKind::Var),
+    ("mut", TokenKind::Mutable),
+    ("mutable", TokenKind::Mutable),
+    ("opaque", TokenKind::Opaque),
+    ("true", TokenKind::True),
+    ("false", TokenKind::False),
+    ("break", TokenKind::Break),
+    ("continue", TokenKind::Continue),
+    ("fixed", TokenKind::Fixed),
+    ("struct", TokenKind::Struct),
+    ("impl", TokenKind::Impl),
+    ("self", TokenKind::Self_),
+    ("packed", TokenKind::Packed),
+    ("align", TokenKind::Align),
+    ("enum", TokenKind::Enum),
+];
+
+/// All reserved words, in [`KEYWORD_TABLE`] order.
+///
+/// Intended for tooling (editor grammars, docs) that needs the plain
+/// keyword list without the token-kind mapping.
+pub fn keywords() -> impl Iterator<Item = &'static str> {
+    KEYWORD_TABLE.iter().map(|(kw, _)| *kw)
+}
+
+/// Every builtin type name recognized by the lexer.
+///
+/// The compiler only supports the widths listed here; wider types such as
+/// `u256` are intentionally absent and are treated as plain identifiers.
+pub const TYPES: &[&str] = &[
+    "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "f32", "f64", "int",
+    "float", "double", "string", "string16", "string32", "bool", "void",
+];
+
 /// A single token with its source location.
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -277,62 +330,16 @@ impl Lexer {
 
     /// Check if `s` is a Nitid keyword and return the corresponding token kind.
     fn is_keyword(s: &str) -> Option<TokenKind> {
-        match s {
-            "package" => Some(TokenKind::Package),
-            "import" => Some(TokenKind::Import),
-            "as" => Some(TokenKind::As),
-            "extern" => Some(TokenKind::Extern),
-            "fn" => Some(TokenKind::Fn),
-            "return" => Some(TokenKind::Return),
-            "if" => Some(TokenKind::If),
-            "else" => Some(TokenKind::Else),
-            "while" => Some(TokenKind::While),
-            "for" => Some(TokenKind::For),
-            "let" => Some(TokenKind::Let),
-            "var" => Some(TokenKind::Var),
-            "mut" => Some(TokenKind::Mutable),
-            "mutable" => Some(TokenKind::Mutable),
-            "opaque" => Some(TokenKind::Opaque),
-            "true" => Some(TokenKind::True),
-            "false" => Some(TokenKind::False),
-            "break" => Some(TokenKind::Break),
-            "continue" => Some(TokenKind::Continue),
-            "fixed" => Some(TokenKind::Fixed),
-            "struct" => Some(TokenKind::Struct),
-            "impl" => Some(TokenKind::Impl),
-            "self" => Some(TokenKind::Self_),
-            "packed" => Some(TokenKind::Packed),
-            "align" => Some(TokenKind::Align),
-            "enum" => Some(TokenKind::Enum),
-            _ => None,
-        }
+        KEYWORD_TABLE
+            .iter()
+            .find(|(kw, _)| *kw == s)
+            .map(|(_, kind)| kind.clone())
     }
 
     /// Check if `s` names a Nitid type.
-    /// **Note**: unsupported type like u256 are not in the match list.
+    /// **Note**: unsupported type like u256 are not in the list.
     fn is_type(s: &str) -> bool {
-        matches!(
-            s,
-            "i8" | "i16"
-                | "i32"
-                | "i64"
-                | "i128"
-                | "u8"
-                | "u16"
-                | "u32"
-                | "u64"
-                | "u128"
-                | "f32"
-                | "f64"
-                | "int"
-                | "float"
-                | "double"
-                | "string"
-                | "string16"
-                | "string32"
-                | "bool"
-                | "void"
-        )
+        TYPES.contains(&s)
     }
 
     // ── Literal readers ───────────────────────────────────────
@@ -662,7 +669,7 @@ impl Lexer {
 
     /// Tokenize the entire input.
     ///
-  /// Returns a `Vec<Token>` on success, or the first Diagnostic.
+    /// Returns a `Vec<Token>` on success, or the first Diagnostic.
     pub fn tokenize(&mut self) -> Result<Vec<Token>, Diagnostic> {
         let mut tokens = Vec::new();
         loop {

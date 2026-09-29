@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-405405b1.js";
+            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -183,6 +183,10 @@
 <li>functions have an explicit <code>fn</code> keyword (see <a href="#functions">Functions</a>);</li>
 <li>packages.</li>
 </ul>
+<h2 id="file-extension"><a class="header" href="#file-extension">File extension</a></h2>
+<p>Nitid source files use the extension <code>.nt</code>. It is the only extension recognized by the compiler, and the extension
+registered by the editor grammar (<code>editors/</code>, scope <code>source.nitid</code>).</p>
+<p>Transpiled output is C, and follows C conventions (<code>.c</code> / <code>.h</code>).</p>
 <h2 id="types"><a class="header" href="#types">Types</a></h2>
 <p>Base data types follow.</p>
 <ul>
@@ -216,19 +220,19 @@
 <h2 id="variables"><a class="header" href="#variables">Variables</a></h2>
 <h3 id="declaration"><a class="header" href="#declaration">Declaration</a></h3>
 <p>Variables can be declared by specifying their type before their names, just as in C:</p>
-<pre><code class="language-c">int v;   
+<pre><code class="language-nitid">int v;   
 i128 largeInt;    
 </code></pre>
 <h3 id="assignment"><a class="header" href="#assignment">Assignment</a></h3>
 <p>Variables can be assigned a literal or the value of a variable of the same type:</p>
-<pre><code class="language-c">int a;       // Declare a    
+<pre><code class="language-nitid">int a;       // Declare a    
 a = 123;     // Assign a    
 int b = 456; // Declare and assign b    
 </code></pre>
-<h3 id="declare-and-assign-at-once"><a class="header" href="#declare-and-assign-at-once">Declare and assign at once</a></h3>
+<h3 id="implicit-type-declare-and-assign"><a class="header" href="#implicit-type-declare-and-assign">Implicit-type declare and assign</a></h3>
 <p>If there’s no ambiguity, the variable type can be omitted when using <code>:=</code> to declare and assign value at once.
 Otherwise, the parser default to the best guess depending on the context.</p>
-<pre><code class="language-go">s := "Hello, world!"; // UTF-8 string type    
+<pre><code class="language-nitid">s := "Hello, world!"; // UTF-8 string type    
 c := 'A';             // 8-bit char/int type    
 i := 12;              // assuming 32-bit int type    
 precise_i := i64(12); // explicitly asking for a 64-bit int    

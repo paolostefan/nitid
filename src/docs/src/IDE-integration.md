@@ -15,12 +15,18 @@ after **v0.1 Module System** [1].
 
 ## T0 — File type & syntax coloring (no semantic parse)
 
-| Step | Deliverable                                                                                   |
-|------|-----------------------------------------------------------------------------------------------|
-| T0.1 | Document `.nt` as the canonical extension                                                     |
-| T0.2 | TextMate grammar (`nitid.tmLanguage.json`): keywords, comments, strings, numbers, basic types |
-| T0.3 | JetBrains: associate `*.nt` via TextMate Bundles or a tiny plugin that ships the bundle       |
-| T0.4 | Short README: “open `.nt` in IDEA / VS Code”                                                  |
+**Status: done.** Ships in `editors/` — see [
+`editors/README.md`](https://github.com/paolostefan/nitid/blob/main/editors/README.md).
+
+| Step | Deliverable                                                                                      |
+|------|--------------------------------------------------------------------------------------------------|
+| T0.1 | Document `.nt` as the canonical extension — `specs/1.nitid-language-specs.md` ✅                 |
+| T0.2 | TextMate grammar (`nitid.tmLanguage.json`): keywords, comments, strings, numbers, basic types ✅ |
+| T0.3 | JetBrains: associate `*.nt` via TextMate Bundles (no plugin needed) ✅                           |
+| T0.4 | Short README: “open `.nt` in IDEA / VS Code” ✅                                                  |
+
+The grammar's keyword/type lists are checked against the lexer's `KEYWORD_TABLE` / `TYPES` by
+`tests/grammar.rs`, so the language and its highlighting cannot drift apart silently.
 
 **Exit criteria:** `.nt` files open with readable highlighting in IntelliJ-based IDEs.
 
