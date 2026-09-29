@@ -1,0 +1,247 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Nitid",
+  "scopeName": "source.nitid",
+  "uuid": "0f1c9a56-6b6d-4f4b-9b7e-3a5d0e2f1c88",
+  "fileTypes": ["nt"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#characters" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#calls" },
+    { "include": "#operators" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.nitid",
+          "begin": "//",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment.nitid" }
+          },
+          "end": "$"
+        },
+        {
+          "name": "comment.block.nitid",
+          "begin": "/\\*",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment.begin.nitid" }
+          },
+          "end": "\\*/",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.comment.end.nitid" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.nitid" }
+          },
+          "end": "\"|(?=$)",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.nitid" }
+          },
+          "patterns": [{ "include": "#escapes" }]
+        }
+      ]
+    },
+    "characters": {
+      "patterns": [
+        {
+          "begin": "'",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.char.begin.nitid" }
+          },
+          "end": "'|(?=$)",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.char.end.nitid" }
+          },
+          "patterns": [{ "include": "#escapes" }]
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.nitid",
+          "match": "\\\\(?:[ntr0\\\\'\"]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+        },
+        {
+          "name": "constant.character.escape.nitid",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.hexadecimal.nitid",
+          "match": "\\b0[xX][0-9A-Fa-f]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.nitid",
+          "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.decimal.nitid",
+          "match": "\\b[0-9]+([eE][+-]?[0-9]+)?\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\b\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.function.nitid" },
+            "2": { "name": "entity.name.function.nitid" }
+          }
+        },
+        {
+          "match": "\\b(struct|enum)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.type.nitid" },
+            "2": { "name": "entity.name.type.struct.nitid" }
+          }
+        },
+        {
+          "match": "\\b(impl)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.impl.nitid" },
+            "2": { "name": "entity.name.type.struct.nitid" }
+          }
+        },
+        {
+          "match": "\\b(package|import)\\b\\s+([A-Za-z_][A-Za-z0-9_.]*)",
+          "captures": {
+            "1": { "name": "keyword.other.import.nitid" },
+            "2": { "name": "entity.name.namespace.nitid" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.nitid",
+          "match": "\\b(if|else|while|for|break|continue|return)\\b"
+        },
+        {
+          "name": "keyword.declaration.nitid",
+          "match": "\\b(fn|struct|impl|enum|let|var|mut|mutable|fixed|opaque|packed|align)\\b"
+        },
+        {
+          "name": "keyword.other.nitid",
+          "match": "\\b(package|import|as|extern)\\b"
+        },
+        {
+          "name": "constant.language.boolean.nitid",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "variable.language.self.nitid",
+          "match": "\\bself\\b"
+        },
+        {
+          "name": "constant.language.placeholder.nitid",
+          "match": "\\b_\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.nitid",
+          "match": "\\b(i8|i16|i32|i64|i128|u8|u16|u32|u64|u128|f32|f64|int|float|double|string|string16|string32|bool|void)\\b"
+        },
+        {
+          "match": "\\b([A-Z][A-Za-z0-9_]*)\\b(?=\\s*\\.)",
+          "captures": {
+            "1": { "name": "entity.name.namespace.nitid" }
+          }
+        },
+        {
+          "name": "constant.other.enum-variant.nitid",
+          "match": "\\b[A-Z][A-Z0-9_]+\\b"
+        },
+        {
+          "name": "entity.name.type.nitid",
+          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.nitid",
+          "match": "\\b(print|println|printf)\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b(?=\\s*\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.nitid" }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.nitid",
+          "match": "->|:=|::|==|!=|<=|>=|<<|>>|&&|\\|\\||\\+\\+|--"
+        },
+        {
+          "name": "keyword.operator.arithmetic.nitid",
+          "match": "[-+*/%&|^~]"
+        },
+        {
+          "name": "keyword.operator.comparison.nitid",
+          "match": "[<>!=]"
+        },
+        {
+          "name": "keyword.operator.assignment.nitid",
+          "match": "="
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.nitid",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.nitid",
+          "match": ","
+        },
+        {
+          "name": "punctuation.section.braces.nitid",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.nitid",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.parens.nitid",
+          "match": "\\(|\\)"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "nitid",
+  "displayName": "Nitid",
+  "description": "Syntax highlighting for the Nitid language (.nt). Color only, no semantic analysis.",
+  "version": "0.0.1",
+  "publisher": "nitid-lang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "nitid",
+        "aliases": [
+          "Nitid",
+          "nitid"
+        ],
+        "extensions": [
+          ".nt"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nitid",
+        "scopeName": "source.nitid",
+        "path": "./syntaxes/nitid.tmLanguage.json"
+      }
+    ]
+  }
+}

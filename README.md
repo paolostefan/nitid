@@ -38,6 +38,20 @@ make clean  # removes generated docs
 The Makefile orchestrates `cargo doc --no-deps` and `mdbook build docs/`, then merges the Rust API reference under
 `docs/api/`.
 
+## Editor support
+
+Nitid source files use the **`.nt`** extension.
+
+Syntax highlighting (coloring only — no analysis) is bundled in [`editors/`](editors/README.md):
+
+- **IntelliJ IDEA / CLION / RustRover / WebStorm:** `Settings | Editor | TextMate Bundles` → `+` → pick
+  `editors/nitid-syntax`. No plugin required.
+- **VS Code:** `Ctrl+Shift+P` → **Extensions: Install from Location…** → pick `editors/nitid-syntax`.
+
+The TextMate grammar is a view of the lexer's vocabulary, and `tests/grammar.rs` fails the build if the two drift
+apart. Real editor features (diagnostics, goto definition, completion) arrive later with the language server — see
+[IDE integration](src/docs/src/IDE-integration.md).
+
 ## Testing
 
 Test infrastructure lives under `tests/`. The compilation pipeline is exposed as a library (`src/lib.rs`) so tests can
@@ -67,6 +81,7 @@ cmake --build runtime/build
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | `tests/valid.rs`  | Compiles every`.nt` in `samples/` (e.g. `hello.nt`, `functions.nt`). Asserts the full pipeline (lex → parse → sema → codegen) succeeds. |
 | `tests/errors.rs` | Compiles every`.nt` in `samples/errors/` and verifies the error message matches the embedded expectation.                               |
+| `tests/grammar.rs` | Guards `editors/`: the TextMate grammar stays valid JSON and keeps highlighting every keyword/type in the lexer's `KEYWORD_TABLE` / `TYPES`. |
 
 ### Adding a new valid sample
 
