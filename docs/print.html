@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -392,7 +392,7 @@ the directory. Adding a new <code>.nt</code> file there automatically exercises 
 <p>Sample paths are resolved relative to the Cargo workspace root, not relative to the test files:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>Path::new(env!("CARGO_MANIFEST_DIR")).join("samples")
+</span>Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
 <span class="boring">}</span></code></pre>
 <p>Because the integration tests run from the crate root, <code>CARGO_MANIFEST_DIR</code> is the project root and this resolves
 directly to the <code>samples/</code> directory in the repo.</p>
@@ -410,14 +410,12 @@ directly to the <code>samples/</code> directory in the repo.</p>
 <h2 id="error-samples--testserrorsrs"><a class="header" href="#error-samples--testserrorsrs">Error samples — <code>tests/errors.rs</code></a></h2>
 <p>The <code>all_error_samples</code> test handles the <code>samples/errors/</code> subdirectory. These files are expected to <strong>fail</strong>
 compilation, and each one states <em>how</em> it should fail via a comment header before the source:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// expect-contains: Undefined variable 'y'
+<pre><code class="language-nitid">// expect-contains: Undefined variable 'y'
 // error raised in src/sema.rs:154
 // All variables must be declared before use
 
 x : = y + z;
-<span class="boring">}</span></code></pre>
+</code></pre>
 <p>Two header conventions are recognized (first match in the header wins):</p>
 <div class="table-wrapper">
 <table>
@@ -1122,64 +1120,69 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
 </div>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="functions"><a href="#functions" class="header">Functions</a></h1>
-<p>In Nitid, a function is declared and implemented in the same place, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.<br>The function body must be enclosed in curly braces (just like in C, Rust, Go, Java…).</p>
-<h3 id="function-parameters"><a class="header" href="#function-parameters">Function parameters</a></h3>
-<p>Function arguments must be specified <strong>between parentheses</strong>, as a comma-separated list, right after the function name.
-Functions that do not require arguments can <strong>omit argument parentheses</strong>.</p>
-<p>The type of each arg must be specified <strong>before</strong> the argument name.<br>If multiple, consecutive args are of the same type, the type name can be specified before the <strong>first one</strong> only (just like in Go).</p>
-<pre><code class="language-nitid">// Function with different type arguments  
-fn funcName(i16 Arg1, string Arg2) {  
+<p>In Nitid, a function is declared and implemented <strong>in the same place</strong>, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.
+The function body must be enclosed in curly braces (just like in C, Rust, Go, Java…).</p>
+<h3 id="parameters"><a class="header" href="#parameters">Parameters</a></h3>
+<p>Function parameters must be specified <strong>between parentheses</strong>, as a comma-separated list, right after the function name.</p>
+<p>Functions that do not require parameters can <strong>omit argument parentheses</strong>.</p>
+<p>The type of each parameter must be specified <strong>before</strong> its name (i.e. <code>int param</code>, just like in <em>C</em>).
+Multiple, consecutive parameters of the same type can be preceded by their type just once (i.e.
+<code>int param1, param2, param3</code>, somewhat like <em>Go</em>).</p>
+<pre><code class="language-nitid">// Function without parameters: both syntaxes allowed  
+fn paramLessFunction() {  
   // ...  
 }  
   
-// Function with same type arguments "grouped"  
-fn otherFuncName(int Arg1, Arg2, string StrArg1, StrArg2, StrArg3) {  
+fn anotherParamLessFunction {  
+  // ...  
+}  
+// Function with different type parameters  
+fn funcName(i16 Param1, string Param2) {  
   // ...  
 }  
   
-// Function without arguments: both syntaxes allowed  
-fn argLessFunction() {  
+// Function with parameters of the same type "grouped"  
+fn otherFuncName(int Param1, Param2, string StrParam1, StrParam2, StrParam3) {  
   // ...  
 }  
-  
-fn anotherArgLessFunction {  
-  // ...  
-}  
+
 </code></pre>
-<h3 id="function-return-values"><a class="header" href="#function-return-values">Function return values</a></h3>
-<p>Function returning one or more values must have <code>-&gt;</code> right after their name and (optional) argument list.</p>
-<p>Functions returning just one value must specify the return type right after <code>-&gt;</code>.</p>
+<h3 id="return-values"><a class="header" href="#return-values">Return values</a></h3>
+<p>Function returning one or more values must have <code>-&gt;</code> right after their name and (optional) parameter list,
+followed by the <strong>return value types</strong> enclosed in parentheses.</p>
+<p>Functions returning just one value may omit parentheses around the return type.</p>
 <pre><code class="language-nitid">// Function with one return value
 fn sumFileSizes(string path1, path2, path3) -&gt; i64 {  
     // ...
 }  
 
-// Function without args returning one value  
+// Function without parameters returning one value  
 fn calcGlobalTemperature -&gt; float {  
   // ...
 }
-</code></pre>
-<p>Functions returning more than one value must specify all the return types, comma-separated and enclosed in parentheses, as follows.</p>
-<pre><code class="language-nitid">// Function with 3 return values  
+
+// Function with 3 return values  
 fn getFileSizes(string path1, path2, path3) -&gt; (i64, i64, i64) {  
     // ...  
 }  
   
-// Function without arguments returning 3 values  
+// Function without parameters returning 3 values  
 fn getPiggiesName -&gt; (string, string, string) {  
   // ...  
 }  
 </code></pre>
-<h3 id="function-calls"><a class="header" href="#function-calls">Function calls</a></h3>
-<p>Functions -even the ones taking no args- must be called by specifying their name followed by parentheses, optionally enclosing arguments.</p>
-<pre><code class="language-nitid">// Call a func with no args  
-argLessFunction();  
-  
+<h3 id="calls"><a class="header" href="#calls">Calls</a></h3>
+<p>Functions must be called by specifying their name <strong>followed by parentheses</strong> enclosing a comma-separated list of
+arguments (if any).</p>
+<pre><code class="language-nitid">// Call a func with no args
+paramLessFunction();
+
 // Call a func with args  
 funcName(42, "No stairway to heaven");  
 </code></pre>
 <h3 id="special-functions"><a class="header" href="#special-functions">Special functions</a></h3>
-<p>The only special function name handled by Nitid is <code>main</code>.<br>If a package contains a function named  <code>main</code>, that package will be built as a CMake executable target and the executable entry point will be its <code>main</code> function.</p>
+<p>The only special function name handled by Nitid is <code>main</code>.<br>If a package contains a function named  <code>main</code>, that package will be built as a CMake executable target and the
+executable entry point will be its <code>main</code> function.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="arrays"><a href="#arrays" class="header">Arrays</a></h1>
 <p>Arrays in Nitid are almost the same as C, with a few differences.</p>
@@ -1191,20 +1194,20 @@ compile time and/or at runtime.</li>
 </ol>
 <h2 id="declaration-1"><a class="header" href="#declaration-1">Declaration</a></h2>
 <p>A <strong>fixed-size</strong> array of 35 <code>int</code>s can be declared as follows:</p>
-<pre><code class="language-c++">fixed int a[35];     // C-style
+<pre><code class="language-nitid">fixed int a[35];     // C-style
 b := fixed int[35];  // Implicit var declaration
 c := fixed [35 int]; // Alternate syntax declaration
 </code></pre>
 <p>The same arrays can be dynamically sized by omitting the <code>fixed</code> keyword. That way they will be resized on demand or when
 an append operation is called.</p>
-<pre><code class="language-c++">int a[35];
+<pre><code class="language-nitid">int a[35];
 b := int[35];
 c := [35 int];
 </code></pre>
 <h2 id="literals-1"><a class="header" href="#literals-1">Literals</a></h2>
 <p>Array literals can be specified in curly braces, as in C.
 An array literal can be declared with or without specifying its size, as follows:</p>
-<pre><code class="language-c++">// Explicit size
+<pre><code class="language-nitid">// Explicit size
 fixed int a[3] = {1};           // Remaining items will be initialized to 0
 b := fixed int[300]{1, 2};      // Elements 2..299 will be zeroed out
 c := int[100]{0, 1, 200};       // Elements 3..99 will be zeroed out
@@ -1217,12 +1220,12 @@ fb := fixed int[]{1, 2, 3, 4, 5};
 <h2 id="size-of-an-array"><a class="header" href="#size-of-an-array">Size of an array</a></h2>
 <p>The current size of a fixed-sized or dynamic-sized array can be obtained by using the <code>.size()</code>method on the array variable.</p>
 <p>ℹ️ The <code>size()</code> method always returns an <code>u64</code>.</p>
-<pre><code class="language-c++">a:= int[35];
+<pre><code class="language-nitid">a:= int[35];
 printf("a's size is: %ld\n", a.size());
 </code></pre>
 <h2 id="random-access-and-array-indexes"><a class="header" href="#random-access-and-array-indexes">Random access and array indexes</a></h2>
 <p><em><strong>Positive</strong></em> array indexes are zero-based, as in C; items can be accessed the same way as in C:</p>
-<pre><code class="language-c++">a := fixed int[35];
+<pre><code class="language-nitid">a := fixed int[35];
 first := a[0];
 third := a[2];
 
@@ -1231,7 +1234,7 @@ e := a[35];    // compile error: out of bounds access
 <p>Unlike C, Nitid allows <strong>negative indices</strong> which work just as in Python.
 <code>-1</code> index represents the last item, <code>-2</code> the item right before the last, and so on.
 If an array has <strong>N</strong> items, negative indices range -N…-1. Any index below -N will raise a compile-time or runtime error.</p>
-<pre><code class="language-c++">a := fixed int[5]{1, 2, 3, 4, 5};
+<pre><code class="language-nitid">a := fixed int[5]{1, 2, 3, 4, 5};
 
 last := a[-1];        // last == 5
 before_last := a[-2]; // before_last == 4
@@ -1239,7 +1242,7 @@ e := a[-6];           // compile error: out of bounds access
 </code></pre>
 <h2 id="resizing-arrays"><a class="header" href="#resizing-arrays">Resizing arrays</a></h2>
 <p>A dynamically-sized array can be resized using the <code>resize</code> method, as in the following code sample.</p>
-<pre><code class="language-c++">// Initialize arr with a capacity of 25 
+<pre><code class="language-nitid">// Initialize arr with a capacity of 25 
 arr := [25 i64];
 
 // Resize it to 200
@@ -1250,7 +1253,7 @@ arr.resize(200);
 <ol>
 <li>
 <p><strong>Old style C way</strong></p>
-<pre><code class="language-c++">a := fixed int[35];
+<pre><code class="language-nitid">a := fixed int[35];
 
 // init items
 
@@ -1263,7 +1266,7 @@ for (i8 i = 0; i &lt; max; i++){
 </li>
 <li>
 <p><strong>Range without index</strong></p>
-<pre><code class="language-c++">a := int[35];
+<pre><code class="language-nitid">a := int[35];
 
 // init items, extend a, etc.
 
@@ -1274,7 +1277,7 @@ for (item : a){
 </li>
 <li>
 <p><strong>Range with index</strong></p>
-<pre><code class="language-c++">a := int[35];
+<pre><code class="language-nitid">a := int[35];
 
 // init items, extend a, etc.
 
@@ -1300,14 +1303,14 @@ for (index,item : a){
 <p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon
 (<code>;</code>).</p>
 <p>Members name must follow identifier syntax, so no initial numeric digits, no punctuation, etc.</p>
-<pre><code class="language-c++">struct Person {
+<pre><code class="language-nitid">struct Person {
   name: string;
   age: u8;
 };
 </code></pre>
 <h3 id="array-members"><a class="header" href="#array-members">Array members</a></h3>
 <p>A struct can have any number of array members, declared in either of the following ways.</p>
-<pre><code class="language-c++">// C-style array member declaration
+<pre><code class="language-nitid">// C-style array member declaration
 struct CacheLine {
   data: u8[64];
 };
@@ -1318,7 +1321,7 @@ struct CacheLine {
 };
 </code></pre>
 <p>Initialization of array struct members follows the usual way.</p>
-<pre><code class="language-c++">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
+<pre><code class="language-nitid">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
 </code></pre>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
 <p>Structs in Nitid can have their own methods.</p>
@@ -1326,7 +1329,7 @@ struct CacheLine {
 <p>ℹ️ <strong>Important</strong>: the <code>self</code> keyword denotes the struct which is calling the method, just as in Python. In Nitid, <code>self</code>
 needs not be declared in the method signature.</p>
 <hr>
-<pre><code class="language-c++">struct Circle {
+<pre><code class="language-nitid">struct Circle {
   color: string;
   radius: f32;
 };
@@ -1343,18 +1346,18 @@ impl Circle {
 </code></pre>
 <h2 id="instancing"><a class="header" href="#instancing">Instancing</a></h2>
 <p>Struct instances are declared just like scalar or array variables. Data members can be inlined in the declaration.</p>
-<pre><code class="language-c++">c := Circle{ color: "red", radius: 1.5 };
+<pre><code class="language-nitid">c := Circle{ color: "red", radius: 1.5 };
 </code></pre>
 <h2 id="accessing-members"><a class="header" href="#accessing-members">Accessing members</a></h2>
 <p>Members and methods are referenced using a dot (<code>.</code>) after the variable name.</p>
-<pre><code class="language-c++">r := c.radius; // r type is f32
+<pre><code class="language-nitid">r := c.radius; // r type is f32
 c.greet();     // returns "Hello, I'm red"
 c.area();      // returns 7.0685775
 </code></pre>
 <h2 id="composition--embedding"><a class="header" href="#composition--embedding">Composition / Embedding</a></h2>
 <p>A struct can embed another struct anonymously, promoting the inner struct’s fields and methods to the outer one
 (Go-style composition over inheritance).</p>
-<pre><code class="language-c++">struct Employee {
+<pre><code class="language-nitid">struct Employee {
   name: string;
   id: u32;
 };
@@ -1378,7 +1381,7 @@ impl Manager {
 };
 </code></pre>
 <p>Fields and methods of the embedded type are accessed directly on the outer type:</p>
-<pre><code class="language-c++">m := Manager{
+<pre><code class="language-nitid">m := Manager{
   Employee: Employee{name: "Alice", id: 1001},
   department: "Engineering",
   directReports: 5,
@@ -1391,7 +1394,7 @@ m.teamSize(); // 5
 </code></pre>
 <p>If the outer struct defines a field or method with the same name, it shadows the embedded one. The embedded field can
 still be accessed explicitly via its type name:</p>
-<pre><code class="language-c++">m.Employee.name; // explicit access, bypasses shadowing
+<pre><code class="language-nitid">m.Employee.name; // explicit access, bypasses shadowing
 </code></pre>
 <p>Multiple embedding is allowed. Name conflicts between embedded types produce a compile error.</p>
 <h2 id="method-receiver"><a class="header" href="#method-receiver">Method Receiver</a></h2>
@@ -1414,7 +1417,7 @@ impl Counter {
 };
 <span class="boring">}</span></code></pre>
 <p>Pointer receiver means the method can modify the struct, and calling a method never copies the struct.</p>
-<pre><code class="language-c++">c := Counter{value: 10};
+<pre><code class="language-nitid">c := Counter{value: 10};
 c.inc();
 c.inc();
 c.get(); // 12
@@ -1424,7 +1427,7 @@ c.get(); // 12
 <p>By default, struct layout follows C ABI rules: fields are aligned to their natural alignment and padding is inserted
 between fields.</p>
 <p>The <code>packed</code> keyword forces the struct to omit padding:</p>
-<pre><code class="language-c++">packed struct NetPacket {
+<pre><code class="language-nitid">packed struct NetPacket {
   flags: u8;
   length: u16;     // adjacent to flags, no padding
   checksum: u32;   // adjacent to length, no padding
@@ -1432,12 +1435,12 @@ between fields.</p>
 </code></pre>
 <p>Useful for wire protocols, file formats, and hardware registers.</p>
 <p>The <code>align(N)</code> attribute sets minimum alignment of the struct as a whole:</p>
-<pre><code class="language-c++">align(64) struct CacheLine {
+<pre><code class="language-nitid">align(64) struct CacheLine {
   data: u8[64];
 };
 </code></pre>
 <p>Layout attributes compose:</p>
-<pre><code class="language-c++">packed align(4) struct Header {
+<pre><code class="language-nitid">packed align(4) struct Header {
   version: u8;
   kind: u8;
   size: u32;
@@ -1449,7 +1452,7 @@ between fields.</p>
 <hr>
 <p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
 literals following the field type.</p>
-<pre><code class="language-c++">struct User {
+<pre><code class="language-nitid">struct User {
   name:  string "json:'name' xml:'name'";
   email: string "json:'email,omitempty'";
   age:   u8     "json:'age' validate:'min=0,max=150'";
@@ -1464,7 +1467,7 @@ parsing, and code generation tools.</p>
 <p>Member values <strong>may be declared explicitly</strong>; if not declared, values start from <code>0</code> and are incremented by <code>1</code> at each
 step.</p>
 <p><code>enum</code>s can be <strong>untyped</strong>, in which case the <code>i32</code> type will be silently used.</p>
-<pre><code class="language-c++">// Implicit i32 type
+<pre><code class="language-nitid">// Implicit i32 type
 enum AccessMode {
     NONE = 0, // not needed: 0 is the default start value
     READONLY,
@@ -1473,7 +1476,7 @@ enum AccessMode {
 };
 </code></pre>
 <p>Or, the <code>enum</code> can be typed explicitly.</p>
-<pre><code class="language-c++">// Explicit types
+<pre><code class="language-nitid">// Explicit types
 enum ByteAccessMode : u8 {
     NONE,
     READONLY,
@@ -1491,7 +1494,7 @@ enum FileType : i16 {
 };
 </code></pre>
 <p>In both cases, the <code>enum</code> values are checked at compile time to make sure they fit in the <code>enum</code> type with no overflows.</p>
-<pre><code class="language-c++">// 8-bit unsigned int overflow at the second value 
+<pre><code class="language-nitid">// 8-bit unsigned int overflow at the second value 
 enum Wrong : u8 {
     NONE = 255,
     A_VALUE,
@@ -1500,7 +1503,7 @@ enum Wrong : u8 {
 </code></pre>
 <h2 id="caveats"><a class="header" href="#caveats">Caveats</a></h2>
 <p>Only integral types are allowed. Trying to use float types, strings or struct types will result in a compile error.</p>
-<pre><code class="language-c++">// Error: no float type allowed in enums
+<pre><code class="language-nitid">// Error: no float type allowed in enums
 enum Wrong : f64 {
     One = 1.0,
     Two,
@@ -1529,7 +1532,8 @@ enum Wrong : string {
 </tbody>
 </table>
 </div>
-<p>All three store the <em>codepoint count</em> (not byte count) as their length, and support codepoint-indexed access, comparison, and concatenation.</p>
+<p>All three store the <em>codepoint count</em> (not byte count) as their length, and support codepoint-indexed access,
+comparison, and concatenation.</p>
 <h2 id="declaration-and-initialization"><a class="header" href="#declaration-and-initialization">Declaration and initialization</a></h2>
 <pre><code class="language-nitid">string   s  = "Hello";         // UTF-8 string
 string16 s16 = "Hello";        // UTF-16 string (from UTF-8 literal)
@@ -1540,7 +1544,8 @@ t := "world";                  // t is inferred as string (UTF-8)
 t16 := "world";                // t16 is inferred as string16
 t32 := "world";                // t32 is inferred as string32
 </code></pre>
-<p>String literals are always UTF-8. When assigned to <code>string16</code> or <code>string32</code>, the runtime converts the literal at initialization time:</p>
+<p>String literals are always UTF-8. When assigned to <code>string16</code> or <code>string32</code>, the runtime converts the literal at
+initialization time:</p>
 <ul>
 <li><code>string16 x = "hi"</code> → <code>nitid_string16_from_utf8("hi")</code></li>
 <li><code>string32 x = "hi"</code> → <code>nitid_string32_from_utf8("hi")</code></li>
@@ -1575,7 +1580,9 @@ println("\u00e9");                  // é
 println("\u4e2d\u6587");           // 中文
 println("\U0001F600");             // 😀
 </code></pre>
-<p>Unicode escapes are decoded in the lexer and stored as the actual UTF-8 bytes in the string literal. The runtime encodes them appropriately for the target string type (surrogate pairs for <code>string16</code> values above U+FFFF, direct codepoint for <code>string32</code>).</p>
+<p>Unicode escapes are decoded in the lexer and stored as the actual UTF-8 bytes in the string literal. The runtime encodes
+them appropriately for the target string type (surrogate pairs for <code>string16</code> values above U+FFFF, direct codepoint for
+<code>string32</code>).</p>
 <h3 id="escape-validation"><a class="header" href="#escape-validation">Escape validation</a></h3>
 <p>The lexer validates:</p>
 <ul>
@@ -1637,17 +1644,20 @@ println(s16);                   // converts to UTF-8, then printf
 println(s32);                   // converts to UTF-8, then printf
 println(s + t);                 // concatenates, prints temp, frees it
 </code></pre>
-<p>For <code>string16</code> and <code>string32</code>, the runtime converts to a temporary UTF-8 <code>nitid_string</code>, prints its <code>.data</code>, then frees the temporary.</p>
+<p>For <code>string16</code> and <code>string32</code>, the runtime converts to a temporary UTF-8 <code>nitid_string</code>, prints its <code>.data</code>, then frees
+the temporary.</p>
 <h2 id="memory-model"><a class="header" href="#memory-model">Memory model</a></h2>
 <p>Each string type is a heap-allocated struct:</p>
-<pre><code class="language-c">// string   → char   *data, len: size_t, cap: size_t
-// string16 → uint16_t *data, len: size_t, cap: size_t
-// string32 → uint32_t *data, len: size_t, cap: size_t
+<pre><code>string   → char   *data, len: size_t, cap: size_t
+string16 → uint16_t *data, len: size_t, cap: size_t
+string32 → uint32_t *data, len: size_t, cap: size_t
 </code></pre>
 <ul>
-<li><code>len</code> is the number of stored units (bytes for UTF-8, <code>uint16_t</code> for UTF-16, <code>uint32_t</code> for UTF-32), NOT the codepoint count.</li>
+<li><code>len</code> is the number of stored units (bytes for UTF-8, <code>uint16_t</code> for UTF-16, <code>uint32_t</code> for UTF-32), NOT the codepoint
+count.</li>
 <li>The runtime provides <code>_len()</code> functions (<code>nitid_string16_len</code>, <code>nitid_string32_len</code>) that return codepoint count.</li>
-<li>Temporary strings (from concat, conversion) are freed automatically by <code>println</code>. User-declared string variables persist for the lifetime of their scope; the generated C code does not free them automatically (no RAII).</li>
+<li>Temporary strings (from concat, conversion) are freed automatically by <code>println</code>. User-declared string variables
+persist for the lifetime of their scope; the generated C code does not free them automatically (no RAII).</li>
 </ul>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
 <h3 id="full-operations"><a class="header" href="#full-operations">Full operations</a></h3>
@@ -1681,7 +1691,7 @@ scope.</p>
 <h3 id="defining-packages"><a class="header" href="#defining-packages">Defining packages</a></h3>
 <p>To indicate that a source file belongs to a specific package, the first non-comment line of that file must contain the
 <code>package</code> keyword followed by the package name and a semicolon.</p>
-<pre><code class="language-go">// The file can start with as many comments+whitespace as you like,
+<pre><code class="language-nitid">// The file can start with as many comments+whitespace as you like,
 // but no valid code must appear before the "package" keyword.
   
 package Bubble; // This file belongs to the "Bubble" package.
@@ -1692,7 +1702,7 @@ package Bubble; // This file belongs to the "Bubble" package.
 <p>In order to make a specific package visible to the Nitid code, the package must be imported using the <code>import</code>
 keyword followed by the package name, just like this: <code>import PackageName;</code></p>
 <p>Then, everything in the package can be accessed by prepending the package name and a dot (<code>.</code>).</p>
-<pre><code class="language-go">import Bubble; // Make the Bubble package visible here  
+<pre><code class="language-nitid">import Bubble; // Make the Bubble package visible here  
 
 // Call the "someFunction" function of the Bubble package  
 a := Bubble.someFunction();
@@ -1704,7 +1714,7 @@ b := Bubble.someVar;
 c := Bubble.someEnum.SOME_VALUE;
 </code></pre>
 <p>An imported package name can be aliased using the <code>as</code> keyword.</p>
-<pre><code class="language-go">import Bubble as b; // Make the Bubble package visible and alias it to "b"  
+<pre><code class="language-nitid">import Bubble as b; // Make the Bubble package visible and alias it to "b"  
 
 // Call the toplevel "someFunction" function of the Bubble package
 a := b.someFunction();   

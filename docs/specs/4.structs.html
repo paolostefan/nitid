@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "../searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -191,14 +191,14 @@
 <p>Data members must be declared by specifying their <strong>name</strong>, followed by a colon (<code>:</code>), their <strong>type</strong> and a semicolon
 (<code>;</code>).</p>
 <p>Members name must follow identifier syntax, so no initial numeric digits, no punctuation, etc.</p>
-<pre><code class="language-c++">struct Person {
+<pre><code class="language-nitid">struct Person {
   name: string;
   age: u8;
 };
 </code></pre>
 <h3 id="array-members"><a class="header" href="#array-members">Array members</a></h3>
 <p>A struct can have any number of array members, declared in either of the following ways.</p>
-<pre><code class="language-c++">// C-style array member declaration
+<pre><code class="language-nitid">// C-style array member declaration
 struct CacheLine {
   data: u8[64];
 };
@@ -209,7 +209,7 @@ struct CacheLine {
 };
 </code></pre>
 <p>Initialization of array struct members follows the usual way.</p>
-<pre><code class="language-c++">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
+<pre><code class="language-nitid">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
 </code></pre>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
 <p>Structs in Nitid can have their own methods.</p>
@@ -217,7 +217,7 @@ struct CacheLine {
 <p>ℹ️ <strong>Important</strong>: the <code>self</code> keyword denotes the struct which is calling the method, just as in Python. In Nitid, <code>self</code>
 needs not be declared in the method signature.</p>
 <hr>
-<pre><code class="language-c++">struct Circle {
+<pre><code class="language-nitid">struct Circle {
   color: string;
   radius: f32;
 };
@@ -234,18 +234,18 @@ impl Circle {
 </code></pre>
 <h2 id="instancing"><a class="header" href="#instancing">Instancing</a></h2>
 <p>Struct instances are declared just like scalar or array variables. Data members can be inlined in the declaration.</p>
-<pre><code class="language-c++">c := Circle{ color: "red", radius: 1.5 };
+<pre><code class="language-nitid">c := Circle{ color: "red", radius: 1.5 };
 </code></pre>
 <h2 id="accessing-members"><a class="header" href="#accessing-members">Accessing members</a></h2>
 <p>Members and methods are referenced using a dot (<code>.</code>) after the variable name.</p>
-<pre><code class="language-c++">r := c.radius; // r type is f32
+<pre><code class="language-nitid">r := c.radius; // r type is f32
 c.greet();     // returns "Hello, I'm red"
 c.area();      // returns 7.0685775
 </code></pre>
 <h2 id="composition--embedding"><a class="header" href="#composition--embedding">Composition / Embedding</a></h2>
 <p>A struct can embed another struct anonymously, promoting the inner struct’s fields and methods to the outer one
 (Go-style composition over inheritance).</p>
-<pre><code class="language-c++">struct Employee {
+<pre><code class="language-nitid">struct Employee {
   name: string;
   id: u32;
 };
@@ -269,7 +269,7 @@ impl Manager {
 };
 </code></pre>
 <p>Fields and methods of the embedded type are accessed directly on the outer type:</p>
-<pre><code class="language-c++">m := Manager{
+<pre><code class="language-nitid">m := Manager{
   Employee: Employee{name: "Alice", id: 1001},
   department: "Engineering",
   directReports: 5,
@@ -282,7 +282,7 @@ m.teamSize(); // 5
 </code></pre>
 <p>If the outer struct defines a field or method with the same name, it shadows the embedded one. The embedded field can
 still be accessed explicitly via its type name:</p>
-<pre><code class="language-c++">m.Employee.name; // explicit access, bypasses shadowing
+<pre><code class="language-nitid">m.Employee.name; // explicit access, bypasses shadowing
 </code></pre>
 <p>Multiple embedding is allowed. Name conflicts between embedded types produce a compile error.</p>
 <h2 id="method-receiver"><a class="header" href="#method-receiver">Method Receiver</a></h2>
@@ -305,7 +305,7 @@ impl Counter {
 };
 <span class="boring">}</span></code></pre>
 <p>Pointer receiver means the method can modify the struct, and calling a method never copies the struct.</p>
-<pre><code class="language-c++">c := Counter{value: 10};
+<pre><code class="language-nitid">c := Counter{value: 10};
 c.inc();
 c.inc();
 c.get(); // 12
@@ -315,7 +315,7 @@ c.get(); // 12
 <p>By default, struct layout follows C ABI rules: fields are aligned to their natural alignment and padding is inserted
 between fields.</p>
 <p>The <code>packed</code> keyword forces the struct to omit padding:</p>
-<pre><code class="language-c++">packed struct NetPacket {
+<pre><code class="language-nitid">packed struct NetPacket {
   flags: u8;
   length: u16;     // adjacent to flags, no padding
   checksum: u32;   // adjacent to length, no padding
@@ -323,12 +323,12 @@ between fields.</p>
 </code></pre>
 <p>Useful for wire protocols, file formats, and hardware registers.</p>
 <p>The <code>align(N)</code> attribute sets minimum alignment of the struct as a whole:</p>
-<pre><code class="language-c++">align(64) struct CacheLine {
+<pre><code class="language-nitid">align(64) struct CacheLine {
   data: u8[64];
 };
 </code></pre>
 <p>Layout attributes compose:</p>
-<pre><code class="language-c++">packed align(4) struct Header {
+<pre><code class="language-nitid">packed align(4) struct Header {
   version: u8;
   kind: u8;
   size: u32;
@@ -340,7 +340,7 @@ between fields.</p>
 <hr>
 <p>Struct fields can carry arbitrary metadata as string tags, modeled after Go struct tags. Tags are optional string
 literals following the field type.</p>
-<pre><code class="language-c++">struct User {
+<pre><code class="language-nitid">struct User {
   name:  string "json:'name' xml:'name'";
   email: string "json:'email,omitempty'";
   age:   u8     "json:'age' validate:'min=0,max=150'";

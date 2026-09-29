@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "../searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -186,20 +186,20 @@ compile time and/or at runtime.</li>
 </ol>
 <h2 id="declaration"><a class="header" href="#declaration">Declaration</a></h2>
 <p>A <strong>fixed-size</strong> array of 35 <code>int</code>s can be declared as follows:</p>
-<pre><code class="language-c++">fixed int a[35];     // C-style
+<pre><code class="language-nitid">fixed int a[35];     // C-style
 b := fixed int[35];  // Implicit var declaration
 c := fixed [35 int]; // Alternate syntax declaration
 </code></pre>
 <p>The same arrays can be dynamically sized by omitting the <code>fixed</code> keyword. That way they will be resized on demand or when
 an append operation is called.</p>
-<pre><code class="language-c++">int a[35];
+<pre><code class="language-nitid">int a[35];
 b := int[35];
 c := [35 int];
 </code></pre>
 <h2 id="literals"><a class="header" href="#literals">Literals</a></h2>
 <p>Array literals can be specified in curly braces, as in C.
 An array literal can be declared with or without specifying its size, as follows:</p>
-<pre><code class="language-c++">// Explicit size
+<pre><code class="language-nitid">// Explicit size
 fixed int a[3] = {1};           // Remaining items will be initialized to 0
 b := fixed int[300]{1, 2};      // Elements 2..299 will be zeroed out
 c := int[100]{0, 1, 200};       // Elements 3..99 will be zeroed out
@@ -212,12 +212,12 @@ fb := fixed int[]{1, 2, 3, 4, 5};
 <h2 id="size-of-an-array"><a class="header" href="#size-of-an-array">Size of an array</a></h2>
 <p>The current size of a fixed-sized or dynamic-sized array can be obtained by using the <code>.size()</code>method on the array variable.</p>
 <p>ℹ️ The <code>size()</code> method always returns an <code>u64</code>.</p>
-<pre><code class="language-c++">a:= int[35];
+<pre><code class="language-nitid">a:= int[35];
 printf("a's size is: %ld\n", a.size());
 </code></pre>
 <h2 id="random-access-and-array-indexes"><a class="header" href="#random-access-and-array-indexes">Random access and array indexes</a></h2>
 <p><em><strong>Positive</strong></em> array indexes are zero-based, as in C; items can be accessed the same way as in C:</p>
-<pre><code class="language-c++">a := fixed int[35];
+<pre><code class="language-nitid">a := fixed int[35];
 first := a[0];
 third := a[2];
 
@@ -226,7 +226,7 @@ e := a[35];    // compile error: out of bounds access
 <p>Unlike C, Nitid allows <strong>negative indices</strong> which work just as in Python.
 <code>-1</code> index represents the last item, <code>-2</code> the item right before the last, and so on.
 If an array has <strong>N</strong> items, negative indices range -N…-1. Any index below -N will raise a compile-time or runtime error.</p>
-<pre><code class="language-c++">a := fixed int[5]{1, 2, 3, 4, 5};
+<pre><code class="language-nitid">a := fixed int[5]{1, 2, 3, 4, 5};
 
 last := a[-1];        // last == 5
 before_last := a[-2]; // before_last == 4
@@ -234,7 +234,7 @@ e := a[-6];           // compile error: out of bounds access
 </code></pre>
 <h2 id="resizing-arrays"><a class="header" href="#resizing-arrays">Resizing arrays</a></h2>
 <p>A dynamically-sized array can be resized using the <code>resize</code> method, as in the following code sample.</p>
-<pre><code class="language-c++">// Initialize arr with a capacity of 25 
+<pre><code class="language-nitid">// Initialize arr with a capacity of 25 
 arr := [25 i64];
 
 // Resize it to 200
@@ -245,7 +245,7 @@ arr.resize(200);
 <ol>
 <li>
 <p><strong>Old style C way</strong></p>
-<pre><code class="language-c++">a := fixed int[35];
+<pre><code class="language-nitid">a := fixed int[35];
 
 // init items
 
@@ -258,7 +258,7 @@ for (i8 i = 0; i &lt; max; i++){
 </li>
 <li>
 <p><strong>Range without index</strong></p>
-<pre><code class="language-c++">a := int[35];
+<pre><code class="language-nitid">a := int[35];
 
 // init items, extend a, etc.
 
@@ -269,7 +269,7 @@ for (item : a){
 </li>
 <li>
 <p><strong>Range with index</strong></p>
-<pre><code class="language-c++">a := int[35];
+<pre><code class="language-nitid">a := int[35];
 
 // init items, extend a, etc.
 

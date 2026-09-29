@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "../searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -191,7 +191,8 @@
 </tbody>
 </table>
 </div>
-<p>All three store the <em>codepoint count</em> (not byte count) as their length, and support codepoint-indexed access, comparison, and concatenation.</p>
+<p>All three store the <em>codepoint count</em> (not byte count) as their length, and support codepoint-indexed access,
+comparison, and concatenation.</p>
 <h2 id="declaration-and-initialization"><a class="header" href="#declaration-and-initialization">Declaration and initialization</a></h2>
 <pre><code class="language-nitid">string   s  = "Hello";         // UTF-8 string
 string16 s16 = "Hello";        // UTF-16 string (from UTF-8 literal)
@@ -202,7 +203,8 @@ t := "world";                  // t is inferred as string (UTF-8)
 t16 := "world";                // t16 is inferred as string16
 t32 := "world";                // t32 is inferred as string32
 </code></pre>
-<p>String literals are always UTF-8. When assigned to <code>string16</code> or <code>string32</code>, the runtime converts the literal at initialization time:</p>
+<p>String literals are always UTF-8. When assigned to <code>string16</code> or <code>string32</code>, the runtime converts the literal at
+initialization time:</p>
 <ul>
 <li><code>string16 x = "hi"</code> → <code>nitid_string16_from_utf8("hi")</code></li>
 <li><code>string32 x = "hi"</code> → <code>nitid_string32_from_utf8("hi")</code></li>
@@ -237,7 +239,9 @@ println("\u00e9");                  // é
 println("\u4e2d\u6587");           // 中文
 println("\U0001F600");             // 😀
 </code></pre>
-<p>Unicode escapes are decoded in the lexer and stored as the actual UTF-8 bytes in the string literal. The runtime encodes them appropriately for the target string type (surrogate pairs for <code>string16</code> values above U+FFFF, direct codepoint for <code>string32</code>).</p>
+<p>Unicode escapes are decoded in the lexer and stored as the actual UTF-8 bytes in the string literal. The runtime encodes
+them appropriately for the target string type (surrogate pairs for <code>string16</code> values above U+FFFF, direct codepoint for
+<code>string32</code>).</p>
 <h3 id="escape-validation"><a class="header" href="#escape-validation">Escape validation</a></h3>
 <p>The lexer validates:</p>
 <ul>
@@ -299,17 +303,20 @@ println(s16);                   // converts to UTF-8, then printf
 println(s32);                   // converts to UTF-8, then printf
 println(s + t);                 // concatenates, prints temp, frees it
 </code></pre>
-<p>For <code>string16</code> and <code>string32</code>, the runtime converts to a temporary UTF-8 <code>nitid_string</code>, prints its <code>.data</code>, then frees the temporary.</p>
+<p>For <code>string16</code> and <code>string32</code>, the runtime converts to a temporary UTF-8 <code>nitid_string</code>, prints its <code>.data</code>, then frees
+the temporary.</p>
 <h2 id="memory-model"><a class="header" href="#memory-model">Memory model</a></h2>
 <p>Each string type is a heap-allocated struct:</p>
-<pre><code class="language-c">// string   → char   *data, len: size_t, cap: size_t
-// string16 → uint16_t *data, len: size_t, cap: size_t
-// string32 → uint32_t *data, len: size_t, cap: size_t
+<pre><code>string   → char   *data, len: size_t, cap: size_t
+string16 → uint16_t *data, len: size_t, cap: size_t
+string32 → uint32_t *data, len: size_t, cap: size_t
 </code></pre>
 <ul>
-<li><code>len</code> is the number of stored units (bytes for UTF-8, <code>uint16_t</code> for UTF-16, <code>uint32_t</code> for UTF-32), NOT the codepoint count.</li>
+<li><code>len</code> is the number of stored units (bytes for UTF-8, <code>uint16_t</code> for UTF-16, <code>uint32_t</code> for UTF-32), NOT the codepoint
+count.</li>
 <li>The runtime provides <code>_len()</code> functions (<code>nitid_string16_len</code>, <code>nitid_string32_len</code>) that return codepoint count.</li>
-<li>Temporary strings (from concat, conversion) are freed automatically by <code>println</code>. User-declared string variables persist for the lifetime of their scope; the generated C code does not free them automatically (no RAII).</li>
+<li>Temporary strings (from concat, conversion) are freed automatically by <code>println</code>. User-declared string variables
+persist for the lifetime of their scope; the generated C code does not free them automatically (no RAII).</li>
 </ul>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
 <h3 id="full-operations"><a class="header" href="#full-operations">Full operations</a></h3>

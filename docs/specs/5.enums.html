@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "../searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2178f07d.js"></script>
@@ -183,7 +183,7 @@
 <p>Member values <strong>may be declared explicitly</strong>; if not declared, values start from <code>0</code> and are incremented by <code>1</code> at each
 step.</p>
 <p><code>enum</code>s can be <strong>untyped</strong>, in which case the <code>i32</code> type will be silently used.</p>
-<pre><code class="language-c++">// Implicit i32 type
+<pre><code class="language-nitid">// Implicit i32 type
 enum AccessMode {
     NONE = 0, // not needed: 0 is the default start value
     READONLY,
@@ -192,7 +192,7 @@ enum AccessMode {
 };
 </code></pre>
 <p>Or, the <code>enum</code> can be typed explicitly.</p>
-<pre><code class="language-c++">// Explicit types
+<pre><code class="language-nitid">// Explicit types
 enum ByteAccessMode : u8 {
     NONE,
     READONLY,
@@ -210,7 +210,7 @@ enum FileType : i16 {
 };
 </code></pre>
 <p>In both cases, the <code>enum</code> values are checked at compile time to make sure they fit in the <code>enum</code> type with no overflows.</p>
-<pre><code class="language-c++">// 8-bit unsigned int overflow at the second value 
+<pre><code class="language-nitid">// 8-bit unsigned int overflow at the second value 
 enum Wrong : u8 {
     NONE = 255,
     A_VALUE,
@@ -219,7 +219,7 @@ enum Wrong : u8 {
 </code></pre>
 <h2 id="caveats"><a class="header" href="#caveats">Caveats</a></h2>
 <p>Only integral types are allowed. Trying to use float types, strings or struct types will result in a compile error.</p>
-<pre><code class="language-c++">// Error: no float type allowed in enums
+<pre><code class="language-nitid">// Error: no float type allowed in enums
 enum Wrong : f64 {
     One = 1.0,
     Two,

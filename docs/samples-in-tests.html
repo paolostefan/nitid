@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aeeba1d0.js";
+            window.path_to_searchindex_js = "searchindex-db463918.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2178f07d.js"></script>
@@ -192,7 +192,7 @@ the directory. Adding a new <code>.nt</code> file there automatically exercises 
 <p>Sample paths are resolved relative to the Cargo workspace root, not relative to the test files:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>Path::new(env!("CARGO_MANIFEST_DIR")).join("samples")
+</span>Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
 <span class="boring">}</span></code></pre>
 <p>Because the integration tests run from the crate root, <code>CARGO_MANIFEST_DIR</code> is the project root and this resolves
 directly to the <code>samples/</code> directory in the repo.</p>
@@ -210,14 +210,12 @@ directly to the <code>samples/</code> directory in the repo.</p>
 <h2 id="error-samples--testserrorsrs"><a class="header" href="#error-samples--testserrorsrs">Error samples — <code>tests/errors.rs</code></a></h2>
 <p>The <code>all_error_samples</code> test handles the <code>samples/errors/</code> subdirectory. These files are expected to <strong>fail</strong>
 compilation, and each one states <em>how</em> it should fail via a comment header before the source:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// expect-contains: Undefined variable 'y'
+<pre><code class="language-nitid">// expect-contains: Undefined variable 'y'
 // error raised in src/sema.rs:154
 // All variables must be declared before use
 
 x : = y + z;
-<span class="boring">}</span></code></pre>
+</code></pre>
 <p>Two header conventions are recognized (first match in the header wins):</p>
 <div class="table-wrapper">
 <table>

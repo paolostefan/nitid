@@ -19,7 +19,7 @@ tests/
 Sample paths are resolved relative to the Cargo workspace root, not relative to the test files:
 
 ```rust
-Path::new(env!("CARGO_MANIFEST_DIR")).join("samples")
+Path::new(env!("CARGO_MANIFEST_DIR")).join("samples");
 ```
 
 Because the integration tests run from the crate root, `CARGO_MANIFEST_DIR` is the project root and this resolves
@@ -43,7 +43,7 @@ Any top-level `.nt` sample is therefore expected to be a working, compilable pro
 The `all_error_samples` test handles the `samples/errors/` subdirectory. These files are expected to **fail**
 compilation, and each one states *how* it should fail via a comment header before the source:
 
-```rust
+```nitid
 // expect-contains: Undefined variable 'y'
 // error raised in src/sema.rs:154
 // All variables must be declared before use
