@@ -38,10 +38,11 @@ fn assert_at(err: &nitid::diagnostic::Diagnostic, file: &str, line: usize, col: 
     }
     if line > 0 {
         let rendered = err.to_string();
-        let prefix = match col {
+        let location = match col {
             Some(c) => format!("{file}:{line}:{c}:"),
             None => format!("{file}:{line}:"),
         };
+        let prefix = format!("In {} phase, {location}", err.phase);
         assert!(
             rendered.starts_with(&prefix),
             "Display should start with {prefix}, got {rendered}"
@@ -52,10 +53,20 @@ fn assert_at(err: &nitid::diagnostic::Diagnostic, file: &str, line: usize, col: 
 #[test]
 fn error_messages_contain_source_span() {
     let err = get_err("test.nt", "let x = 5;");
+    assert_eq!(
+        err.phase,
+        nitid::diagnostic::Phase::Parse,
+        "phase, got {err}"
+    );
     assert_at(&err, "test.nt", 1, Some(1));
     assert!(err.message.contains("Unexpected token"), "{err}");
 
     let err = get_err("test.nt", "x := 5 + \"hello\";");
+    assert_eq!(
+        err.phase,
+        nitid::diagnostic::Phase::Sema,
+        "phase, got {err}"
+    );
     assert_at(&err, "test.nt", 1, None);
     assert!(err.message.contains("Type mismatch in arithmetic"), "{err}");
 

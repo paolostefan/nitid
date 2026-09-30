@@ -1,5 +1,5 @@
 use std::fmt;
-
+use std::fmt::write;
 use crate::ast::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8,6 +8,17 @@ pub enum Phase {
   Parse,
   Sema,
   Import,
+}
+
+impl fmt::Display for Phase {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Phase::Lex => write!(f, "lexer"),
+      Phase::Parse => write!(f, "parse"),
+      Phase::Import => write!(f, "import"),
+      Phase::Sema => write!(f, "semantic"),
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +40,8 @@ impl Diagnostic {
 
 impl fmt::Display for Diagnostic {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "In {} phase, ", self.phase);
+
     if self.span.line > 0 {
       write!(
         f,
