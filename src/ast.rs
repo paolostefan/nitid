@@ -68,6 +68,7 @@ pub struct Import {
 #[derive(Debug, Clone)]
 pub enum Decl {
     FnDecl(FnDecl),
+    FnPtrDecl(FnPtrDecl),
     VarDecl(VarDecl),
     StructDecl(StructDecl),
     ImplBlock(ImplBlock),
@@ -79,6 +80,7 @@ impl Decl {
     pub fn span(&self) -> &Span {
         match self {
             Decl::FnDecl(f) => &f.span,
+            Decl::FnPtrDecl(f) => &f.span,
             Decl::VarDecl(v) => &v.span,
             Decl::StructDecl(s) => &s.span,
             Decl::ImplBlock(i) => &i.span,
@@ -173,6 +175,21 @@ pub struct FnDecl {
     pub span: Span,
     pub is_external: bool,
     pub extern_abi: Option<String>,
+}
+
+/// A function pointer declaration.
+///
+/// Fields
+/// * `name` — function identifier.
+/// * `params` — parameter types.
+/// * `returns` — return types (empty = void, multiple values are returned via output pointer arguments in C).
+/// * `body` — statement list.
+#[derive(Debug, Clone)]
+pub struct FnPtrDecl {
+  pub name: String,
+  pub params: Vec<Type>,
+  pub returns: Vec<Type>,
+  pub span: Span,
 }
 
 /// A single function parameter, carrying one type and one or more names.
@@ -301,6 +318,7 @@ pub enum Expr {
         right: Box<Expr>,
         span: Span,
     },
+
     /// Array literal: `{ expr, expr, ... }`.
     ArrayLit(Vec<Expr>, Span),
 
@@ -343,6 +361,7 @@ pub enum Expr {
         fields: Vec<(String, Expr)>,
         span: Span,
     },
+  NullPtr(Span),
 }
 
 /// Unary operators, ordered by precedence (lowest first in the parser).

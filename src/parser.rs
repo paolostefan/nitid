@@ -45,8 +45,8 @@
 use crate::diagnostic::{Diagnostic, Phase};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::types::Type;
-use std::collections::HashSet;
-use crate::ast::{BinOp, Decl, EnumDecl, EnumVariant, Expr, FnDecl, ImplBlock, Import, Param, Program, Span, Stmt, StructDecl, StructField, UnOp, VarDecl};
+use std::collections::{HashMap, HashSet};
+use crate::ast::{BinOp, Decl, EnumDecl, EnumVariant, Expr, FnDecl, FnPtrDecl, ImplBlock, Import, Param, Program, Span, Stmt, StructDecl, StructField, UnOp, VarDecl};
 
 
 /// Convenience alias — every parse method returns either a value or a Diagnostic.
@@ -62,6 +62,7 @@ pub struct Parser {
   file: String,
   enum_names: HashSet<String>,
   struct_names: HashSet<String>,
+  fn_ptr_names: HashMap<String, (Vec<Type>, Vec<Type>)>,
 }
 
 impl Parser {
@@ -75,6 +76,7 @@ impl Parser {
       file: file.to_string(),
       enum_names: HashSet::new(),
       struct_names: HashSet::new(),
+      fn_ptr_names: HashMap::new(),
     }
   }
 
@@ -211,6 +213,13 @@ impl Parser {
           let enum_decl = self.parse_enum_decl()?;
           self.enum_names.insert(enum_decl.name.clone());
           decls.push(Decl::EnumDecl(enum_decl));
+        }
+        Some(TokenKind::Type_) => {
+          let fn_ptr_decl = self.parse_fn_ptr_decl()?;
+          self.fn_ptr_names.insert(
+            fn_ptr_decl.name.clone(),
+            (fn_ptr_decl.params.clone(), fn_ptr_decl.returns.clone()));
+          decls.push(Decl::FnPtrDecl(fn_ptr_decl));
         }
         _ => {
           let stmt = self.parse_stmt()?;
@@ -615,12 +624,93 @@ impl Parser {
       }
     }
     self.expect(&TokenKind::RBrace)?;
-    // Optional trailing semicolon (as shown in the spec).
+
+    // Trailing semicolon
     self.consume(&TokenKind::Semicolon);
     Ok(EnumDecl {
       name,
       typ: underlying,
       variants,
+      span,
+    })
+  }
+
+  /// `type ident "=" "fn" "(" type? ("," type)* ")" ("->" ...)`
+  fn parse_fn_ptr_decl(&mut self) -> ParseResult<FnPtrDecl> {
+    // Function pointer declaration, eg. `type Cb = fn (int) -> int;`
+
+    self.expect(&TokenKind::Type_)?;
+
+    // TODO line 0 col 0 is a bug
+    let ident_tok = self.advance().ok_or_else(|| {
+      Diagnostic::new(Phase::Parse, Span::new(&self.file, 0,0), "Expected identifier")
+    })?;
+
+    let span = ident_tok.span.clone();
+    let name;
+    match ident_tok.kind {
+      TokenKind::Ident(fn_name) => {
+        name = fn_name;
+      }
+      kind => return Err(Diagnostic::new(
+        Phase::Parse,
+        span.clone(),
+        format!("Unexpected {:?} in function pointer declaration", kind),
+      ))
+    }
+
+    self.expect(&TokenKind::Eq)?;
+    self.expect(&TokenKind::Fn)?;
+
+    let mut params = Vec::new();
+
+    // Empty param list is allowed
+    if self.check(&TokenKind::LParen) {
+      // Parse param list
+      self.advance();
+      if !self.check(&TokenKind::RParen) {
+        loop {
+          params.push(self.parse_return_type()?);
+          if !self.consume(&TokenKind::Comma) {
+            break;
+          }
+        }
+      }
+      self.expect(&TokenKind::RParen)?;
+    }
+
+    let mut returns = Vec::new();
+
+    // Again, empty return list is allowed (no arrow in that case)
+    if self.check(&TokenKind::Arrow) {
+      self.advance();
+
+      // Return types may be wrapped in parentheses (they *must* be if multiple)
+      if self.check(&TokenKind::LParen) {
+        // Parse return list
+        self.advance();
+        if !self.check(&TokenKind::RParen) {
+          loop {
+            returns.push(self.parse_return_type()?);
+            if !self.consume(&TokenKind::Comma) {
+              break;
+            }
+          }
+        }
+        self.expect(&TokenKind::RParen)?;
+      } else {
+        // No parentheses: just one return type is expected
+        returns.push(self.parse_return_type()?);
+      }
+    }
+
+    // End of declaration -> semicolon
+    self.consume(&TokenKind::Semicolon);
+
+    Ok(FnPtrDecl {
+      name,
+      params,
+      returns,
       span,
     })
   }
@@ -681,6 +771,8 @@ impl Parser {
           Type::Enum(s)
         } else if self.struct_names.contains(&s) {
           Type::Struct(s)
+        } else if let Some(tuple) = self.fn_ptr_names.get(&s) {
+          Type::TyFnPtr(s, tuple.0.clone(), tuple.1.clone())
         } else {
           return Err(Diagnostic::new(
             Phase::Parse,
@@ -1031,12 +1123,12 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: false,
-        is_mutable
+        is_mutable,
       }))
     } else {
       Err(Diagnostic::new(
         Phase::Parse,
-        Span::new(&span.file, span.line, span.col),
+        span.clone(),
         format!(
           "expected type or identifier, found {}",
           type_tok.kind.c_str()
@@ -1085,7 +1177,7 @@ impl Parser {
         span,
         array_size: None,
         is_fixed: false,
-        is_mutable: false
+        is_mutable: false,
       }));
     }
 
@@ -1797,6 +1889,7 @@ impl Parser {
         })?;
         Expr::FloatLit(val, span)
       }
+      TokenKind::Nil => Expr::NullPtr(span),
       TokenKind::StringLit(s) => Expr::StringLit(s, span),
       TokenKind::CharLit(s) => {
         let c = s.chars().next().unwrap_or('\0') as u8;
@@ -1878,7 +1971,7 @@ impl Parser {
       kind => {
         return Err(Diagnostic::new(
           Phase::Parse,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!("Unexpected token {:?}", kind),
         ));
       }
@@ -1934,10 +2027,10 @@ impl Parser {
   }
 
   fn parse_direct_struct_decl_stmt(&mut self) -> ParseResult<Stmt> {
-    let type_tok = self.peek().cloned().ok_or_else(||{
+    let type_tok = self.peek().cloned().ok_or_else(|| {
       Diagnostic::new(
         Phase::Parse,
-        Span::new(&self.file, 0,0),
+        Span::new(&self.file, 0, 0),
         "Expected struct type",
       )
     })?;
@@ -1976,6 +2069,7 @@ impl Expr {
       | Expr::StringLit(_, s)
       | Expr::CharLit(_, s)
       | Expr::BoolLit(_, s)
+      | Expr::NullPtr(s)
       | Expr::Ident(_, s)
       | Expr::Call { span: s, .. }
       | Expr::UnaryOp { span: s, .. }

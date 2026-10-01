@@ -56,8 +56,10 @@ pub enum Type {
     /// Fixed-size array (`fixed` keyword): emitted as a plain C array
     /// `type[n]`. It cannot be resized.
     TyFixedArray(Box<Type>, u64),
-    // Pointer
+    /// Pointer
     TyPtr(Box<Type>, bool), // (*T, is_mutable)
+    /// Function pointer
+    TyFnPtr(String, Vec<Type>, Vec<Type>), // fnptr name, params, returns
     /// Named struct type (user-defined).
     Struct(String),
     /// Named enum type (user-defined).
@@ -132,6 +134,7 @@ impl Type {
                     elem.c_str() + " *const"
                 }
             }
+            Self::TyFnPtr(name, ..) => Cow::Owned(name.clone()),
             Self::Struct(name) => Cow::Owned(name.clone()),
             Self::Enum(name) => Cow::Owned(name.clone()),
         }

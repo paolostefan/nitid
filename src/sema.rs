@@ -1,7 +1,7 @@
 use crate::PackageContext;
 use crate::ast::*;
 use crate::diagnostic::{Diagnostic, Phase};
-use crate::types::Type::TyPtr;
+use crate::types::Type::{TyFnPtr, TyPtr};
 use crate::types::{Type, is_string_type};
 /// Semantic analyser for Nitid.
 ///
@@ -64,6 +64,10 @@ pub struct Sema {
   enum_defs: HashMap<String, EnumInfo>,
   /// Enum member lookup: member_name -> (underlying_type, value).
   enum_members: HashMap<String, (Type, i128)>,
+
+  /// Collected function pointer definitions.
+  fn_ptr_defs: HashMap<String, (Vec<Type>, Vec<Type>)>,
+
   /// Imported functions signatures (from PackageContext)
   fn_sigs_map: HashMap<String, (Vec<Type>, Vec<Type>)>,
   /// Imported struct definitions
@@ -104,7 +108,7 @@ impl Scope {
     if self.vars.contains_key(name) {
       return Err(Diagnostic::new(
         Phase::Sema,
-        Span::new(&span.file, span.line, span.col),
+        span.clone(),
         format!("Variable '{}' already declared in this scope", name),
       ));
     }
@@ -136,6 +140,7 @@ impl Sema {
       current_struct_type: None,
       enum_defs: HashMap::new(),
       enum_members: HashMap::new(),
+      fn_ptr_defs: HashMap::new(),
       fn_sigs_map: HashMap::new(),
       imported_struct_defs: HashMap::new(),
       package_functions: HashMap::new(),
@@ -230,6 +235,7 @@ impl Sema {
             },
           );
         }
+
         Decl::EnumDecl(e) => {
           let name = e.name.clone();
           if self.enum_defs.contains_key(&name) {
@@ -297,6 +303,14 @@ impl Sema {
             },
           );
         }
+
+        Decl::FnPtrDecl(f) => {
+          self.fn_ptr_defs.insert(
+            f.name.clone(),
+            (f.params.clone(), f.returns.clone()),
+          );
+        }
+
         _ => {}
       }
     }
@@ -365,6 +379,7 @@ impl Sema {
           }
           self.analyze_block(&mut f.body, &mut scope, &fn_sigs)?;
         }
+
         Decl::ImplBlock(imp) => {
           let struct_name = imp.struct_name.clone();
           let struct_type = Type::Struct(struct_name.clone());
@@ -408,7 +423,7 @@ impl Sema {
             }
           }
         }
-        Decl::StructDecl(_) | Decl::EnumDecl(_) => {} // already handled
+        Decl::StructDecl(_) | Decl::EnumDecl(_) | Decl::FnPtrDecl(_) => {} // already handled
       }
     }
     Ok(())
@@ -474,7 +489,7 @@ impl Sema {
         if values.len() != self.current_fn_returns.len() {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!(
               "Return {} values but function expects {}",
               values.len(),
@@ -547,7 +562,7 @@ impl Sema {
         if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Cannot iterate over non-array type",
           ));
         }
@@ -573,7 +588,7 @@ impl Sema {
         if !matches!(iter_type, Type::TyArray(..) | Type::TyFixedArray(..)) {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Cannot iterate over non-array type",
           ));
         }
@@ -593,7 +608,7 @@ impl Sema {
         if self.loop_depth == 0 {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "'break' outside of loop",
           ));
         }
@@ -603,7 +618,7 @@ impl Sema {
         if self.loop_depth == 0 {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "'continue' outside of loop",
           ));
         }
@@ -655,13 +670,14 @@ impl Sema {
       Expr::StringLit(..) => Ok(Type::String),
       Expr::CharLit(..) => Ok(Type::U8),
       Expr::BoolLit(..) => Ok(Type::Bool),
+      Expr::NullPtr(..) => Ok(Type::TyPtr(Box::new(Type::Void), true)),
       Expr::Ident(name, span) => scope
           .lookup(name)
           .or_else(|| self.enum_members.get(name).map(|(t, _)| t.clone()))
           .ok_or_else(|| {
             Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               format!("Undefined variable '{}'", name),
             )
           }),
@@ -675,6 +691,9 @@ impl Sema {
         } else if let Some(typ) = Type::from_str(name) {
           // Type conversion: `i64(expr)` returns the target type
           Ok(typ)
+        } else if let Some(TyFnPtr(fn_name, params, returns)) = scope.lookup(name) {
+          // if there's an in-scope variable with this name, it should be a function ptr
+          Ok(TyFnPtr(fn_name, params.clone(), returns.clone()))
         } else {
           fn_sigs
               .get(name)
@@ -691,7 +710,7 @@ impl Sema {
               .ok_or_else(|| {
                 Diagnostic::new(
                   Phase::Sema,
-                  Span::new(&span.file, span.line, span.col),
+                  span.clone(),
                   format!("Undefined function '{}'", name),
                 )
               })
@@ -712,12 +731,7 @@ impl Sema {
           _ => Ok(expr_type),
         }
       }
-      Expr::BinaryOp {
-        left,
-        right,
-        op,
-        span,
-      } => {
+      Expr::BinaryOp { left, right, op, span } => {
         let lt = self.infer_expr_type(left, scope, fn_sigs)?;
         let rt = self.infer_expr_type(right, scope, fn_sigs)?;
         let lt_r = resolve_enum_type(&lt, &self.enum_defs).clone();
@@ -731,7 +745,7 @@ impl Sema {
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 "Type mismatch in arithmetic",
               ))
             }
@@ -742,7 +756,7 @@ impl Sema {
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 "Type mismatch in arithmetic",
               ))
             }
@@ -757,7 +771,7 @@ impl Sema {
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 "Type mismatch in bitwise op",
               ))
             }
@@ -770,7 +784,7 @@ impl Sema {
         if elems.is_empty() {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Empty array literals not supported yet",
           ));
         }
@@ -780,7 +794,7 @@ impl Sema {
           if et != elem_type {
             return Err(Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "Array element type mismatch",
             ));
           }
@@ -797,7 +811,7 @@ impl Sema {
         if !is_numeric_type(&index_type) {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Array index must be numeric",
           ));
         }
@@ -814,7 +828,7 @@ impl Sema {
           Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Cannot index non-array type",
           )),
         }
@@ -824,7 +838,7 @@ impl Sema {
         if !is_numeric_type(&t) {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!("Cannot apply ++ or -- to non-numeric type {:?}", t),
           ));
         }
@@ -841,7 +855,7 @@ impl Sema {
             let info = self.struct_defs.get(struct_name).ok_or_else(|| {
               Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 format!("Unknown struct type '{}'", struct_name),
               )
             })?;
@@ -852,14 +866,14 @@ impl Sema {
                 .ok_or_else(|| {
                   Diagnostic::new(
                     Phase::Sema,
-                    Span::new(&span.file, span.line, span.col),
+                    span.clone(),
                     format!("Struct '{}' has no field '{}'", struct_name, field),
                   )
                 })
           }
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Cannot access field on non-struct type",
           )),
         }
@@ -891,7 +905,7 @@ impl Sema {
                 .ok_or_else(|| {
                   Diagnostic::new(
                     Phase::Sema,
-                    Span::new(&span.file, span.line, span.col),
+                    span.clone(),
                     format!("Package '{}' has no function '{}'", pkg_name, method),
                   )
                 });
@@ -905,7 +919,7 @@ impl Sema {
             let methods = self.struct_methods.get(struct_name).ok_or_else(|| {
               Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 format!("Struct '{}' has no methods", struct_name),
               )
             })?;
@@ -913,7 +927,7 @@ impl Sema {
                 methods.iter().find(|m| m.name == *method).ok_or_else(|| {
                   Diagnostic::new(
                     Phase::Sema,
-                    Span::new(&span.file, span.line, span.col),
+                    span.clone(),
                     format!("Struct '{}' has no method '{}'", struct_name, method),
                   )
                 })?;
@@ -926,7 +940,7 @@ impl Sema {
             if args.len() != expected_params.len() {
               return Err(Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 format!(
                   "Method '{}' expects {} arguments, got {}",
                   method,
@@ -957,7 +971,7 @@ impl Sema {
           }
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Cannot call method on non-struct type",
           )),
         }
@@ -970,7 +984,7 @@ impl Sema {
         let info = self.struct_defs.get(struct_name).ok_or_else(|| {
           Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!("Unknown struct type '{}'", struct_name),
           )
         })?;
@@ -978,7 +992,7 @@ impl Sema {
         if fields.len() != info.fields.len() {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!(
               "Struct '{}' has {} fields but literal provides {}",
               struct_name,
@@ -996,7 +1010,7 @@ impl Sema {
               .ok_or_else(|| {
                 Diagnostic::new(
                   Phase::Sema,
-                  Span::new(&span.file, span.line, span.col),
+                  span.clone(),
                   format!("Struct '{}' has no field '{}'", struct_name, field_name),
                 )
               })?;
@@ -1057,7 +1071,7 @@ impl Sema {
       for (name, span) in &scope {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!("Variable '{}' must be initialized", name),
         ));
       }
@@ -1186,11 +1200,9 @@ fn analyze_var_decl_free(
           }
         } else if is_string_type(init_type_resolved) && is_string_type(left_type_resolved) {
           // String literals / string-typed values can be assigned to any string type
-        } else if matches!(init_type_resolved, TyPtr(_, _)) &&
-            matches!(left_type_resolved, TyPtr(_, _)){
+        } else if let TyPtr(_, l_mut) = left_type_resolved &&
+            let TyPtr(_, r_mut) = init_type_resolved {
           // Assigning a mutable ptr to an immutable ptr is legit, the other way around is not.
-          let TyPtr(_, l_mut) = left_type_resolved else { todo!() };
-          let TyPtr(_, r_mut) = init_type_resolved else { todo!() };
 
           if *l_mut && !*r_mut {
             return Err(Diagnostic::new(
@@ -1246,7 +1258,7 @@ where
       if !args.is_empty() {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!(
             "Array method 'size' expects 0 arguments, got {}",
             args.len()
@@ -1261,14 +1273,14 @@ where
       if matches!(array_type, Type::TyFixedArray(..)) {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Cannot resize fixed-size array",
         ));
       }
       if args.len() != 1 {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!(
             "Array method 'resize' expects 1 argument, got {}",
             args.len()
@@ -1279,7 +1291,7 @@ where
       if !is_integral_type(&arg_type) {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!(
             "Array method 'resize' expects an integer argument, got {}",
             arg_type
@@ -1293,7 +1305,7 @@ where
         if val < 0 {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!(
               "Array method 'resize' expects a non-negative size, got {}",
               val
@@ -1305,7 +1317,7 @@ where
     }
     _ => Err(Diagnostic::new(
       Phase::Sema,
-      Span::new(&span.file, span.line, span.col),
+      span.clone(),
       format!("Array type has no method '{}'", method),
     )),
   }
@@ -1325,13 +1337,14 @@ fn infer_expr_type_free(
     Expr::StringLit(..) => Ok(Type::String),
     Expr::CharLit(..) => Ok(Type::U8),
     Expr::BoolLit(..) => Ok(Type::Bool),
+    Expr::NullPtr(..) => Ok(Type::TyPtr(Box::new(Type::Void), true)),
     Expr::Ident(name, span) => scope
         .lookup(name)
         .or_else(|| enum_members.get(name).map(|(t, _)| t.clone()))
         .ok_or_else(|| {
           Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!("Undefined variable '{}'", name),
           )
         }),
@@ -1343,6 +1356,9 @@ fn infer_expr_type_free(
         Ok(Type::Void)
       } else if let Some(typ) = Type::from_str(name) {
         Ok(typ)
+      } else if let Some(TyFnPtr(fn_name, params, returns)) = scope.lookup(name) {
+        // if there's an in-scope variable with this name, it should be a function ptr
+        Ok(TyFnPtr(fn_name, params.clone(), returns.clone()))
       } else {
         fn_sigs
             .get(name)
@@ -1356,7 +1372,7 @@ fn infer_expr_type_free(
             .ok_or_else(|| {
               Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 format!("Undefined function '{}'", name),
               )
             })
@@ -1376,7 +1392,7 @@ fn infer_expr_type_free(
           | Type::F64 => Ok(expr_type),
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "unary minus type mismatch",
           )),
         },
@@ -1384,7 +1400,7 @@ fn infer_expr_type_free(
           Type::Bool => Ok(Type::Bool),
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "boolean not type mismatch",
           )),
         },
@@ -1394,7 +1410,7 @@ fn infer_expr_type_free(
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "binary not type mismatch",
             ))
           }
@@ -1403,19 +1419,14 @@ fn infer_expr_type_free(
           TyPtr(elem, _) => Ok(*elem),
           _ => Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "pointer type mismatch",
           )),
         },
         UnOp::Ref => Ok(TyPtr(Box::new(expr_type), var_decl.is_mutable)),
       }
     }
-    Expr::BinaryOp {
-      left,
-      right,
-      op,
-      span,
-    } => {
+    Expr::BinaryOp { left, right, op, span } => {
       let lt = infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
       let rt = infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
       // Resolve enum types to their underlying type for comparison.
@@ -1436,7 +1447,7 @@ fn infer_expr_type_free(
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "Type mismatch in arithmetic",
             ))
           }
@@ -1447,7 +1458,7 @@ fn infer_expr_type_free(
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "Type mismatch in arithmetic",
             ))
           }
@@ -1462,7 +1473,7 @@ fn infer_expr_type_free(
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "Type mismatch in bitwise op",
             ))
           }
@@ -1479,7 +1490,7 @@ fn infer_expr_type_free(
       if elems.is_empty() {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Empty array literals not supported yet",
         ));
       }
@@ -1490,7 +1501,7 @@ fn infer_expr_type_free(
         if et != elem_type {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Array element type mismatch",
           ));
         }
@@ -1509,7 +1520,7 @@ fn infer_expr_type_free(
       if !is_numeric_type(&index_type) {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Array index must be numeric",
         ));
       }
@@ -1524,7 +1535,7 @@ fn infer_expr_type_free(
         Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
         _ => Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Cannot index non-array type",
         )),
       }
@@ -1544,7 +1555,7 @@ fn infer_expr_type_free(
           let info = struct_defs.get(struct_name).ok_or_else(|| {
             Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               format!("Unknown struct type '{}'", struct_name),
             )
           })?;
@@ -1555,14 +1566,14 @@ fn infer_expr_type_free(
               .ok_or_else(|| {
                 Diagnostic::new(
                   Phase::Sema,
-                  Span::new(&span.file, span.line, span.col),
+                  span.clone(),
                   format!("Struct '{}' has no field '{}'", struct_name, field),
                 )
               })
         }
         _ => Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Cannot access field on non-struct type",
         )),
       }
@@ -1589,7 +1600,7 @@ fn infer_expr_type_free(
         }
         _ => Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Cannot call method on non-struct type",
         )),
       }
@@ -1602,14 +1613,14 @@ fn infer_expr_type_free(
       let info = struct_defs.get(struct_name).ok_or_else(|| {
         Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!("Unknown struct type '{}'", struct_name),
         )
       })?;
       if fields.len() != info.fields.len() {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!(
             "Struct '{}' has {} fields but literal provides {}",
             struct_name,
@@ -1626,7 +1637,7 @@ fn infer_expr_type_free(
             .ok_or_else(|| {
               Diagnostic::new(
                 Phase::Sema,
-                Span::new(&span.file, span.line, span.col),
+                span.clone(),
                 format!("Struct '{}' has no field '{}'", struct_name, field_name),
               )
             })?;
@@ -1689,14 +1700,14 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, Diagnostic> {
         val.checked_neg().ok_or_else(|| {
           Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             "Enum value overflow",
           )
         })
       } else {
         Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           "Enum variant value must be an integer literal",
         ))
       }
@@ -1712,7 +1723,7 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, Diagnostic> {
           return rval.checked_neg().ok_or_else(|| {
             Diagnostic::new(
               Phase::Sema,
-              Span::new(&span.file, span.line, span.col),
+              span.clone(),
               "Enum value overflow",
             )
           });
@@ -1720,13 +1731,13 @@ fn eval_enum_value(expr: &Expr, span: &Span) -> Result<i128, Diagnostic> {
       }
       Err(Diagnostic::new(
         Phase::Sema,
-        Span::new(&span.file, span.line, span.col),
+        span.clone(),
         "Enum variant value must be an integer literal",
       ))
     }
     _ => Err(Diagnostic::new(
       Phase::Sema,
-      Span::new(&span.file, span.line, span.col),
+      span.clone(),
       "Enum variant value must be an integer literal",
     )),
   }
@@ -1794,14 +1805,14 @@ fn check_index_bounds(
         if pos > sz {
           return Err(Diagnostic::new(
             Phase::Sema,
-            Span::new(&span.file, span.line, span.col),
+            span.clone(),
             format!("Array index {} out of bounds for size {}", val, sz),
           ));
         }
       } else if (val as u64) >= sz {
         return Err(Diagnostic::new(
           Phase::Sema,
-          Span::new(&span.file, span.line, span.col),
+          span.clone(),
           format!("Array index {} out of bounds for size {}", val, sz),
         ));
       }

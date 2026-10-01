@@ -53,6 +53,9 @@ pub enum TokenKind {
     Break,
     Continue,
 
+    /// Literally the "type" keyword, used in function pointer declarations
+    Type_,
+
     // ── Identifiers & literals ───────────────────────────────
     /// User-defined identifier, e.g. a variable or function name.
     Ident(String),
@@ -68,6 +71,9 @@ pub enum TokenKind {
     /// A type keyword (e.g. `int`, `float`, `string`).
     Type(String),
 
+    /// The "nil" keyword.
+    Nil,
+  
     // ── Punctuation ──────────────────────────────────────────
     Semicolon,
     Colon,
@@ -116,6 +122,8 @@ impl TokenKind {
     pub fn c_str(&self) -> Cow<'static, str> {
         match self {
             Self::Type(_) => Cow::Borrowed("type"),
+            Self::Nil => Cow::Borrowed("nil"),
+            Self::Type_ => Cow::Borrowed("type_"),
             Self::Ident(_) => Cow::Borrowed("identifier"),
             Self::Star => Cow::Borrowed("star"),
             Self::Shl => Cow::Borrowed("shl"),
@@ -199,6 +207,7 @@ pub const KEYWORD_TABLE: &[(&str, TokenKind)] = &[
     ("import", TokenKind::Import),
     ("as", TokenKind::As),
     ("extern", TokenKind::Extern),
+    ("type", TokenKind::Type_),
     ("fn", TokenKind::Fn),
     ("return", TokenKind::Return),
     ("if", TokenKind::If),
@@ -221,6 +230,7 @@ pub const KEYWORD_TABLE: &[(&str, TokenKind)] = &[
     ("packed", TokenKind::Packed),
     ("align", TokenKind::Align),
     ("enum", TokenKind::Enum),
+    ("nil", TokenKind::Nil),
 ];
 
 /// All reserved words, in [`KEYWORD_TABLE`] order.

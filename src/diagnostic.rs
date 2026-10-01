@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::write;
 use crate::ast::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +39,7 @@ impl Diagnostic {
 
 impl fmt::Display for Diagnostic {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "In {} phase, ", self.phase);
+    let _ = write!(f, "In {} phase, ", self.phase);
 
     if self.span.line > 0 {
       write!(

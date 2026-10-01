@@ -1,0 +1,10 @@
+package main;
+
+type Cb = fn (int, int) -> (int, f64);
+
+fn IUseAFunctionPtr(Cb param1) -> (int, f64) {
+  a, b := param1(42, 36);
+  return a,b;
+}
+
+println("What a wonderful world!");
