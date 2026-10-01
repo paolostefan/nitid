@@ -416,7 +416,7 @@ impl Codegen {
       for name in &p.names {
         param_list.push(format!("{} {}", p.typ.c_str(), name));
         if let Type::TyFnPtr(
-          fn_name,
+          _,
           fn_params,
           fn_returns) = &p.typ {
           self.fn_params.insert(name.clone(), fn_params.clone());
