@@ -44,6 +44,7 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.double.nitid",
           "begin": "\"",
           "beginCaptures": {
             "0": { "name": "punctuation.definition.string.begin.nitid" }
@@ -59,6 +60,7 @@
     "characters": {
       "patterns": [
         {
+          "name": "string.quoted.single.nitid",
           "begin": "'",
           "beginCaptures": {
             "0": { "name": "punctuation.definition.char.begin.nitid" }
@@ -116,6 +118,13 @@
           }
         },
         {
+          "match": "\\b(type)\\b\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.typealias.nitid" },
+            "2": { "name": "entity.name.type.alias.nitid" }
+          }
+        },
+        {
           "match": "\\b(impl)\\b\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "keyword.declaration.impl.nitid" },
@@ -139,7 +148,10 @@
         },
         {
           "name": "keyword.declaration.nitid",
-          "match": "\\b(fn|struct|impl|enum|let|var|mut|mutable|fixed|opaque|packed|align)\\b"
+          "match": "\\b(fn|struct|impl|enum|type|let|nil|var|mut|mutable|fixed|opaque|packed|align|unsafe)\\b",
+          "settings": {
+            "foreground": "#ffff00"
+          }
         },
         {
           "name": "keyword.other.nitid",
@@ -150,7 +162,7 @@
           "match": "\\b(true|false)\\b"
         },
         {
-          "name": "variable.language.self.nitid",
+          "name": "keyword.other.self.nitid",
           "match": "\\bself\\b"
         },
         {
