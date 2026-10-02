@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-db463918.js";
+            window.path_to_searchindex_js = "searchindex-6f8cddd9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-2178f07d.js"></script>
+        <script src="toc-b8c01391.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1233,7 +1233,8 @@ e := a[35];    // compile error: out of bounds access
 </code></pre>
 <p>Unlike C, Nitid allows <strong>negative indices</strong> which work just as in Python.
 <code>-1</code> index represents the last item, <code>-2</code> the item right before the last, and so on.
-If an array has <strong>N</strong> items, negative indices range -N…-1. Any index below -N will raise a compile-time or runtime error.</p>
+If an array has <strong>N</strong> items, negative indices range from <code>-N</code> to <code>-1</code>.
+Any index below <code>-N</code> will raise a compile-time or runtime error.</p>
 <pre><code class="language-nitid">a := fixed int[5]{1, 2, 3, 4, 5};
 
 last := a[-1];        // last == 5
@@ -1249,7 +1250,7 @@ arr := [25 i64];
 arr.resize(200);
 </code></pre>
 <h2 id="for-loop-sequential-access"><a class="header" href="#for-loop-sequential-access">for loop: sequential access</a></h2>
-<p>Iterative access is allowed in different ways.</p>
+<p>Iterative array access is allowed in different ways.</p>
 <ol>
 <li>
 <p><strong>Old style C way</strong></p>
@@ -1683,6 +1684,128 @@ persist for the lifetime of their scope; the generated C code does not free them
     println("中文");             // 中文
 }
 </code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pointers-and-function-pointers"><a class="header" href="#pointers-and-function-pointers">Pointers and function pointers</a></h1>
+<p>Nitid keeps C-style raw pointers, for interoperability (FFI, SDL/GL buffers, ring buffers…). Everything else about
+memory — ownership, lifetimes, null-safety — is <strong>not</strong> enforced yet: see <a href="#not-supported-yet">Not supported yet</a>.</p>
+<p>Working samples: <code>samples/pointers.nt</code>, <code>samples/nil.nt</code>, <code>samples/fn_pointers.nt</code>.</p>
+<hr>
+<h2 id="address-of-and-dereference"><a class="header" href="#address-of-and-dereference">Address-of and dereference</a></h2>
+<p><code>&amp;expr</code> takes the address of a variable or of an array element; <code>*p</code> reads (or writes) the pointee.</p>
+<pre><code class="language-nitid">x := 42;
+int *p = &amp;x;
+
+println(*p);   // 42
+*p = 100;
+println(*p);   // 100
+</code></pre>
+<p>Deref emits plain C dereference, <code>*(p)</code>. Dereferencing a non-pointer is a <strong>semantic</strong> error:</p>
+<pre><code>In semantic phase, sourcefile.nt:{line}:{column}: pointer type mismatch
+</code></pre>
+<hr>
+<h2 id="declaring-pointers"><a class="header" href="#declaring-pointers">Declaring pointers</a></h2>
+<p>A pointer type is written <code>T *</code>, after the element type. Whether the <em>pointer itself</em> may be rebound is chosen at
+declaration time:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Nitid</th><th>C</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int *p = &amp;x;</code></td><td><code>i32 *const p</code></td><td>pointer is fixed; <code>*p = …</code> is fine</td></tr>
+<tr><td><code>mut int *q = &amp;x;</code></td><td><code>i32 *q</code></td><td>pointer can be re-pointed</td></tr>
+<tr><td><code>mutable int *q = &amp;x;</code></td><td><code>i32 *q</code></td><td>same as <code>mut</code></td></tr>
+<tr><td><code>p := &amp;x;</code></td><td><code>i32 *const p</code></td><td>inferred: fixed pointer</td></tr>
+<tr><td><code>mutable base := &amp;arr[0];</code></td><td><code>i32 *base</code></td><td>inferred: rebindable pointer</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>mut</code> and <code>mutable</code> are synonyms. Pointer types work for scalars and for structs:</p>
+<pre><code class="language-nitid">struct MyStruct { x: i16; name: string; };
+ms := MyStruct{ x: 12, name: "Ciao" };
+MyStruct *ms_ptr = &amp;ms;   // struct pointers are fine; see the caveat on member access below
+</code></pre>
+<p>Several pointers of the same type can share one declaration, but each name needs its own <code>*</code>:</p>
+<pre><code class="language-nitid">arr := int[]{10, 20, 30};
+mut int *first = &amp;arr[0];
+mut int *last = &amp;arr[2];
+</code></pre>
+<hr>
+<h2 id="pointer-arithmetic"><a class="header" href="#pointer-arithmetic">Pointer arithmetic</a></h2>
+<p><code>+</code> and <code>-</code> with an integer offset are allowed, and yield another pointer of the same type; comparisons are allowed
+too. Both are emitted verbatim to C, so the usual C rules apply — <strong>no bounds checking</strong>:</p>
+<pre><code class="language-nitid">mutable base := &amp;arr[0];
+base = base + 1;      // i32 *base = &amp;(((i32 *)arr.data)[0]) + 1
+third := base + 2;
+println(*third);
+</code></pre>
+<hr>
+<h2 id="pointers-to-array-elements"><a class="header" href="#pointers-to-array-elements">Pointers to array elements</a></h2>
+<p><code>&amp;arr[i]</code> is the way to get a pointer into an array. It transpiles to a plain C address-of on the array’s buffer:</p>
+<pre><code class="language-nitid">arr := int[]{10, 20, 30, 40, 50};
+mutable base := &amp;arr[0];   // i32 *base = &amp;(((i32 *)arr.data)[0]);
+println(*base);            // 10
+base = base + 3;
+println(*base);            // 40
+</code></pre>
+<p>⚠️ The index is <strong>not</strong> checked or normalized here: <code>&amp;arr[arr.size()]</code> is accepted, and a negative index such as
+<code>&amp;arr[-1]</code> is emitted as <code>[-(1)]</code>, i.e. a read before the start of the buffer. Negative indexing (“<code>-1</code> is the last
+item”, see <a href="#arrays">Arrays</a>) is <strong>not implemented</strong> — do not rely on it with or without <code>&amp;</code>.</p>
+<hr>
+<h2 id="nil"><a class="header" href="#nil"><code>nil</code></a></h2>
+<p><code>nil</code> maps to C <code>NULL</code>. Its type is “pointer to void”, so it can initialize any pointer declaration:</p>
+<pre><code class="language-nitid">mut int *t = nil;   // i32 *t = NULL
+</code></pre>
+<p>There is no <code>T?</code> optional type yet, and no null check is generated: dereferencing <code>nil</code> is undefined behaviour in the
+generated C.</p>
+<hr>
+<h2 id="function-pointers"><a class="header" href="#function-pointers">Function pointers</a></h2>
+<p>A function pointer type is declared with <code>type</code> + a <code>fn</code> signature, and can then be used as a parameter or variable
+type:</p>
+<pre><code class="language-nitid">type Cb = fn (int, int) -&gt; int;
+</code></pre>
+<p>which transpiles to a plain C typedef:</p>
+<pre><code class="language-c">typedef i32 (* Cb)(i32, i32);
+</code></pre>
+<p>Calling through such a variable works, and multi-return signatures work the same way as for normal functions (the
+results come back through trailing out-parameters):</p>
+<pre><code class="language-nitid">type Cb = fn (int, int) -&gt; (int, f64);
+
+fn IUseAFunctionPtr(Cb param1) -&gt; (int, f64) {
+  a, b := param1(42, 36);
+  return a, b;
+}
+</code></pre>
+<p>⚠️ There is currently <strong>no way to obtain</strong> a function pointer value: naming a function in an expression
+(<code>f(add, 1, 2)</code>, <code>Cb f = add;</code>) is rejected with <code>Undefined variable 'add'</code>. Function pointers are therefore only
+usable for parameters whose value arrives from the outside — FFI callbacks, or a hand-written C shim. Assigning <code>nil</code>
+to a function pointer is rejected too.</p>
+<hr>
+<h2 id="not-supported-yet"><a class="header" href="#not-supported-yet">Not supported yet</a></h2>
+<p>These are current, known gaps — not part of the language contract:</p>
+<ul>
+<li><strong>Pointers as function parameters.</strong> <code>fn f(int *p)</code> does not parse (<code>Expected identifier, found Star</code>); a pointer
+return type (<code>-&gt; int *</code>) parses but the call site is mistyped, producing broken C.</li>
+<li><strong>Members through a struct pointer.</strong> <code>p.field</code> and <code>p.method()</code> are rejected
+(<code>Cannot access field on non-struct type</code> / <code>Cannot call method on non-struct type</code>). Take <code>&amp;s</code> out of the picture,
+or keep a copy of the struct value.</li>
+<li><strong>No <code>unsafe</code> blocks.</strong> Dereferences and FFI calls are not gated behind anything yet, and there is no compile-time
+marker for unsafe code.</li>
+<li><strong>No const enforcement.</strong> Re-pointing a <code>T *p</code> (a C <code>*const</code>) is accepted by the transpiler and only rejected by the
+C compiler: <code>assignment of read-only variable</code>.</li>
+<li><strong>No addressability check.</strong> <code>&amp;42</code> is accepted and emits <code>&amp;(42)</code>, which is not valid C.</li>
+<li><strong>No pointer-to-pointer</strong>, no casts between pointer types, no <code>sizeof</code>/<code>alignof</code> builtins.</li>
+<li><strong>No memory safety.</strong> No bounds checks on pointer arithmetic, no null checks, no ownership or borrow rules; safe
+RAII / reference types are planned for v0.3 (see <a href="../ROADMAP.html">ROADMAP</a>).</li>
+</ul>
+<hr>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="#arrays">Arrays</a> — <code>&amp;arr[i]</code>, negative indexing, <code>size()</code></li>
+<li><a href="#functions">Functions</a> — signatures, multi-return</li>
+<li><a href="#structs">Structs</a> — <code>self</code> is always a pointer to the receiving struct</li>
+<li><a href="../ROADMAP.html">ROADMAP</a> — v0.2.2 raw pointers, v0.3.x memory safety</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="packages"><a class="header" href="#packages">Packages</a></h1>
 <p>Nitid code can be organized in <strong>packages</strong>, which closely resemble Go packages.</p>

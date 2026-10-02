@@ -10,6 +10,7 @@
     - [Structs](specs/4.structs.md)
     - [Enums](specs/5.enums.md)
     - [Strings](specs/6.strings.md)
+    - [Pointers](specs/7.pointers.md)
     - [Packages](specs/20.packages.md)
         - [Modules](specs/21.module-layout.md)
     - [Builtins](specs/30.builtins.md)

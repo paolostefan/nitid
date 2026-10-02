@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-db463918.js";
+            window.path_to_searchindex_js = "../searchindex-6f8cddd9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2178f07d.js"></script>
+        <script src="../toc-b8c01391.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -225,7 +225,8 @@ e := a[35];    // compile error: out of bounds access
 </code></pre>
 <p>Unlike C, Nitid allows <strong>negative indices</strong> which work just as in Python.
 <code>-1</code> index represents the last item, <code>-2</code> the item right before the last, and so on.
-If an array has <strong>N</strong> items, negative indices range -N…-1. Any index below -N will raise a compile-time or runtime error.</p>
+If an array has <strong>N</strong> items, negative indices range from <code>-N</code> to <code>-1</code>.
+Any index below <code>-N</code> will raise a compile-time or runtime error.</p>
 <pre><code class="language-nitid">a := fixed int[5]{1, 2, 3, 4, 5};
 
 last := a[-1];        // last == 5
@@ -241,7 +242,7 @@ arr := [25 i64];
 arr.resize(200);
 </code></pre>
 <h2 id="for-loop-sequential-access"><a class="header" href="#for-loop-sequential-access">for loop: sequential access</a></h2>
-<p>Iterative access is allowed in different ways.</p>
+<p>Iterative array access is allowed in different ways.</p>
 <ol>
 <li>
 <p><strong>Old style C way</strong></p>
