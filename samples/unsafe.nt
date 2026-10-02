@@ -1,0 +1,11 @@
+extern "C" fn SDL_Init(u32 flags) -> int;  // FFI — inherently unsafe
+
+// Main body follows...
+x:= 42;
+mut p := &x;  // address-of — safe (creates the pointer)
+
+// Deref requires unsafe
+unsafe { *p = 100; }
+
+// FFI call requires unsafe
+unsafe { SDL_Init(0x20); }

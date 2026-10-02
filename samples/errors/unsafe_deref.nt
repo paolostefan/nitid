@@ -1,0 +1,6 @@
+// expect-contains: deref operation is allowed only in unsafe blocks
+i := 10;
+i_ptr := &i;
+
+// Deref outside unsafe{} is not allowed
+printf("i_ptr points to %d", *i_ptr);

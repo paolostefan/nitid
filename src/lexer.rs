@@ -87,10 +87,10 @@ pub enum TokenKind {
   Eq,      // =
   LParen,
   RParen,
-  LBrace,
-  RBrace,
-  LBracket,
-  RBracket,
+  LBrace,   // {
+  RBrace,   // }
+  LBracket, // [
+  RBracket, // ]
 
   // ── Operators ────────────────────────────────────────────
   Plus,

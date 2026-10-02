@@ -75,6 +75,8 @@ pub struct Sema {
   /// Per-package functions for qualified access (eg. Math.multiply()).
   /// Key: imported package name. Value: that package's functions
   package_functions: HashMap<String, HashMap<String, (Vec<Type>, Vec<Type>)>>,
+  /// 0 = safe, >0 = insafe "unsafe" block
+  unsafe_depth: u8,
 }
 
 /// A lexical scope mapping variable names to their types.
@@ -144,6 +146,7 @@ impl Sema {
       fn_sigs_map: HashMap::new(),
       imported_struct_defs: HashMap::new(),
       package_functions: HashMap::new(),
+      unsafe_depth: 0,
     }
   }
 
@@ -511,6 +514,17 @@ impl Sema {
         *scope = *inner.parent.unwrap();
         self.pop_uninit_scope()
       }
+      Stmt::UnsafeBlock(body, ..) => {
+        self.push_uninit_scope();
+        self.unsafe_depth += 1;
+        let mut inner = Scope::child(std::mem::replace(scope, Scope::new()));
+        for stmt in body.iter_mut() {
+          self.analyze_stmt(stmt, &mut inner, fn_sigs)?;
+        }
+        *scope = *inner.parent.unwrap();
+        self.unsafe_depth -= 1;
+        self.pop_uninit_scope()
+      }
       Stmt::If {
         cond,
         then_block,
@@ -720,7 +734,17 @@ impl Sema {
         let expr_type = self.infer_expr_type(expr, scope, fn_sigs)?;
         match op {
           UnOp::Deref => match expr_type {
-            TyPtr(elem, _) => Ok(*elem),
+            TyPtr(elem, _) => {
+              if self.unsafe_depth > 0 {
+                Ok(*elem)
+              } else {
+                Err(Diagnostic::new(
+                  Phase::Sema,
+                  span.clone(),
+                  "deref operation is allowed only in unsafe blocks",
+                ))
+              }
+            }
             _ => Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),

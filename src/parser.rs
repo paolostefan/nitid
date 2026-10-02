@@ -643,7 +643,7 @@ impl Parser {
 
     // TODO line 0 col 0 is a bug
     let ident_tok = self.advance().ok_or_else(|| {
-      Diagnostic::new(Phase::Parse, Span::new(&self.file, 0,0), "Expected identifier")
+      Diagnostic::new(Phase::Parse, Span::new(&self.file, 0, 0), "Expected identifier")
     })?;
 
     let span = ident_tok.span.clone();
@@ -875,6 +875,13 @@ impl Parser {
       let span = tok.span.clone();
       self.expect(&TokenKind::Semicolon)?;
       return Ok(Stmt::Continue(span));
+    }
+
+    if self.check(&TokenKind::Unsafe) {
+      let tok = self.advance().unwrap();
+      self.expect(&TokenKind::LBrace)?;
+      let stmts = self.parse_stmts_until(&TokenKind::RBrace)?;
+      return Ok(Stmt::UnsafeBlock(stmts, tok.span.clone()));
     }
 
     if self.check(&TokenKind::LBrace) {

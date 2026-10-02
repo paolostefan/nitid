@@ -232,7 +232,10 @@ pub enum Stmt {
   Return(Vec<Expr>, Span),
   /// A braced block of statements, introducing a new scope.
   Block(Vec<Stmt>),
-  /// If / else is / else conditional.
+  /// An unsafe braced block of statements.
+  UnsafeBlock(Vec<Stmt>, Span),
+
+  /// If / else conditional.
   If {
     cond: Box<Expr>,
     then_block: Vec<Stmt>,

@@ -22,7 +22,7 @@ MyStruct *ms_ptr3 = &MyStruct{ x: -16000, y: 32000, name: "Gonzo"};
 arr := int[]{10, 20, 30, 40, 50};
 mutable base := &arr[0];
 third := base + 2;
-println(*third);
+unsafe { println(*third); }
 
 // Legitimate mutation of mutable pointer
 base = base + 1;
@@ -31,9 +31,11 @@ x := 42;
 
 // Pointers are always const unless explicitly marked as mutable by "mut" or "mutable"
 int *p = &x;
-*p = 100;
 
-println(*p);
+unsafe {
+  *p = 100;
+  println(*p);
+}
 
 // Alternate syntax
 mut last := &arr[4];

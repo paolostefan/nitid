@@ -528,7 +528,7 @@ impl Codegen {
         s
       }
       Stmt::Return(values, _) => self.emit_return(values, current_fn),
-      Stmt::Block(body) => {
+      Stmt::Block(body) | Stmt::UnsafeBlock(body, ..) => {
         self.push_scope();
         let mut s = String::from("{\n");
         for stmt in body {
