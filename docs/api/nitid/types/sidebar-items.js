@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Type"],"fn":["array_elem_type","is_string_type"]};

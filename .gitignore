@@ -19,5 +19,8 @@ cmake-build-*/
 **/.venv
 *.pyc
 
+# Docs
+docs/api/
+
 # Temporary stuff
 tmp/

@@ -27,13 +27,16 @@ cargo test --no-fail-fast                    # run every suite even if one fails
 cmake -S runtime -B runtime/build -DBUILD_TESTS=ON && cmake --build runtime/build
 ./runtime/build/tests/nitid_runtime_tests   # C unit tests for nitid_string/array/string16/string32
 
-make                                         # docs: cargo doc + mdbook build into docs/ (committed output)
+make book                                    # docs: mdbook build only (~4 files change; use while editing prose)
+make                                         # docs: cargo doc + mdbook build (rewrites all of docs/api/)
+make watch                                   # docs: mdbook serve with live reload
 ```
 
 CLI flags: `--c-dir <dir>` (default `c_src`), `--emit-c`, `--run`, `--cc <compiler>`, `-o <binary>`.
 
 `c_src/`, `target/`, `tmp/`, `runtime/*/build*` are gitignored generated output. `docs/` is **committed** generated
-output — rerun `make` when you change anything under `src/docs/`.
+output — rerun `make book` when you change anything under `src/docs/`. `docs/api/` is the exception: gitignored,
+because rustdoc renames its search-index chunks on every run.
 
 ## Layout
 

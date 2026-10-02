@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOp","Decl","Expr","Stmt","UnOp"],"struct":["EnumDecl","EnumVariant","FnDecl","FnPtrDecl","ImplBlock","Import","Param","Program","Span","StructDecl","StructField","VarDecl"]};
