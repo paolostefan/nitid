@@ -73,7 +73,10 @@ pub enum TokenKind {
 
     /// The "nil" keyword.
     Nil,
-  
+
+    /// Unsafe block start marker.
+    Unsafe,
+
     // ── Punctuation ──────────────────────────────────────────
     Semicolon,
     Colon,
@@ -123,6 +126,7 @@ impl TokenKind {
         match self {
             Self::Type(_) => Cow::Borrowed("type"),
             Self::Nil => Cow::Borrowed("nil"),
+            Self::Unsafe => Cow::Borrowed("unsafe"),
             Self::Type_ => Cow::Borrowed("type_"),
             Self::Ident(_) => Cow::Borrowed("identifier"),
             Self::Star => Cow::Borrowed("star"),
@@ -231,6 +235,7 @@ pub const KEYWORD_TABLE: &[(&str, TokenKind)] = &[
     ("align", TokenKind::Align),
     ("enum", TokenKind::Enum),
     ("nil", TokenKind::Nil),
+    ("unsafe", TokenKind::Unsafe),
 ];
 
 /// All reserved words, in [`KEYWORD_TABLE`] order.
