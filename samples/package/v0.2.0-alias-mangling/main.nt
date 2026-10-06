@@ -1,0 +1,13 @@
+package main;
+
+// Aliased import: the call site writes `r.open(...)`, but the definition in
+// Raw.nt is emitted as `Raw_open`, because mangling uses the package's own
+// declared name rather than the alias.
+import Raw as r;
+import Box as b;
+
+fn main() -> int {
+    void *handle = r.open("title", 2, 2);
+    r.close(handle);
+    println(b.smoke("title"));
+}

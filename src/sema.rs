@@ -74,7 +74,7 @@ pub struct Sema {
   imported_struct_defs: HashMap<String, StructInfo>,
   /// Per-package functions for qualified access (eg. Math.multiply()).
   /// Key: imported package name. Value: that package's functions
-  package_functions: HashMap<String, HashMap<String, (Vec<Type>, Vec<Type>)>>,
+  package_functions: PackageFunctions,
   /// 0 = safe, >0 = insafe "unsafe" block
   unsafe_depth: u8,
 }
@@ -87,6 +87,9 @@ struct Scope {
   vars: HashMap<String, Type>,
   parent: Option<Box<Scope>>,
 }
+
+/// Imported per-package function tables: package name -> function -> signature.
+type PackageFunctions = HashMap<String, HashMap<String, (Vec<Type>, Vec<Type>)>>;
 
 impl Scope {
   /// Create an empty scope with no parent.
@@ -410,6 +413,7 @@ impl Sema {
             &mut self.warnings,
             &self.struct_defs,
             &self.enum_members,
+            &self.package_functions,
           )?;
           let can_zero_init = v
               .typ
@@ -466,6 +470,7 @@ impl Sema {
           &mut self.warnings,
           &self.struct_defs,
           &self.enum_members,
+          &self.package_functions,
         )?;
         // Deferred init check: vars without init are tracked
         // per scope and checked at scope exit.
@@ -705,9 +710,16 @@ impl Sema {
         } else if let Some(typ) = Type::from_str(name) {
           // Type conversion: `i64(expr)` returns the target type
           Ok(typ)
-        } else if let Some(TyFnPtr(fn_name, params, returns)) = scope.lookup(name) {
-          // if there's an in-scope variable with this name, it should be a function ptr
-          Ok(TyFnPtr(fn_name, params.clone(), returns.clone()))
+        } else if let Some(TyFnPtr(_, _, returns)) = scope.lookup(name) {
+          // An in-scope variable of function-pointer type: this is a call
+          // *through* that variable, so the call yields the signature's return
+          // type, not the pointer type itself.
+          if returns.len() == 1 {
+            Ok(returns[0].clone())
+          } else {
+            // Multi-return signatures come back through out-parameters.
+            Ok(Type::Void)
+          }
         } else {
           fn_sigs
               .get(name)
@@ -762,10 +774,10 @@ impl Sema {
         let rt_r = resolve_enum_type(&rt, &self.enum_defs).clone();
         match op {
           BinOp::Add | BinOp::Sub => {
-            if lt_r == rt_r {
+            if matches!(lt_r, TyPtr(_, _)) && is_integral_type(&rt_r) {
               Ok(lt_r)
-            } else if matches!(lt_r, TyPtr(_, _)) && is_integral_type(&rt_r) {
-              Ok(lt_r)
+            } else if let Some(t) = arith_result(&lt_r, &rt_r) {
+              Ok(t)
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
@@ -775,8 +787,8 @@ impl Sema {
             }
           }
           BinOp::Mul | BinOp::Div | BinOp::Mod => {
-            if lt_r == rt_r {
-              Ok(lt_r)
+            if let Some(t) = arith_result(&lt_r, &rt_r) {
+              Ok(t)
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
@@ -790,8 +802,8 @@ impl Sema {
           }
           BinOp::And | BinOp::Or => Ok(Type::Bool),
           BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-            if lt_r == rt_r {
-              Ok(lt_r)
+            if let Some(t) = arith_result(&lt_r, &rt_r) {
+              Ok(t)
             } else {
               Err(Diagnostic::new(
                 Phase::Sema,
@@ -1039,7 +1051,8 @@ impl Sema {
                 )
               })?;
           let init_type = self.infer_expr_type(field_expr, scope, fn_sigs)?;
-          if init_type != decl_field.typ {
+          let ptr_ok = ptr_assignable(&init_type, &decl_field.typ).unwrap_or(false);
+          if init_type != decl_field.typ && !ptr_ok {
             let ok = is_numeric_type(&init_type)
                 && is_numeric_type(&decl_field.typ)
                 && literal_fits_target(field_expr, &decl_field.typ);
@@ -1132,14 +1145,17 @@ fn analyze_var_decl_free(
   warnings: &mut Vec<String>,
   struct_defs: &HashMap<String, StructInfo>,
   enum_members: &HashMap<String, (Type, i128)>,
+  package_functions: &PackageFunctions,
 ) -> Result<(), Diagnostic> {
   let inferred_type = if let Some(ref init) = v.init {
-    Some(infer_expr_type_free(init,
-                              scope,
-                              fn_sigs,
-                              struct_defs,
-                              enum_members,
-                              &Box::new(v.clone()),
+    Some(infer_expr_type_free(
+      init,
+      scope,
+      fn_sigs,
+      struct_defs,
+      enum_members,
+      &Box::new(v.clone()),
+      package_functions,
     )?)
   } else {
     None
@@ -1168,8 +1184,15 @@ fn analyze_var_decl_free(
 
     // Type-check the initializer against the declared type.
     if let Some(ref init) = v.init {
-      let init_type =
-          &infer_expr_type_free(init, scope, fn_sigs, struct_defs, enum_members, &Box::new(v.clone()))?;
+      let init_type = &infer_expr_type_free(
+        init,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        &Box::new(v.clone()),
+        package_functions,
+      )?;
       // Resolve enum types to underlying type for comparison.
       let init_type_resolved = match &init_type {
         Type::Enum(_) => &Type::I32,
@@ -1354,6 +1377,7 @@ fn infer_expr_type_free(
   struct_defs: &HashMap<String, StructInfo>,
   enum_members: &HashMap<String, (Type, i128)>,
   var_decl: &Box<VarDecl>,
+  package_functions: &PackageFunctions,
 ) -> Result<Type, Diagnostic> {
   match expr {
     Expr::IntLit(..) => Ok(Type::I32),
@@ -1374,15 +1398,28 @@ fn infer_expr_type_free(
         }),
     Expr::Call { name, args, span } => {
       for arg in args {
-        infer_expr_type_free(arg, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+        infer_expr_type_free(
+          arg,
+          scope,
+          fn_sigs,
+          struct_defs,
+          enum_members,
+          var_decl,
+          package_functions,
+        )?;
       }
       if name == "println" || name == "printf" {
         Ok(Type::Void)
       } else if let Some(typ) = Type::from_str(name) {
         Ok(typ)
-      } else if let Some(TyFnPtr(fn_name, params, returns)) = scope.lookup(name) {
-        // if there's an in-scope variable with this name, it should be a function ptr
-        Ok(TyFnPtr(fn_name, params.clone(), returns.clone()))
+      } else if let Some(TyFnPtr(_, _, returns)) = scope.lookup(name) {
+        // A call through a function-pointer variable yields the signature's
+        // return type, not the pointer type.
+        if returns.len() == 1 {
+          Ok(returns[0].clone())
+        } else {
+          Ok(Type::Void)
+        }
       } else {
         fn_sigs
             .get(name)
@@ -1404,7 +1441,15 @@ fn infer_expr_type_free(
     }
 
     Expr::UnaryOp { op, expr, span } => {
-      let expr_type = infer_expr_type_free(expr, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      let expr_type = infer_expr_type_free(
+        expr,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       match op {
         UnOp::Neg => match expr_type {
           Type::I8
@@ -1451,8 +1496,24 @@ fn infer_expr_type_free(
       }
     }
     Expr::BinaryOp { left, right, op, span } => {
-      let lt = infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
-      let rt = infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      let lt = infer_expr_type_free(
+        left,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
+      let rt = infer_expr_type_free(
+        right,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       // Resolve enum types to their underlying type for comparison.
       let lt_r = match &lt {
         Type::Enum(_) => Type::I32,
@@ -1505,10 +1566,26 @@ fn infer_expr_type_free(
       }
     }
     Expr::Assign { left, .. } => {
-      infer_expr_type_free(left, scope, fn_sigs, struct_defs, enum_members, var_decl)
+      infer_expr_type_free(
+        left,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )
     }
     Expr::DeclAssign { right, .. } => {
-      infer_expr_type_free(right, scope, fn_sigs, struct_defs, enum_members, var_decl)
+      infer_expr_type_free(
+        right,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )
     }
     Expr::ArrayLit(elems, span) => {
       if elems.is_empty() {
@@ -1518,10 +1595,25 @@ fn infer_expr_type_free(
           "Empty array literals not supported yet",
         ));
       }
-      let elem_type =
-          infer_expr_type_free(&elems[0], scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      let elem_type = infer_expr_type_free(
+        &elems[0],
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       for e in elems[1..].iter() {
-        let et = infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+        let et = infer_expr_type_free(
+          e,
+          scope,
+          fn_sigs,
+          struct_defs,
+          enum_members,
+          var_decl,
+          package_functions,
+        )?;
         if et != elem_type {
           return Err(Diagnostic::new(
             Phase::Sema,
@@ -1537,10 +1629,24 @@ fn infer_expr_type_free(
       index,
       span,
     } => {
-      let target_type =
-          infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
-      let index_type =
-          infer_expr_type_free(index, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      let target_type = infer_expr_type_free(
+        target,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
+      let index_type = infer_expr_type_free(
+        index,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       if !is_numeric_type(&index_type) {
         return Err(Diagnostic::new(
           Phase::Sema,
@@ -1565,15 +1671,30 @@ fn infer_expr_type_free(
       }
     }
     Expr::PostIncrement { target, .. } | Expr::PostDecrement { target, .. } => {
-      infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members, var_decl)
+      infer_expr_type_free(
+        target,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )
     }
     Expr::FieldAccess {
       target,
       field,
       span,
     } => {
-      let target_type =
-          infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      let target_type = infer_expr_type_free(
+        target,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       match target_type {
         Type::Struct(ref struct_name) => {
           let info = struct_defs.get(struct_name).ok_or_else(|| {
@@ -1608,18 +1729,75 @@ fn infer_expr_type_free(
       args,
       span,
     } => {
-      let target_type =
-          infer_expr_type_free(target, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+      // Imports: qualified package call, e.g. `gfx.Window_create(w, 2, 2)`.
+      // The receiver is an Ident naming an imported package, so it resolves
+      // through `package_functions` rather than the local scope.
+      if let Expr::Ident(pkg_name, _) = target.as_ref() {
+        if let Some(pkg_fns) = package_functions.get(pkg_name) {
+          for arg in args {
+            infer_expr_type_free(
+              arg,
+              scope,
+              fn_sigs,
+              struct_defs,
+              enum_members,
+              var_decl,
+              package_functions,
+            )?;
+          }
+          return pkg_fns
+            .get(method)
+            .map(|(_, returns)| {
+              if returns.len() == 1 {
+                returns[0].clone()
+              } else {
+                Type::Void
+              }
+            })
+            .ok_or_else(|| {
+              Diagnostic::new(
+                Phase::Sema,
+                span.clone(),
+                format!("Package '{}' has no function '{}'", pkg_name, method),
+              )
+            });
+        }
+      }
+      let target_type = infer_expr_type_free(
+        target,
+        scope,
+        fn_sigs,
+        struct_defs,
+        enum_members,
+        var_decl,
+        package_functions,
+      )?;
       match target_type {
         Type::Struct(_) => {
           for arg in args {
-            infer_expr_type_free(arg, scope, fn_sigs, struct_defs, enum_members, var_decl)?;
+            infer_expr_type_free(
+              arg,
+              scope,
+              fn_sigs,
+              struct_defs,
+              enum_members,
+              var_decl,
+              package_functions,
+            )?;
           }
           Ok(Type::Void)
         }
         Type::TyArray(..) | Type::TyFixedArray(..) => {
           check_array_method(method, args, span, &target_type, |e| {
-            infer_expr_type_free(e, scope, fn_sigs, struct_defs, enum_members, var_decl)
+            infer_expr_type_free(
+              e,
+              scope,
+              fn_sigs,
+              struct_defs,
+              enum_members,
+              var_decl,
+              package_functions,
+            )
           })
         }
         _ => Err(Diagnostic::new(
@@ -1665,9 +1843,17 @@ fn infer_expr_type_free(
                 format!("Struct '{}' has no field '{}'", struct_name, field_name),
               )
             })?;
-        let init_type =
-            infer_expr_type_free(field_expr, scope, fn_sigs, struct_defs, enum_members, &var_decl.clone())?;
-        if init_type != decl_field.typ {
+        let init_type = infer_expr_type_free(
+          field_expr,
+          scope,
+          fn_sigs,
+          struct_defs,
+          enum_members,
+          &var_decl.clone(),
+          package_functions,
+        )?;
+        let ptr_ok = ptr_assignable(&init_type, &decl_field.typ).unwrap_or(false);
+        if init_type != decl_field.typ && !ptr_ok {
           let ok = is_numeric_type(&init_type)
               && is_numeric_type(&decl_field.typ)
               && literal_fits_target(field_expr, &decl_field.typ);
@@ -1843,6 +2029,64 @@ fn check_index_bounds(
     }
   }
   Ok(elem.clone())
+}
+
+/// Rank of an integral type for the usual-arithmetic-conversion rule: how
+/// many bytes it occupies. Signedness is deliberately ignored — C promotes
+/// mixed arithmetic to the wider operand regardless of sign, and so do we.
+fn integral_rank(t: &Type) -> Option<u32> {
+  Some(match t {
+    Type::I8 | Type::U8 => 1,
+    Type::I16 | Type::U16 => 2,
+    Type::I32 | Type::U32 => 4,
+    Type::I64 | Type::U64 => 8,
+    Type::I128 | Type::U128 => 16,
+    Type::I256 | Type::U256 => 32,
+    _ => return None,
+  })
+}
+
+/// Result type of an arithmetic/bitwise operation on two numeric operands.
+///
+/// Equal types pass through. Two *integral* types of different widths are
+/// combined the way C does: the wider one wins. This is what makes the
+/// everyday `count - 1`, `offset + len` and `u32 * 4` spellings work, since
+/// every integer literal infers as `i32` regardless of what it is combined
+/// with. Anything else (a pointer, a string) is not convertible implicitly and
+/// returns `None`.
+fn arith_result(lt: &Type, rt: &Type) -> Option<Type> {
+  if lt == rt {
+    return Some(lt.clone());
+  }
+  match (integral_rank(lt), integral_rank(rt)) {
+    (Some(l), Some(r)) => Some(if r > l { rt.clone() } else { lt.clone() }),
+    // A float mixed with an integer: the float side wins, as in C.
+    _ if is_numeric_type(lt) && is_numeric_type(rt) => {
+      if matches!(lt, Type::F64 | Type::F32) {
+        Some(lt.clone())
+      } else if matches!(rt, Type::F64 | Type::F32) {
+        Some(rt.clone())
+      } else {
+        None
+      }
+    }
+    _ => None,
+  }
+}
+
+/// Whether `init` may initialize a field/local of type `decl` as far as
+/// pointer mutability goes.
+///
+/// `nil` is `TyPtr(Void, true)`, so a perfectly ordinary
+/// `Framebuffer{ fb: nil, .. }` would fail a strict `Type` comparison against a
+/// `void *` field. In C a top-level `const` on a pointer target is not part of
+/// the type you assign *to* in any meaningful way, so ignore the flag here and
+/// require the pointee types to match.
+fn ptr_assignable(init: &Type, decl: &Type) -> Option<bool> {
+  match (init, decl) {
+    (TyPtr(a, _), TyPtr(b, _)) => Some(a.as_ref() == b.as_ref()),
+    _ => None,
+  }
 }
 
 /// Returns `true` if `t` is any numeric type (integer or float).

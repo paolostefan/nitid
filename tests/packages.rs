@@ -388,3 +388,49 @@ fn merge_contexts_combines_packages() {
     assert!(merged.functions.contains_key("bar"));
     assert_eq!(merged.functions.len(), 2);
 }
+
+// ── Alias mangling & extern "C" prototypes ─────────────────────────────
+
+#[test]
+fn v0_2_0_alias_mangles_with_declared_package_name() {
+    // `import Raw as r; r.open(..)` must call Raw_open — mangling uses the
+    // package's own declared name, never the import alias.
+    let dir = common::package_path("v0.2.0-alias-mangling");
+    let c_out = common::get_package_c_output(&dir).expect("should compile");
+
+    assert!(
+        c_out.contains("Raw_open("),
+        "call through the alias must use the declared name Raw_open:\n{c_out}"
+    );
+    assert!(
+        !c_out.contains("r_open("),
+        "the import alias must never appear as a C symbol prefix:\n{c_out}"
+    );
+}
+
+#[test]
+fn v0_2_0_package_extern_c_is_not_mangled() {
+    // `extern "C"` inside a package names a real C symbol: it keeps its bare
+    // name, is not exported as a package function, and must be declared
+    // *before* its first use so C99 does not see an implicit declaration.
+    let dir = common::package_path("v0.2.0-alias-mangling");
+    let (_, c_files, _) = common::compile_package_main(&dir).expect("should compile");
+
+    let box_c = c_files
+        .iter()
+        .find(|f| f.path.ends_with("Box.c"))
+        .expect("Box.c should be generated")
+        .content
+        .clone();
+
+    let proto = box_c.find("void *const open_raw(").expect("prototype");
+    let call = box_c.find("open_raw(title").expect("call site");
+    assert!(
+        proto < call,
+        "extern \"C\" prototype must precede its first call:\n{box_c}"
+    );
+    assert!(
+        !box_c.contains("Box_open_raw"),
+        "package-local extern \"C\" declarations must not be mangled:\n{box_c}"
+    );
+}

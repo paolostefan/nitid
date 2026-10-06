@@ -55,6 +55,9 @@ pub struct FunctionSig {
   pub param_types: Vec<types::Type>,
   pub return_types: Vec<types::Type>,
   pub param_names: Vec<String>,
+  /// `extern "C"` declarations name real C symbols, so they are never
+  /// name-mangled and never registered as importable package functions.
+  pub is_external: bool,
 }
 
 /// All declarations from a package, flattened across files.
@@ -341,6 +344,7 @@ pub fn build_package_context(programs: &[Program]) -> PackageContext {
               param_types,
               return_types: f.returns.clone(),
               param_names,
+              is_external: f.is_external,
             },
           );
         }
@@ -429,8 +433,22 @@ pub fn compile(
   // Every function exported by every imported package.
   let mut foreign_sigs: HashMap<String, (String, Vec<types::Type>, Vec<types::Type>)> =
       HashMap::new();
-  for (pkg_name, ctx) in &pkg_contexts {
+  for (pkg_key, ctx) in &pkg_contexts {
+    // Mangle with the package's *declared* name, not the import alias, so that
+    // call sites and the imported unit's own definitions agree.
+    let pkg_name: &str = &imports
+        .get(pkg_key)
+        .and_then(|programs| programs.first())
+        .map(|p| p.package.clone())
+        .unwrap_or_else(|| pkg_key.clone());
     for (name, sig) in &ctx.functions {
+      if sig.is_external {
+        // An `extern "C"` declaration inside a package refers to a real C symbol.
+        // It must keep its own name, and must not become an importable package
+        // function either — otherwise every call to it would be rewritten to a
+        // mangled name that nothing defines.
+        continue;
+      }
       // Mangle: "multiply" in package "Math" -> "Math_multiply"
       let mangled = format!("{}_{}", pkg_name, name);
       foreign_sigs.insert(
@@ -445,17 +463,32 @@ pub fn compile(
   sema_ctx.analyze(&mut program, Some(&pkg_contexts))?;
 
   let mut cg = codegen::Codegen::new();
-  let package_names: HashSet<String> = pkg_contexts.keys().cloned().collect();
+  // Map the name written at a call site (import name or alias) to the package's
+  // own declared name. Codegen must mangle with the latter, since that is the
+  // prefix the imported translation unit defines.
+  let mut package_names: HashMap<String, String> = HashMap::new();
+  for (import_key, programs) in &imports {
+    let declared = programs
+        .first()
+        .map(|p| p.package.clone())
+        .unwrap_or_else(|| import_key.clone());
+    package_names.insert(import_key.clone(), declared);
+  }
   let (mut c_files, _) = cg
       .generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)
       .expect("codegen does not fail");
 
   // Emit a .c file for every file in every imported package.
   for (pkg_name, programs) in &imports {
-    // Prevent self-functions from appearing as "foreign"
+    // Prevent self-functions from appearing as "foreign". The prefix to filter
+    // on is the package's *declared* name, which is what mangling uses.
+    let declared = programs
+        .first()
+        .map(|p| p.package.clone())
+        .unwrap_or_else(|| pkg_name.clone());
     let pkg_foreign = foreign_sigs
         .iter()
-        .filter(|(_, (mangled, _, _))| !mangled.starts_with(&format!("{}_", pkg_name)))
+        .filter(|(_, (mangled, _, _))| !mangled.starts_with(&format!("{}_", declared)))
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 

@@ -170,9 +170,11 @@ impl Parser {
     let mut package = "main".to_string();
     let mut imports = Vec::new();
     let mut decls = Vec::new();
+    let mut link_libs = Vec::new();
     let mut dangling_stmts = Vec::new();
 
     // Optional package declaration.
+    // By spec, it must be the first statement in the sourcefile.
     if self.check(&TokenKind::Package) {
       self.advance();
       let name = self.expect_ident()?;
@@ -180,10 +182,15 @@ impl Parser {
       package = name;
     }
 
+    // Optional link lib statements. They must follow the package declaration.
+    while self.check(&TokenKind::LinkLib) {
+      let lk_lib = self.parse_link_lib()?;
+      link_libs.push(lk_lib);
+    }
+
     // Import statements.
     while self.check(&TokenKind::Import) {
       let imp = self.parse_import()?;
-      eprintln!("[parser] import: {} as {:?}", imp.name, imp.alias);
       imports.push(imp);
     }
 
@@ -257,6 +264,7 @@ impl Parser {
       package,
       imports,
       decls,
+      link_libs,
       file: file.to_string(),
       has_dangling,
     })
@@ -297,6 +305,7 @@ impl Parser {
                                 if Type::from_str(s).is_some()
                                   || self.enum_names.contains(s)
                                   || self.struct_names.contains(s)
+                                  || self.fn_ptr_names.contains_key(s)
             )
   }
 
@@ -312,6 +321,30 @@ impl Parser {
     };
     self.expect(&TokenKind::Semicolon)?;
     Ok(Import { name, alias, span })
+  }
+
+  /// `link_lib "name";`
+  ///
+  /// The string literal names a library for CMake to link the program
+  /// against; the declaration is carried on `Program::link_libs` and turned
+  /// into `target_link_libraries` arguments by codegen.
+  fn parse_link_lib(&mut self) -> ParseResult<String> {
+    let tok = self.expect(&TokenKind::LinkLib)?;
+
+    let name: String;
+    match self.advance().unwrap().kind {
+      TokenKind::StringLit(s) => name = s.clone(),
+      other => {
+        return Err(Diagnostic::new(
+          Phase::Parse,
+          tok.span.clone(),
+          format!("Expected string literal, found {:?}", other),
+        ));
+      }
+    }
+
+    self.expect(&TokenKind::Semicolon)?;
+    Ok(name)
   }
 
   // ── Functions ─────────────────────────────────────────────
@@ -423,7 +456,38 @@ impl Parser {
     })
   }
 
-  /// `"(" (type ident ("," ident)* ("," param)*)* ")"`
+  /// `("mut" | "mutable")? type "*"? ident`
+  ///
+  /// Parameters are written C-style — type first, name after — and an optional
+  /// `*` after the type makes it a pointer parameter (e.g. `void *win`,
+  /// `mut u32 *out`). The `*` belongs to the single parameter it follows:
+  /// grouped names (`int a, b`) share one type, but pointers must each be
+  /// spelled out (`u32 *a, u32 *b`).
+  fn parse_param_type(&mut self) -> ParseResult<Type> {
+    let is_mutable = self.consume(&TokenKind::Mutable);
+    let base = self.parse_type()?;
+    if self.consume(&TokenKind::Star) {
+      Ok(Type::TyPtr(Box::new(base), is_mutable))
+    } else if is_mutable {
+      let sp = match &self.peek() {
+        Some(t) => t.span.clone(),
+        None => Span::new(&self.file, 0, 0),
+      };
+      Err(Diagnostic::new(
+        Phase::Parse,
+        sp,
+        "'mut' only applies to pointer parameters",
+      ))
+    } else {
+      Ok(base)
+    }
+  }
+
+  /// `"(" (param ("," param)*)? ")"`
+  ///
+  /// `param` is a C-style type/name pair; consecutive names sharing the same
+  /// non-pointer type may be grouped (`int a, b`), exactly like the parameter
+  /// grammar in `specs/2.functions.md`.
   fn parse_params(&mut self) -> ParseResult<Vec<Param>> {
     self.expect(&TokenKind::LParen)?;
     let mut params = Vec::new();
@@ -434,7 +498,7 @@ impl Parser {
 
     loop {
       let typ_tok = self.peek().cloned();
-      let typ = self.parse_type()?;
+      let typ = self.parse_param_type()?;
       let span = typ_tok
           .map(|t| t.span)
           .unwrap_or_else(|| Span::new(&self.file, 0, 0));
@@ -450,6 +514,19 @@ impl Parser {
         {
           transition = true;
           break;
+        }
+        // Grouping needs a `*` of its own: `u32 *a, u32 *b`, never `u32 *a, b`.
+        if let Type::TyPtr(elem, _) = &typ {
+          return Err(Diagnostic::new(
+            Phase::Parse,
+            span.clone(),
+            format!(
+              "Parameter '{}' needs its own '*': write '{} *{}'",
+              names[0],
+              elem.c_str(),
+              names[0]
+            ),
+          ));
         }
         names.push(self.expect_ident()?);
       }
@@ -540,8 +617,16 @@ impl Parser {
           .unwrap_or_else(|| span.clone());
       self.expect(&TokenKind::Colon)?;
 
-      // Allow pointers as struct fields
+      // Allow pointers as struct fields, and `fixed T[N]` for C array fields.
+      let is_fixed_field = self.consume(&TokenKind::Fixed);
       let field_type = self.parse_return_type()?;
+      // Fold the `fixed` annotation into a sized array type: `fixed u8[52]`
+      // is a C array (`u8[52]`), while a plain `u8[52]` stays a dynamic
+      // `nitid_array`. Codegen only emits inline C arrays for TyFixedArray.
+      let field_type = match (is_fixed_field, field_type) {
+        (true, Type::TyArray(elem, Some(sz))) => Type::TyFixedArray(elem, sz),
+        (_, t) => t,
+      };
       self.expect(&TokenKind::Semicolon)?;
       fields.push(StructField {
         name: field_name,

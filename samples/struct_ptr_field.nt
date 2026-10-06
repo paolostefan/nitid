@@ -1,0 +1,35 @@
+package main;
+
+// A struct field of pointer type is storage, not a `const` pointer:
+//  - it must not inherit the top-level `const` from `type *name`
+//  - and `nil` (TyPtr(Void, true)) must initialize a `void *` field
+struct Framebuffer {
+  fb: void *;
+  w: i32;
+  h: i32;
+}
+
+extern "C" fn malloc(u64 size) -> void *;
+extern "C" fn free(void *p);
+
+fn fb_create(int w, int h) -> void * {
+  return malloc(w * h * 4);
+}
+
+fn fb_release(Framebuffer f) {
+  unsafe {
+    free(f.fb);
+  }
+  // Assigning nil back into the field must type-check too.
+}
+
+fn main() {
+  Framebuffer f = Framebuffer{ fb: nil, w: 4, h: 3 };
+  f.fb = fb_create(f.w, f.h);
+  unsafe {
+    printf("%p\n", f.fb);
+  }
+  fb_release(f);
+  f.fb = nil;
+  printf("%d\n", f.w * f.h);
+}

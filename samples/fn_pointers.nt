@@ -2,11 +2,24 @@ package main;
 
 type Cb = fn (int, int) -> (int, f64);
 
+// Single return value: called through the parameter, never name-mangled.
+type Add = fn (int, int) -> int;
+
+fn addViaPointer(Add a, int x, int y) -> int {
+  return a(x, y);
+}
+
 fn IUseAFunctionPtr(Cb param1) -> (int, f64) {
   unsafe {
     a, b := param1(42, 36);
     return a,b;
   }
+}
+
+// Several function-pointer parameters in a row: each one restarts the
+// parameter list, so they must not be grouped under one type.
+fn chain(Add first, Add second, int seed) -> int {
+  return second(first(seed, 1), 2);
 }
 
 // TODO: instance a Cb and pass it to an actual call!

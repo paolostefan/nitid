@@ -1,0 +1,31 @@
+package main;
+
+// Mixed-width arithmetic: the wider operand wins, as in C.
+
+fn main() -> int {
+  u32 count := 5;
+  i32 step := 2;
+  u64 total := 1000;
+  f32 scale := 0.5;
+
+  println(count - 1);
+  println(count * step);
+  println(total + count);
+  println(count * scale);
+
+  // comparisons across widths are fine and yield bool
+  if (count > step) {
+    println("wider on the left");
+  }
+  if (step < count) {
+    println("wider on the right");
+  }
+
+  // pointer arithmetic keeps the pointer type
+  arr := u8[]{1, 2, 3, 4};
+  mut u8 *p = &arr[0];
+  p = p + 2;
+  unsafe { println(*p); }
+
+  return 0;
+}

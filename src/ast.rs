@@ -47,14 +47,12 @@ pub struct Program {
   pub package: String,
   pub imports: Vec<Import>,
   pub decls: Vec<Decl>,
+  pub link_libs: Vec<String>,
   pub file: String,
   pub has_dangling: bool,
 }
 
 /// An `import` statement.
-///
-/// Parsed but **not yet resolved** — there is no module system that
-/// actually loads the imported package.
 ///
 /// Example: `import foo as bar;` → `Import { name: "foo", alias: Some("bar") }`
 #[derive(Debug, Clone)]

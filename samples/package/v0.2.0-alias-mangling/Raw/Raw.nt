@@ -1,0 +1,14 @@
+package Raw;
+
+// An `extern "C"` declaration inside a package names a real C symbol, so it
+// must never be mangled with the package prefix.
+extern "C" fn raw_open(u8 *title, int w, int h) -> void *;
+extern "C" fn raw_close(void *handle);
+
+fn open(u8 *title, int w, int h) -> void * {
+    return raw_open(title, w, h);
+}
+
+fn close(void *handle) {
+    raw_close(handle);
+}

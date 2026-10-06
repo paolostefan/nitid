@@ -24,6 +24,9 @@ pub enum TokenKind {
   Import,
   As,
 
+  /// A link_lib statement, used to instruct CMake as per what to link against
+  LinkLib,
+
   Extern,
   Fn,
   Return,
@@ -127,6 +130,7 @@ impl TokenKind {
       Self::Type(_) => Cow::Borrowed("type"),
       Self::Nil => Cow::Borrowed("nil"),
       Self::Unsafe => Cow::Borrowed("unsafe"),
+      Self::LinkLib => Cow::Borrowed("link_lib"),
       Self::Type_ => Cow::Borrowed("type_"),
       Self::Ident(_) => Cow::Borrowed("identifier"),
       Self::Star => Cow::Borrowed("star"),
@@ -210,6 +214,7 @@ pub const KEYWORD_TABLE: &[(&str, TokenKind)] = &[
   ("package", TokenKind::Package),
   ("import", TokenKind::Import),
   ("as", TokenKind::As),
+  ("link_lib", TokenKind::LinkLib),
   ("extern", TokenKind::Extern),
   ("type", TokenKind::Type_),
   ("fn", TokenKind::Fn),

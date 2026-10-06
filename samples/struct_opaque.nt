@@ -1,7 +1,17 @@
+link_lib "SDL2";
+
 opaque struct SDL_Window;
 
+// Pointer return type: `-> SDL_Window *`
 extern "C" fn SDL_CreateWindow() -> SDL_Window *;
 
+// Pointer parameter: type first, then `*`, then the name
+extern "C" fn SDL_DestroyWindow(SDL_Window *win);
+
 SDL_Window *a = SDL_CreateWindow();
+
+if a != nil {
+  SDL_DestroyWindow(a);
+}
 
 println("Hello world :-P");

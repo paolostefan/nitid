@@ -1,0 +1,7 @@
+// expect-contains: needs its own '*'
+// Grouping (one type for several names) only applies to non-pointer
+// parameters. Every pointer parameter spells out its own `*`.
+
+fn set_len(mut u32 *len, value) {
+  unsafe { *len = value; }
+}

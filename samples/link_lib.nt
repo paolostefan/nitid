@@ -1,0 +1,15 @@
+// Link this file against SDL for the transpiled C to build
+link_lib "SDL2";
+
+extern "C" fn SDL_Init(u32 flags) -> int;  // FFI — an ordinary call; only `*p` needs unsafe
+
+// Main body follows...
+x:= 42;
+mut p := &x;  // address-of — safe (creates the pointer)
+
+// Deref requires unsafe
+unsafe { *p = 100; }
+
+// An FFI call is an ordinary call: no `unsafe` block needed.
+// unsafe { SDL_Init(0x20); }
+SDL_Init(0x20);

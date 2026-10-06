@@ -1,0 +1,37 @@
+package Box;
+
+// A struct field of pointer type is storage: it must not inherit the
+// top-level `const` from `type *name`, or every later assignment is rejected.
+struct Handle {
+    raw: void *;
+}
+
+impl Handle {
+    fn adopt(void *raw) {
+        self.raw = raw;
+    }
+
+    fn release {
+        unsafe {
+            close_raw(self.raw);
+        }
+        self.raw = nil;
+    }
+
+    fn valid -> bool {
+        return self.raw != nil;
+    }
+}
+
+extern "C" fn close_raw(void *raw);
+
+fn smoke(u8 *title) -> i32 {
+    Handle h = Handle{ raw: nil };
+    h.adopt(open_raw(title, 2, 2));
+    if !h.valid() { return 0; }
+    h.release();
+    if h.valid() { return 0; }
+    return 1;
+}
+
+extern "C" fn open_raw(u8 *title, int w, int h) -> void *;

@@ -57,7 +57,7 @@ pub struct Codegen {
   /// Enum definitions (name, variants) for emission.
   enum_defs: Vec<(String, Vec<EnumVariant>)>,
   /// Imported package names, for resolving qualified calls like Math.foo()
-  package_names: HashSet<String>,
+  package_names: HashMap<String, String>,
   // Signatures of imported functions
   foreign_sigs: HashMap<String, (String, Vec<Type>, Vec<Type>)>,
   // Currently processed package
@@ -75,7 +75,7 @@ impl Codegen {
       struct_names: HashSet::new(),
       struct_defs: Vec::new(),
       enum_defs: Vec::new(),
-      package_names: HashSet::new(),
+      package_names: HashMap::new(),
       foreign_sigs: HashMap::new(),
       current_package: "main".to_string(),
     }
@@ -93,7 +93,7 @@ impl Codegen {
     &mut self,
     program: &Program,
     c_src_dir: &str,
-    package_names: HashSet<String>,
+    package_names: HashMap<String, String>,
     foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
   ) -> Result<(Vec<CFile>, String), String> {
     let c_code = self.generate_c(program, package_names, foreign_sigs);
@@ -127,7 +127,7 @@ impl Codegen {
   pub fn generate_c(
     &mut self,
     program: &Program,
-    package_names: HashSet<String>,
+    package_names: HashMap<String, String>,
     foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
   ) -> String {
     self.current_package = program.package.clone();
@@ -267,6 +267,13 @@ impl Codegen {
             Type::TyFixedArray(elem, n) => {
               c_code.push_str(&format!(" {} {}[{}];\n", elem.c_str(), f.name, n));
             }
+            // A field is storage, so the top-level pointee qualifier that a `T *`
+            // declaration carries must not be reproduced here: C would make the
+            // member itself read-only (`void *const fb`) and every later assignment
+            // to `s.fb` would fail to compile.
+            Type::TyPtr(elem, _) => {
+              c_code.push_str(&format!(" {} *{};\n", elem.c_str(), f.name));
+            }
             _ => {
               c_code.push_str(&format!(" {} {};\n", f.typ.c_str(), f.name));
             }
@@ -275,6 +282,20 @@ impl Codegen {
         c_code.push_str("} ");
       }
       c_code.push_str(&format!("{};\n\n", name));
+    }
+
+    // Forward declarations. `extern "C"` prototypes come first: they name real C
+    // symbols that the rest of the file calls, and a call before the prototype
+    // would be an implicit declaration in C99 (and a hard error with
+    // -Werror=implicit-function-declaration). Emitting them here rather than at
+    // their position in the source also makes the declaration order irrelevant.
+    for decl in &program.decls {
+      if let Decl::FnDecl(f) = decl {
+        if f.is_external {
+          c_code.push_str(&self.emit_extern_fn_decl(f));
+          c_code.push_str(";\n");
+        }
+      }
     }
 
     // Forward declarations for functions that return values
@@ -298,17 +319,9 @@ impl Codegen {
     for decl in &program.decls {
       match decl {
         Decl::FnDecl(f) => {
-          // Use mangled name for all functions, except extern fn's (FFI)
+          // Use mangled name for all functions, except extern fn's (FFI),
+          // which are declared up front with the other forward declarations.
           if f.is_external {
-            if let Some(abi) = &f.extern_abi {
-              if abi != "C" {
-                c_code.push_str("extern ");
-                c_code.push_str(&format!("\"{abi}\" "));
-              }
-            }
-
-            c_code.push_str(&self.emit_fn_decl(f, &f.name));
-            c_code.push_str(";\n\n");
           } else {
             let c_name = format!("{}_{}", self.current_package, f.name);
             c_code.push_str(&self.emit_fn_decl(f, &c_name));
@@ -377,7 +390,15 @@ impl Codegen {
     cmake.push_str(
       "target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})\n",
     );
-    cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime)\n");
+
+    // `link_lib "SDL2";` adds libraries for the generated program to link
+    // against, after the runtime.
+    cmake.push_str("target_link_libraries(${PROJECT_NAME} PRIVATE nitid_runtime");
+    if !program.link_libs.is_empty() {
+      let libs: Vec<&str> = program.link_libs.iter().map(|s| s.as_str()).collect();
+      cmake.push_str(&format!(" {}", libs.join(" ")));
+    }
+    cmake.push_str(")\n");
 
     cmake
   }
@@ -434,6 +455,20 @@ impl Codegen {
 
     s.push_str(&param_list.join(", "));
     s.push(')');
+    s
+  }
+
+  /// Emit a prototype for an `extern "C"` declaration, unmangled: it names a
+  /// real C symbol, so the ABI tag (if not plain C) and the bare name are kept.
+  fn emit_extern_fn_decl(&mut self, f: &FnDecl) -> String {
+    let mut s = String::new();
+    if let Some(abi) = &f.extern_abi {
+      if abi != "C" {
+        s.push_str("extern ");
+        s.push_str(&format!("\"{abi}\" "));
+      }
+    }
+    s.push_str(&self.emit_fn_decl(f, &f.name));
     s
   }
 
@@ -1124,10 +1159,13 @@ impl Codegen {
         ..
       } => {
         // Import: qualified package call, e.g. Math.Multiply(25,14) .
+        // `package_names` maps the name written at the call site (which may be an
+        // import alias) to the package's own declared name, because that is the
+        // prefix its translation unit actually defines.
         if let Expr::Ident(pkg_name, _) = target.as_ref() {
-          if self.package_names.contains(pkg_name) {
+          if let Some(real_name) = self.package_names.get(pkg_name).cloned() {
             let args_str = self.emit_call_args_joined(args, current_fn);
-            return format!("{}_{}({})", pkg_name, method, args_str);
+            return format!("{}_{}({})", real_name, method, args_str);
           }
         }
 
@@ -1262,6 +1300,45 @@ impl Codegen {
   /// precedence than child, e.g. `(a + b) * c`).
   /// Infer the type of an expression for codegen purposes.
   /// Returns `None` when the type cannot be determined.
+  /// Result type of a binary arithmetic expression, mirroring the widening rule
+  /// used by sema (`arith_result`): the wider integral side wins, and a float
+  /// operand makes the whole expression a float. Keeping the two in step matters
+  /// for `println`, whose format specifier is derived from this type.
+  fn binop_result_type(lt: Type, rt: Type) -> Type {
+    if lt == rt {
+      return lt;
+    }
+    let integral_width = |t: &Type| match t {
+      Type::I8 | Type::U8 => Some(1u32),
+      Type::I16 | Type::U16 => Some(2),
+      Type::I32 | Type::U32 => Some(4),
+      Type::I64 | Type::U64 => Some(8),
+      Type::I128 | Type::U128 => Some(16),
+      Type::I256 | Type::U256 => Some(32),
+      _ => None,
+    };
+    let is_float = |t: &Type| matches!(t, Type::F8 | Type::F16 | Type::F32 | Type::F64);
+    match (integral_width(&lt), integral_width(&rt)) {
+      (Some(l), Some(r)) => {
+        if r > l {
+          rt
+        } else {
+          lt
+        }
+      }
+      _ if is_float(&lt) && is_float(&rt) => {
+        if lt == Type::F64 || rt == Type::F64 {
+          Type::F64
+        } else {
+          Type::F32
+        }
+      }
+      _ if is_float(&lt) => lt,
+      _ if is_float(&rt) => rt,
+      _ => lt,
+    }
+  }
+
   fn typeof_expr(&self, expr: &Expr) -> Option<Type> {
     match expr {
       Expr::StringLit(..) => Some(Type::String),
@@ -1298,18 +1375,51 @@ impl Codegen {
           _ => typ,
         }
       }
-      Expr::BinaryOp { left, op, .. } => {
+      Expr::BinaryOp {
+        left, right, op, ..
+      } => {
         let lt = self.typeof_expr(left)?;
         if is_string_type(&lt) {
-          match op {
-            BinOp::Add => Some(lt),
-            BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
-              Some(Type::Bool)
-            }
+          return match op {
+            BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => Some(Type::Bool),
             _ => Some(lt),
+          };
+        }
+        if matches!(
+          op,
+          BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge | BinOp::And | BinOp::Or
+        ) {
+          return Some(Type::Bool);
+        }
+        // Pointers keep their own type: `p + 1` is still `T *`.
+        if matches!(lt, Type::TyPtr(_, _)) {
+          return Some(lt);
+        }
+        match self.typeof_expr(right) {
+          Some(rt) => Some(Self::binop_result_type(lt, rt)),
+          None => Some(lt),
+        }
+      }
+      Expr::MethodCall {
+        target, method, ..
+      } => {
+        // Qualified package call (`gfx.Window_create(..)`): the signature lives
+        // in `foreign_sigs`, keyed by the bare function name.
+        if let Expr::Ident(pkg_name, _) = target.as_ref() {
+          if self.package_names.contains_key(pkg_name) {
+            return self
+              .foreign_sigs
+              .get(method)
+              .and_then(|(_, _, returns)| returns.first().cloned());
           }
-        } else {
-          Some(lt)
+        }
+        // Struct method call (`w.is_open()`): whatever the method returns.
+        match self.typeof_expr(target) {
+          Some(Type::Struct(name)) => self
+            .fn_returns
+            .get(&format!("{}_{}", name, method))
+            .and_then(|ret| ret.first().cloned()),
+          _ => None,
         }
       }
       Expr::Index { target, .. } => {
@@ -1372,7 +1482,13 @@ impl Codegen {
       self.emit_printf(args, current_fn)
     } else {
       // Mangle if this is an imported function.
-      let c_name = if self.fn_returns.contains_key(name) {
+      let c_name = if matches!(self.lookup_var_type(name), Some(Type::TyFnPtr(..))) {
+        // A local variable of function-pointer type is called through directly,
+        // never mangled. Function-pointer *parameters* are registered in
+        // `fn_params`/`fn_returns` under their own name (see `emit_fn_decl`), so
+        // the scope lookup is what tells the two apart.
+        name.to_string()
+      } else if self.fn_returns.contains_key(name) {
         format!("{}_{}", self.current_package, name)
       } else if let Some((m, _, _)) = self.foreign_sigs.get(name) {
         m.clone()

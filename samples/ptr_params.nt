@@ -1,0 +1,51 @@
+package main;
+
+// Pointer parameters are C-style: the type comes first, then an optional
+// `*`, then the name. `mut`/`mutable` in front of the type marks the
+// *pointer* as rebindable (a C `T *`, not a C `T *const`).
+
+extern "C" fn SDL_CreateWindow(u8 *title, int x, int y, int w, int h, u64 flags) -> void *;
+extern "C" fn SDL_DestroyWindow(void *win);
+extern "C" fn SDL_UpdateTexture(void *tex, void *rect, u32 *pixels, int pitch) -> int;
+extern "C" fn strlen(u8 *s) -> u64;
+
+// Passing a fixed pointer — the pointee may still be written to.
+fn bump(u32 *n) {
+  unsafe { *n = *n + 1; }
+}
+
+// `mut` pointer parameter: the callee may re-point it.
+fn advance(mut u32 *p, u64 by) {
+  unsafe { p = p + by; }
+}
+
+// Pointers can be forwarded straight through to another function.
+fn store(void *tex, u32 *pixels, int pitch) -> int {
+  unsafe { return SDL_UpdateTexture(tex, nil, pixels, pitch); }
+}
+
+// Pointer returns, plus pointer-to-pointer are still not available:
+// `u32 **out` is rejected, so an FFI out-parameter must be passed by value
+// as a fixed pointer and dereferenced inside an `unsafe` block.
+fn main() {
+  u32 v := 7;
+  bump(&v);
+
+  arr := u32[]{10, 20, 30};
+  mut u32 *first = &arr[0];
+  advance(first, 2);
+
+  unsafe {
+    println(*(&v));    // 8
+    println(*first);   // 30
+  }
+
+  win := SDL_CreateWindow("Nitid", 0x1FFF0000, 0x1FFF0000, 320, 240, 0);
+  if win == nil {
+    println("Window creation failed");
+    return 1;
+  }
+  SDL_DestroyWindow(win);
+
+  println(strlen("hello"));
+}

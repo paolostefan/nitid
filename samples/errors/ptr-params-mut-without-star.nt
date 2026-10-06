@@ -1,0 +1,6 @@
+// expect-contains: 'mut' only applies to pointer parameters
+// `mut` / `mutable` marks a *pointer* as rebindable, so it needs a `*`.
+
+fn greet(mut string name) {
+  println(name);
+}
