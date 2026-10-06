@@ -1,0 +1,134 @@
+link_lib "m";
+link_lib "SDL3";
+
+// Misc functions
+extern "C" fn sin(f64 x) -> f64;
+extern "C" fn cos(f64 x) -> f64;
+extern "C" fn sqrt(f64 x) -> f64;
+extern "C" fn malloc(u64 size) -> void *;
+extern "C" fn free(void *p);
+
+// SDL2 structs
+struct SDL_Event {
+    type_field: u32;
+    reserved: u32;
+    timestamp: u64;
+    padding: fixed u8[112];  // SDL_Event is a 128-byte union
+}
+
+// SDL2 functions
+extern "C" fn SDL_Init(u32 flags) -> bool;
+extern "C" fn SDL_Quit();
+extern "C" fn SDL_GetError() -> u8 *;
+extern "C" fn SDL_CreateWindowAndRenderer(u8 *title, int w, int h, u64 flags, void *window_ptr, void *renderer_ptr) -> bool;
+extern "C" fn SDL_DestroyWindow(void *win);
+extern "C" fn SDL_PollEvent(SDL_Event *event) -> bool;
+extern "C" fn SDL_Delay(u32 ms);
+extern "C" fn SDL_CreateRenderer(void *win, int index, u32 flags) -> void *;
+extern "C" fn SDL_CreateTexture(void *renderer, u32 fmt, int access, int w, int h) -> void *;
+extern "C" fn SDL_UpdateTexture(void *tex, void *rect, void *pixels, int pitch) -> int;
+extern "C" fn SDL_RenderTexture(void *renderer, void *tex, void *srcrect, void *dstrect) -> bool;
+extern "C" fn SDL_RenderPresent(void *renderer);
+extern "C" fn SDL_RenderClear(void *renderer);
+extern "C" fn SDL_DestroyRenderer(void *renderer);
+extern "C" fn SDL_DestroyTexture(void *tex);
+extern "C" fn SDL_GetTicks() -> u64;
+
+
+// Present func
+fn present(void *renderer, void *tex, u32 *fb, int width, int height) {
+  SDL_UpdateTexture(tex, nil, fb, width * 4);
+  SDL_RenderTexture(renderer, tex, nil, nil);
+  SDL_RenderPresent(renderer);
+}
+
+fn plasma(u32 *fb, int width, int height, u64 time) {
+  f64 fw = width;
+  f64 fh = height;
+  f64 ft = time;
+
+  for (y:=0; y < height; y++) {
+    f64 fy = y;
+    f64 v2 = sin(fy * 0.05 + ft * 0.003);
+
+    for (x:=0; x < width; x++) {
+      f64 fx = x;
+
+      // Calculate color based on plasma formula
+      f64 v1 = sin(fx * 0.05 + ft *0.002);
+      f64 v3 = sin((fx + fy) * 0.03 + ft * 0.001);
+      f64 v4 = sin(sqrt((fx - fw * 0.5) * (fx - fw * 0.5) + 
+                        (fy - fh * 0.5) * (fy - fh * 0.5))*0.02);
+      f64 v = (v1 + v2 + v3 + v4) * 0.25; // Normalize to [-1, 1]
+      f64 fidx = (v + 1.0) * 127.5;  // Map to [0, 255]
+      
+      // Plasma palette: cycle through RGB
+      i32 r = fidx * 0.5 + 128.0;
+      i32 g = fidx * 0.3 + 64.0;
+      i32 b = fidx * 0.7;
+      u32 pixel = (r << 16) | (g << 8) | b | 0xFF000000; // ARGB format
+      unsafe { *(fb + y * width + x) = pixel; }
+    }
+  }
+}
+
+
+fn main() -> int {
+  if (!SDL_Init(0x20)) {  // SDL_INIT_VIDEO
+    printf("SDL_Init failed\n");
+    return 1;
+  }
+
+  int width = 800;
+  int height = 600;
+
+  mut void *win = nil;
+  mut void *renderer = nil;
+
+  if(!SDL_CreateWindowAndRenderer("Nitid Demo", width, height, 0x20, &win, &renderer)) { // SDL_WINDOW_RESIZABLE
+    printf("Window or renderer creation failed: %s\n", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  void *tex = SDL_CreateTexture(renderer,
+                                0x16362004, // SDL_PIXELFORMAT_ARGB8888
+                                2, // SDL_TEXTUREACCESS_TARGET
+                                width, height);
+  if (tex == nil) {
+    printf("Texture creation failed: %s\n", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  u32 *fb = malloc(width * height * 4);
+  if(fb == nil) {
+    printf("Framebuffer allocation failed\n");
+    SDL_DestroyTexture(tex);
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_Event event = SDL_Event{ type_field: 0, reserved: 0, timestamp: 0, padding: {0} };
+  running := true;
+  while (running) {
+
+    plasma(fb, width, height, SDL_GetTicks());
+    present(renderer, tex, fb, width, height);
+
+    while (SDL_PollEvent(&event)) {
+      if (event.type_field == 0x100) {  // SDL_QUIT
+        running = false;
+      }
+    }
+    SDL_Delay(16);  // ~60fps
+  }
+
+  free(fb);
+
+  SDL_DestroyTexture(tex);
+  SDL_Quit();
+
+  return 0;
+}
+

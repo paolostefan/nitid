@@ -1,0 +1,50 @@
+link_lib "SDL3";
+
+// Structs must be declared before any signature mentions them.
+struct SDL_Event {
+    type_field: u32;
+    reserved: u32;
+    timestamp: u64;
+    padding: fixed u8[112];  // SDL_Event is a 128-byte union
+}
+
+extern "C" fn SDL_Init(u32 flags) -> bool;
+extern "C" fn SDL_Quit();
+extern "C" fn SDL_CreateWindowAndRenderer(u8 *title, int w, int h, u64 flags, void *window_ptr, void *renderer_ptr) -> bool;
+extern "C" fn SDL_RenderPresent(void *renderer);
+extern "C" fn SDL_GetError() -> u8 *;
+extern "C" fn SDL_DestroyWindow(void *win);
+extern "C" fn SDL_PollEvent(SDL_Event *event) -> bool;
+extern "C" fn SDL_Delay(u32 ms);
+
+fn main() -> int {
+  if (!SDL_Init(0x20)) {  // SDL_INIT_VIDEO
+    println("SDL_Init failed");
+    return 1;
+  }
+
+  mut void *win = nil;
+  mut void *renderer = nil;
+
+  if(!SDL_CreateWindowAndRenderer("Nitid Demo", 800, 600, 0x20, &win, &renderer)) { // SDL_WINDOW_RESIZABLE
+    println("Window or renderer creation failed: %s", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_Event event = SDL_Event{ type_field: 0, reserved: 0, timestamp: 0, padding: {0} };
+  running := true;
+  while (running) {
+    while (SDL_PollEvent(&event)) {
+      if (event.type_field == 0x100) {  // SDL_QUIT
+        running = false;
+      }
+    }
+    SDL_RenderPresent(renderer);
+    SDL_Delay(16);  // ~60fps
+  }
+
+  SDL_DestroyWindow(win);
+  SDL_Quit();
+  return 0;
+}

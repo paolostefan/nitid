@@ -1,0 +1,51 @@
+package main;
+
+link_lib "m";
+
+extern "C" fn malloc(u64 size) -> void *;
+extern "C" fn free(void *p);
+
+// A framebuffer is just a pointer to pixel data
+fn fb_create(int width, int height) -> u32 * {
+  // Allocate width * height * sizeof(u32) bytes
+  return malloc(width * height * 4);
+}
+
+fn fb_set_pixel(u32 *fb, int width, int x, int y, u32 color) {
+  offset := y * width + x;
+  unsafe {
+    *(fb + offset) = color;
+  }
+}
+
+fn fb_clear(u32 *fb, int width, int height, u32 color) {
+  for (y:=0; y < height; y++) {
+    for (x:=0; x < width; x++) {
+      fb_set_pixel(fb, width, x, y, color);
+    }
+  }
+}
+
+fn fb_free(void *fb) {
+  free(fb);
+}
+
+fn rgb(int r, int g, int b) -> u32 {
+  return (r << 16) | (g << 8) | b | 0xFF000000;
+}
+
+fn main() {
+  u32 *fb = fb_create(320, 240);
+  fb_clear(fb, 320, 240, rgb(255, 0, 0));
+
+  fb_set_pixel(fb, 4, 0, 0, 0x00000001);
+  fb_set_pixel(fb, 4, 2, 1, 0xDEADBEEF);
+  
+  unsafe {
+    printf("%08x %08x %08x\n", *fb, *(fb + 6), *(fb + 11));
+    // expected output: 00000001 deadbeef ffff0000
+    // The last pixel is ffff0000 because we cleared the framebuffer to red
+  }
+
+  fb_free(fb);
+}
