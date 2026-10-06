@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6f8cddd9.js";
+            window.path_to_searchindex_js = "../searchindex-cbe5264b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8c01391.js"></script>
@@ -211,6 +211,46 @@ struct CacheLine {
 <p>Initialization of array struct members follows the usual way.</p>
 <pre><code class="language-nitid">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
 </code></pre>
+<h3 id="fixed-array-members"><a class="header" href="#fixed-array-members"><code>fixed</code> array members</a></h3>
+<p>A <code>fixed T[N]</code> field is a <strong>C array</strong>, inline in the struct: no heap allocation, no
+<code>nitid_array</code> header, and no <code>size()</code>/<code>.resize()</code>. Use it for opaque handles such as SDL’s
+<code>SDL_Surface</code>, whose layout the runtime does not know:</p>
+<pre><code class="language-nitid">struct Surface {
+  flags: u32;
+  format: void *;
+  w: i32;
+  h: i32;
+  pitch: i32;
+  pixels: void *;
+  userdata: void *;
+  locked: void *;
+  list_blitmap: void *;
+  clip_rect: void *;
+  map: void *;
+  // refcount must stay 8-byte aligned, so pad out to a multiple of 8 bytes:
+  // 11 pointers = 88 bytes, and 88 + 52 = 140, which is 4 bytes short of 144.
+  padding: fixed u8[52];
+}
+</code></pre>
+<p>which emits</p>
+<pre><code class="language-c">typedef struct Surface {
+  u32 flags;
+  void *format;
+  i32 w;
+  i32 h;
+  i32 pitch;
+  void *pixels;
+  void *userdata;
+  void *locked;
+  void *list_blitmap;
+  void *clip_rect;
+  void *map;
+  u8 padding[52];
+} Surface;
+</code></pre>
+<p>Without <code>fixed</code>, <code>padding: u8[52];</code> would be a dynamic <code>nitid_array</code> member, which has a
+different size and layout and would therefore <em>not</em> match the C struct being wrapped. See
+<a href="3.arrays.html">Arrays</a>.</p>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
 <p>Structs in Nitid can have their own methods.</p>
 <hr>

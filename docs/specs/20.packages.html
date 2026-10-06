@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6f8cddd9.js";
+            window.path_to_searchindex_js = "../searchindex-cbe5264b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8c01391.js"></script>
@@ -215,6 +215,30 @@ a := b.someFunction();
 // Error: Bubble is not available since it is aliased to "b"
 e := Bubble.someFunction();
 </code></pre>
+<p>The alias renames only the name you write at the call site. <strong>Mangled C symbols always use the package’s own
+declared name</strong>, so the caller and the imported translation unit agree on the prefix:</p>
+<pre><code class="language-nitid">// gfx/window.nt
+package gfx;
+fn window_open(u8 *title, int w, int h) -&gt; void * { /* ... */ }
+</code></pre>
+<pre><code class="language-nitid">// main.nt
+import gfx as g;
+void *win = g.window_open("hello", 640, 480);   // calls gfx_window_open(...)
+</code></pre>
+<p>Two consequences follow:</p>
+<ul>
+<li><strong><code>extern "C"</code> declarations inside a package are never mangled and never exported.</strong> They name real C symbols, so
+<code>extern "C" fn SDL_Init(u32) -&gt; int;</code> stays <code>SDL_Init</code> and is not reachable as <code>pkg.SDL_Init(...)</code>. All such
+prototypes are emitted together at the top of the file, before anything that calls them, so their position in the
+source is irrelevant (C99 would reject a call that precedes its prototype).</li>
+<li><strong>Qualified calls work anywhere an expression is expected</strong>, including inside a variable initializer
+(<code>void *win = g.window_open(...)</code>), not only as a bare statement.</li>
+</ul>
+<p>⚠️ <strong>Imported struct types cannot be named.</strong> <code>gfx.Window w = ...;</code> and <code>w := gfx.Window{ ... };</code> are parse errors
+(<code>Expected Semicolon, found Ident("w")</code> / <code>Expected Semicolon, found LBrace</code>), and there is no plain <code>type</code> alias to
+work around it — only <code>fn</code>-pointer aliases exist. The cross-package surface therefore has to stay at <code>void *</code> handles
+and free functions; a struct wrapper is usable only inside its own package. See
+<a href="21.module-layout.html">Modules</a>.</p>
 
                     </main>
 

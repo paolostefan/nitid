@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-6f8cddd9.js";
+            window.path_to_searchindex_js = "searchindex-cbe5264b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-b8c01391.js"></script>
@@ -1030,7 +1030,7 @@ Import      = "import" , Ident , [ "as" , Ident ] , ";" .
 FnDecl      = "fn" , Ident , [ ParamList ] , [ ReturnTypes ]  
             , "{" , { Stmt } , "}" .  
 ParamList   = "(" , [ Param , { "," , Param } ] , ")" .  
-Param       = Type , Ident , { "," , Ident } .  
+Param       = [ "mut" | "mutable" ] , Type , [ "*" ] , Ident , { "," , Ident } .  
 ReturnTypes = "-&gt;" , ( "(" , Type , { "," , Type } , ")" | Type ) .  
   
 (* --- Types --- *)  
@@ -1095,6 +1095,9 @@ letter      = "A" | "B" | ... | "Z" | "a" | "b" | ... | "z" | "_" .
 digit       = "0" | "1" | ... | "9" .  
 hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .  
 </code></pre>
+<p>The <code>*</code> in a <code>Param</code> is the pointer marker of a single parameter, and <code>mut</code>/<code>mutable</code> applies to it. Grouping several
+names under one type is therefore only available for non-pointer parameters: <code>int a, b</code> is accepted, <code>u32 *a, u32 *b</code>
+is accepted, <code>u32 *a, b</code> is not. See <a href="#pointers-and-function-pointers">Pointers</a>.</p>
 <p><strong>Operator precedence summary</strong> (lowest first):</p>
 <div class="table-wrapper">
 <table>
@@ -1118,6 +1121,22 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
 </tbody>
 </table>
 </div>
+<p><strong>Mixed-width arithmetic.</strong> <code>+ - * / %</code> and the bitwise/shift operators do not require both operands to have exactly
+the same type. When the two types differ in width, the wider one is the result type — the usual C conversions, minus
+the integer-promotion subtleties:</p>
+<pre><code class="language-nitid">u32 count := 5;
+i32 step := 2;
+println(count - 1);      // u32: the literal 1 infers as i32 and is widened
+println(count * step);   // u32: wider operand wins over the narrower one
+u64 total := 1000;
+println(total + count);  // u64
+f32 scale := 0.5;
+println(count * scale);  // f32: a float operand makes the expression a float
+</code></pre>
+<p>Pointer arithmetic is separate: <code>p + n</code> and <code>p - n</code> keep the pointer type and require <code>n</code> to be an integer type.
+Comparing two values of different integer widths with <code>&lt;</code> or <code>&gt;=</code> is accepted and yields <code>bool</code>; the operands are
+converted by the generated C, not by Nitid. Mixing a pointer with a non-integer (<code>p + 1.5</code>) is a <strong>semantic</strong> error
+(<code>Type mismatch in arithmetic</code>).</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="functions"><a href="#functions" class="header">Functions</a></h1>
 <p>In Nitid, a function is declared and implemented <strong>in the same place</strong>, as opposed to the C paradigm of declaration in a <code>.h</code> file and implementation in the corresponding <code>.c</code> file.<br>A function definition is introduced by the <code>fn</code> keyword.
@@ -1146,7 +1165,22 @@ fn otherFuncName(int Param1, Param2, string StrParam1, StrParam2, StrParam3) {
   // ...  
 }  
 
+// Pointer parameters: type first, then the "*", then the name
+extern "C" fn SDL_UpdateTexture(void *tex, void *rect, u32 *pixels, int pitch) -&gt; int;
+
+// Grouping does not apply to pointers: each one spells out its own "*"
+fn setPixel(u32 *x, u32 *y, u32 color) { /* ... */ }
+
+// "mut" / "mutable" goes in front of the type and only applies to pointers
+fn grow(mut u32 *len, u32 by) { /* ... */ }
+
 </code></pre>
+<p>Grouping (<code>int Param1, Param2</code>) is a shorthand for repeating the type. It does not extend to pointer parameters, where
+each name needs its own <code>*</code> — <code>fn setPixel(u32 *x, y)</code> is rejected with
+<code>Parameter 'x' needs its own '*': write 'u32 *x'</code>, because the grouped <code>y</code> would otherwise have no type at all.</p>
+<p><code>mut</code> / <code>mutable</code> in front of the type marks the <em>pointer</em> as rebindable rather than its pointee, and is only
+meaningful for pointer parameters: <code>fn f(mut u32 *n)</code> is accepted, <code>fn f(mut string s)</code> is rejected with
+<code>'mut' only applies to pointer parameters</code>. See <a href="#pointers-and-function-pointers">Pointers</a>.</p>
 <h3 id="return-values"><a class="header" href="#return-values">Return values</a></h3>
 <p>Function returning one or more values must have <code>-&gt;</code> right after their name and (optional) parameter list,
 followed by the <strong>return value types</strong> enclosed in parentheses.</p>
@@ -1324,6 +1358,46 @@ struct CacheLine {
 <p>Initialization of array struct members follows the usual way.</p>
 <pre><code class="language-nitid">c := CacheLine{ data: {1,2,3,4,5} }; // members from the 6th on will be zero-initialized
 </code></pre>
+<h3 id="fixed-array-members"><a class="header" href="#fixed-array-members"><code>fixed</code> array members</a></h3>
+<p>A <code>fixed T[N]</code> field is a <strong>C array</strong>, inline in the struct: no heap allocation, no
+<code>nitid_array</code> header, and no <code>size()</code>/<code>.resize()</code>. Use it for opaque handles such as SDL’s
+<code>SDL_Surface</code>, whose layout the runtime does not know:</p>
+<pre><code class="language-nitid">struct Surface {
+  flags: u32;
+  format: void *;
+  w: i32;
+  h: i32;
+  pitch: i32;
+  pixels: void *;
+  userdata: void *;
+  locked: void *;
+  list_blitmap: void *;
+  clip_rect: void *;
+  map: void *;
+  // refcount must stay 8-byte aligned, so pad out to a multiple of 8 bytes:
+  // 11 pointers = 88 bytes, and 88 + 52 = 140, which is 4 bytes short of 144.
+  padding: fixed u8[52];
+}
+</code></pre>
+<p>which emits</p>
+<pre><code class="language-c">typedef struct Surface {
+  u32 flags;
+  void *format;
+  i32 w;
+  i32 h;
+  i32 pitch;
+  void *pixels;
+  void *userdata;
+  void *locked;
+  void *list_blitmap;
+  void *clip_rect;
+  void *map;
+  u8 padding[52];
+} Surface;
+</code></pre>
+<p>Without <code>fixed</code>, <code>padding: u8[52];</code> would be a dynamic <code>nitid_array</code> member, which has a
+different size and layout and would therefore <em>not</em> match the C struct being wrapped. See
+<a href="#arrays">Arrays</a>.</p>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
 <p>Structs in Nitid can have their own methods.</p>
 <hr>
@@ -1759,6 +1833,45 @@ item”, see <a href="#arrays">Arrays</a>) is <strong>not implemented</strong> �
 <p>There is no <code>T?</code> optional type yet, and no null check is generated: dereferencing <code>nil</code> is undefined behaviour in the
 generated C.</p>
 <hr>
+<h2 id="pointers-in-struct-fields"><a class="header" href="#pointers-in-struct-fields">Pointers in struct fields</a></h2>
+<p>A pointer-typed struct field is <strong>storage</strong>, not a qualified handle, so the top-level <code>const</code> that <code>T *name</code> produces
+in a declaration is <em>not</em> reproduced in the field. <code>raw_win: void *</code> emits <code>void *raw_win;</code>, not <code>void *const raw_win;</code> — otherwise every later <code>s.fb = …</code> would be rejected by the C compiler as a read-only member.</p>
+<pre><code class="language-nitid">struct Framebuffer {
+  fb: void *;
+  w: int;
+  h: int;
+}
+
+Framebuffer f = Framebuffer{ fb: nil, w: 4, h: 3 };
+f.fb = fb_create(f.w, f.h);   // fine
+f.fb = nil;                    // also fine
+</code></pre>
+<p>Because <code>nil</code>’s type is <code>TyPtr(void, mutable)</code>, it initializes a plain <code>T *</code> field (and vice versa): the pointee
+types have to match, but the pointer mutability flag is not part of an assignment.</p>
+<hr>
+<h2 id="pointer-parameters"><a class="header" href="#pointer-parameters">Pointer parameters</a></h2>
+<p>A pointer parameter is written C-style: <strong>type first, then the <code>*</code>, then the name</strong>. <code>mut</code> / <code>mutable</code> in front of the
+type marks the <em>pointer itself</em> as rebindable:</p>
+<pre><code class="language-nitid">extern "C" fn SDL_UpdateTexture(void *tex, void *rect, u32 *pixels, int pitch) -&gt; int;
+
+fn bump(u32 *n) {            // i32 *const n  — pointee is writable, pointer is not
+  unsafe { *n = *n + 1; }
+}
+
+fn advance(mut u32 *p, u64 by) {   // u32 *p  — the callee may re-point
+  unsafe { p = p + by; }
+}
+</code></pre>
+<p>Each pointer parameter spells out its own <code>*</code>. Grouping consecutive names under one type (<code>int a, b</code>) applies to
+non-pointer parameters only, so <code>u32 *a, u32 *b</code> is correct and <code>u32 *a, b</code> is rejected:</p>
+<pre><code>In parse phase, sourcefile.nt:{line}:{column}: Parameter 'a' needs its own '*': write 'u32 *a'
+</code></pre>
+<p><code>mut</code> is only meaningful on a pointer, so <code>mut string name</code> is rejected as well:</p>
+<pre><code>In parse phase, sourcefile.nt:{line}:{column}: 'mut' only applies to pointer parameters
+</code></pre>
+<p>Pointer parameters make an FFI out-parameter expressible without pointer-to-pointer: the callee dereferences the
+parameter inside an <code>unsafe</code> block.</p>
+<hr>
 <h2 id="function-pointers"><a class="header" href="#function-pointers">Function pointers</a></h2>
 <p>A function pointer type is declared with <code>type</code> + a <code>fn</code> signature, and can then be used as a parameter or variable
 type:</p>
@@ -1784,17 +1897,18 @@ to a function pointer is rejected too.</p>
 <h2 id="not-supported-yet"><a class="header" href="#not-supported-yet">Not supported yet</a></h2>
 <p>These are current, known gaps — not part of the language contract:</p>
 <ul>
-<li><strong>Pointers as function parameters.</strong> <code>fn f(int *p)</code> does not parse (<code>Expected identifier, found Star</code>); a pointer
-return type (<code>-&gt; int *</code>) parses but the call site is mistyped, producing broken C.</li>
 <li><strong>Members through a struct pointer.</strong> <code>p.field</code> and <code>p.method()</code> are rejected
 (<code>Cannot access field on non-struct type</code> / <code>Cannot call method on non-struct type</code>). Take <code>&amp;s</code> out of the picture,
 or keep a copy of the struct value.</li>
-<li><strong>No <code>unsafe</code> blocks.</strong> Dereferences and FFI calls are not gated behind anything yet, and there is no compile-time
-marker for unsafe code.</li>
+<li><strong><code>unsafe</code> gates dereference only.</strong> A dereference outside an <code>unsafe { … }</code> block is rejected
+(<code>deref operation is allowed only in unsafe blocks</code>), but FFI calls are not gated yet — calling an <code>extern "C"</code>
+function outside <code>unsafe</code> still compiles.</li>
 <li><strong>No const enforcement.</strong> Re-pointing a <code>T *p</code> (a C <code>*const</code>) is accepted by the transpiler and only rejected by the
 C compiler: <code>assignment of read-only variable</code>.</li>
 <li><strong>No addressability check.</strong> <code>&amp;42</code> is accepted and emits <code>&amp;(42)</code>, which is not valid C.</li>
-<li><strong>No pointer-to-pointer</strong>, no casts between pointer types, no <code>sizeof</code>/<code>alignof</code> builtins.</li>
+<li><strong>Pointer-to-pointer</strong> is not available: a <code>T **</code> parameter type, or a pointer returned by a function-pointer type,
+does not parse. FFI out-parameters work instead: pass the pointer by value and dereference it in an <code>unsafe</code> block.
+There are also no casts between pointer types and no <code>sizeof</code>/<code>alignof</code> builtins.</li>
 <li><strong>No memory safety.</strong> No bounds checks on pointer arithmetic, no null checks, no ownership or borrow rules; safe
 RAII / reference types are planned for v0.3 (see <a href="../ROADMAP.html">ROADMAP</a>).</li>
 </ul>
@@ -1845,6 +1959,30 @@ a := b.someFunction();
 // Error: Bubble is not available since it is aliased to "b"
 e := Bubble.someFunction();
 </code></pre>
+<p>The alias renames only the name you write at the call site. <strong>Mangled C symbols always use the package’s own
+declared name</strong>, so the caller and the imported translation unit agree on the prefix:</p>
+<pre><code class="language-nitid">// gfx/window.nt
+package gfx;
+fn window_open(u8 *title, int w, int h) -&gt; void * { /* ... */ }
+</code></pre>
+<pre><code class="language-nitid">// main.nt
+import gfx as g;
+void *win = g.window_open("hello", 640, 480);   // calls gfx_window_open(...)
+</code></pre>
+<p>Two consequences follow:</p>
+<ul>
+<li><strong><code>extern "C"</code> declarations inside a package are never mangled and never exported.</strong> They name real C symbols, so
+<code>extern "C" fn SDL_Init(u32) -&gt; int;</code> stays <code>SDL_Init</code> and is not reachable as <code>pkg.SDL_Init(...)</code>. All such
+prototypes are emitted together at the top of the file, before anything that calls them, so their position in the
+source is irrelevant (C99 would reject a call that precedes its prototype).</li>
+<li><strong>Qualified calls work anywhere an expression is expected</strong>, including inside a variable initializer
+(<code>void *win = g.window_open(...)</code>), not only as a bare statement.</li>
+</ul>
+<p>⚠️ <strong>Imported struct types cannot be named.</strong> <code>gfx.Window w = ...;</code> and <code>w := gfx.Window{ ... };</code> are parse errors
+(<code>Expected Semicolon, found Ident("w")</code> / <code>Expected Semicolon, found LBrace</code>), and there is no plain <code>type</code> alias to
+work around it — only <code>fn</code>-pointer aliases exist. The cross-package surface therefore has to stay at <code>void *</code> handles
+and free functions; a struct wrapper is usable only inside its own package. See
+<a href="#module-layout-and-resolution">Modules</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="module-layout-and-resolution"><a class="header" href="#module-layout-and-resolution">Module Layout and Resolution</a></h1>
 <p>This document specifies how the compiler locates the source files that make up a package.</p>

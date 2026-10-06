@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.other.nitid",
-          "match": "\\b(package|import|as|extern)\\b"
+          "match": "\\b(package|import|as|link_lib|extern)\\b"
         },
         {
           "name": "constant.language.boolean.nitid",

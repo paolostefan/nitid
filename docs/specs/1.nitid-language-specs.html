@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6f8cddd9.js";
+            window.path_to_searchindex_js = "../searchindex-cbe5264b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8c01391.js"></script>
@@ -250,7 +250,7 @@ Import      = "import" , Ident , [ "as" , Ident ] , ";" .
 FnDecl      = "fn" , Ident , [ ParamList ] , [ ReturnTypes ]  
             , "{" , { Stmt } , "}" .  
 ParamList   = "(" , [ Param , { "," , Param } ] , ")" .  
-Param       = Type , Ident , { "," , Ident } .  
+Param       = [ "mut" | "mutable" ] , Type , [ "*" ] , Ident , { "," , Ident } .  
 ReturnTypes = "-&gt;" , ( "(" , Type , { "," , Type } , ")" | Type ) .  
   
 (* --- Types --- *)  
@@ -315,6 +315,9 @@ letter      = "A" | "B" | ... | "Z" | "a" | "b" | ... | "z" | "_" .
 digit       = "0" | "1" | ... | "9" .  
 hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .  
 </code></pre>
+<p>The <code>*</code> in a <code>Param</code> is the pointer marker of a single parameter, and <code>mut</code>/<code>mutable</code> applies to it. Grouping several
+names under one type is therefore only available for non-pointer parameters: <code>int a, b</code> is accepted, <code>u32 *a, u32 *b</code>
+is accepted, <code>u32 *a, b</code> is not. See <a href="7.pointers.html">Pointers</a>.</p>
 <p><strong>Operator precedence summary</strong> (lowest first):</p>
 <div class="table-wrapper">
 <table>
@@ -338,6 +341,22 @@ hexdigit    = digit | "A" | "B" | ... | "F" | "a" | "b" | ... | "f" .
 </tbody>
 </table>
 </div>
+<p><strong>Mixed-width arithmetic.</strong> <code>+ - * / %</code> and the bitwise/shift operators do not require both operands to have exactly
+the same type. When the two types differ in width, the wider one is the result type — the usual C conversions, minus
+the integer-promotion subtleties:</p>
+<pre><code class="language-nitid">u32 count := 5;
+i32 step := 2;
+println(count - 1);      // u32: the literal 1 infers as i32 and is widened
+println(count * step);   // u32: wider operand wins over the narrower one
+u64 total := 1000;
+println(total + count);  // u64
+f32 scale := 0.5;
+println(count * scale);  // f32: a float operand makes the expression a float
+</code></pre>
+<p>Pointer arithmetic is separate: <code>p + n</code> and <code>p - n</code> keep the pointer type and require <code>n</code> to be an integer type.
+Comparing two values of different integer widths with <code>&lt;</code> or <code>&gt;=</code> is accepted and yields <code>bool</code>; the operands are
+converted by the generated C, not by Nitid. Mixing a pointer with a non-integer (<code>p + 1.5</code>) is a <strong>semantic</strong> error
+(<code>Type mismatch in arithmetic</code>).</p>
 
                     </main>
 

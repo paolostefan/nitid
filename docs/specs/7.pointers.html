@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6f8cddd9.js";
+            window.path_to_searchindex_js = "../searchindex-cbe5264b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8c01391.js"></script>
@@ -251,6 +251,45 @@ item”, see <a href="3.arrays.html">Arrays</a>) is <strong>not implemented</str
 <p>There is no <code>T?</code> optional type yet, and no null check is generated: dereferencing <code>nil</code> is undefined behaviour in the
 generated C.</p>
 <hr>
+<h2 id="pointers-in-struct-fields"><a class="header" href="#pointers-in-struct-fields">Pointers in struct fields</a></h2>
+<p>A pointer-typed struct field is <strong>storage</strong>, not a qualified handle, so the top-level <code>const</code> that <code>T *name</code> produces
+in a declaration is <em>not</em> reproduced in the field. <code>raw_win: void *</code> emits <code>void *raw_win;</code>, not <code>void *const raw_win;</code> — otherwise every later <code>s.fb = …</code> would be rejected by the C compiler as a read-only member.</p>
+<pre><code class="language-nitid">struct Framebuffer {
+  fb: void *;
+  w: int;
+  h: int;
+}
+
+Framebuffer f = Framebuffer{ fb: nil, w: 4, h: 3 };
+f.fb = fb_create(f.w, f.h);   // fine
+f.fb = nil;                    // also fine
+</code></pre>
+<p>Because <code>nil</code>’s type is <code>TyPtr(void, mutable)</code>, it initializes a plain <code>T *</code> field (and vice versa): the pointee
+types have to match, but the pointer mutability flag is not part of an assignment.</p>
+<hr>
+<h2 id="pointer-parameters"><a class="header" href="#pointer-parameters">Pointer parameters</a></h2>
+<p>A pointer parameter is written C-style: <strong>type first, then the <code>*</code>, then the name</strong>. <code>mut</code> / <code>mutable</code> in front of the
+type marks the <em>pointer itself</em> as rebindable:</p>
+<pre><code class="language-nitid">extern "C" fn SDL_UpdateTexture(void *tex, void *rect, u32 *pixels, int pitch) -&gt; int;
+
+fn bump(u32 *n) {            // i32 *const n  — pointee is writable, pointer is not
+  unsafe { *n = *n + 1; }
+}
+
+fn advance(mut u32 *p, u64 by) {   // u32 *p  — the callee may re-point
+  unsafe { p = p + by; }
+}
+</code></pre>
+<p>Each pointer parameter spells out its own <code>*</code>. Grouping consecutive names under one type (<code>int a, b</code>) applies to
+non-pointer parameters only, so <code>u32 *a, u32 *b</code> is correct and <code>u32 *a, b</code> is rejected:</p>
+<pre><code>In parse phase, sourcefile.nt:{line}:{column}: Parameter 'a' needs its own '*': write 'u32 *a'
+</code></pre>
+<p><code>mut</code> is only meaningful on a pointer, so <code>mut string name</code> is rejected as well:</p>
+<pre><code>In parse phase, sourcefile.nt:{line}:{column}: 'mut' only applies to pointer parameters
+</code></pre>
+<p>Pointer parameters make an FFI out-parameter expressible without pointer-to-pointer: the callee dereferences the
+parameter inside an <code>unsafe</code> block.</p>
+<hr>
 <h2 id="function-pointers"><a class="header" href="#function-pointers">Function pointers</a></h2>
 <p>A function pointer type is declared with <code>type</code> + a <code>fn</code> signature, and can then be used as a parameter or variable
 type:</p>
@@ -276,17 +315,18 @@ to a function pointer is rejected too.</p>
 <h2 id="not-supported-yet"><a class="header" href="#not-supported-yet">Not supported yet</a></h2>
 <p>These are current, known gaps — not part of the language contract:</p>
 <ul>
-<li><strong>Pointers as function parameters.</strong> <code>fn f(int *p)</code> does not parse (<code>Expected identifier, found Star</code>); a pointer
-return type (<code>-&gt; int *</code>) parses but the call site is mistyped, producing broken C.</li>
 <li><strong>Members through a struct pointer.</strong> <code>p.field</code> and <code>p.method()</code> are rejected
 (<code>Cannot access field on non-struct type</code> / <code>Cannot call method on non-struct type</code>). Take <code>&amp;s</code> out of the picture,
 or keep a copy of the struct value.</li>
-<li><strong>No <code>unsafe</code> blocks.</strong> Dereferences and FFI calls are not gated behind anything yet, and there is no compile-time
-marker for unsafe code.</li>
+<li><strong><code>unsafe</code> gates dereference only.</strong> A dereference outside an <code>unsafe { … }</code> block is rejected
+(<code>deref operation is allowed only in unsafe blocks</code>), but FFI calls are not gated yet — calling an <code>extern "C"</code>
+function outside <code>unsafe</code> still compiles.</li>
 <li><strong>No const enforcement.</strong> Re-pointing a <code>T *p</code> (a C <code>*const</code>) is accepted by the transpiler and only rejected by the
 C compiler: <code>assignment of read-only variable</code>.</li>
 <li><strong>No addressability check.</strong> <code>&amp;42</code> is accepted and emits <code>&amp;(42)</code>, which is not valid C.</li>
-<li><strong>No pointer-to-pointer</strong>, no casts between pointer types, no <code>sizeof</code>/<code>alignof</code> builtins.</li>
+<li><strong>Pointer-to-pointer</strong> is not available: a <code>T **</code> parameter type, or a pointer returned by a function-pointer type,
+does not parse. FFI out-parameters work instead: pass the pointer by value and dereference it in an <code>unsafe</code> block.
+There are also no casts between pointer types and no <code>sizeof</code>/<code>alignof</code> builtins.</li>
 <li><strong>No memory safety.</strong> No bounds checks on pointer arithmetic, no null checks, no ownership or borrow rules; safe
 RAII / reference types are planned for v0.3 (see <a href="../../ROADMAP.html">ROADMAP</a>).</li>
 </ul>
