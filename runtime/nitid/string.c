@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "nitid/string.h"
+#include "string.h"
 
 nitid_string nitid_string_from(const char *s) {
     const size_t len = strlen(s);

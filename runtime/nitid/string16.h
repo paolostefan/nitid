@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "nitid/string.h"
+#include "string.h"
 
 #ifdef __cplusplus
 extern "C" {
