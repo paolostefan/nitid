@@ -375,6 +375,9 @@ impl Codegen {
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string.c\n");
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string16.c\n");
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string32.c\n");
+    cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/glad/gl.c\n");
+    cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/glad/gl_shim.c\n");
+    
     cmake.push_str(")\n");
 
     cmake.push_str(

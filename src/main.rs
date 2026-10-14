@@ -85,40 +85,56 @@ fn main() -> Result<(), String> {
   let proj_root = Path::new(env!("CARGO_MANIFEST_DIR"));
   for (src, dst) in [
     (
-      proj_root.join("runtime/types.h"),
-      format!("{}/nitid/types.h", c_src_dir),
+      proj_root.join("runtime/3rd_party/glad/gl.h"),
+      format!("{}/glad/gl.h", c_src_dir),
     ),
     (
-      proj_root.join("runtime/string.h"),
-      format!("{}/nitid/string.h", c_src_dir),
+      proj_root.join("runtime/3rd_party/KHR/khrplatform.h"),
+      format!("{}/KHR/khrplatform.h", c_src_dir),
     ),
     (
-      proj_root.join("runtime/string.c"),
-      format!("{}/nitid/string.c", c_src_dir),
+      proj_root.join("runtime/3rd_party/gl.c"),
+      format!("{}/glad/gl.c", c_src_dir),
     ),
     (
-      proj_root.join("runtime/string16.h"),
-      format!("{}/nitid/string16.h", c_src_dir),
-    ),
-    (
-      proj_root.join("runtime/string16.c"),
-      format!("{}/nitid/string16.c", c_src_dir),
-    ),
-    (
-      proj_root.join("runtime/string32.h"),
-      format!("{}/nitid/string32.h", c_src_dir),
-    ),
-    (
-      proj_root.join("runtime/string32.c"),
-      format!("{}/nitid/string32.c", c_src_dir),
-    ),
-    (
-      proj_root.join("runtime/array.h"),
+      proj_root.join("runtime/nitid/array.h"),
       format!("{}/nitid/array.h", c_src_dir),
     ),
     (
-      proj_root.join("runtime/array.c"),
+      proj_root.join("runtime/nitid/string.h"),
+      format!("{}/nitid/string.h", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/string16.h"),
+      format!("{}/nitid/string16.h", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/string32.h"),
+      format!("{}/nitid/string32.h", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/types.h"),
+      format!("{}/nitid/types.h", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/array.c"),
       format!("{}/nitid/array.c", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/gl_shim.c"),
+      format!("{}/glad/gl_shim.c", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/string.c"),
+      format!("{}/nitid/string.c", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/string16.c"),
+      format!("{}/nitid/string16.c", c_src_dir),
+    ),
+    (
+      proj_root.join("runtime/nitid/string32.c"),
+      format!("{}/nitid/string32.c", c_src_dir),
     ),
   ] {
     let content = fs::read_to_string(&src)
