@@ -1,0 +1,56 @@
+link_lib "SDL3";
+
+// SDL3 functions
+extern "C" fn SDL_Init(u64 flags) -> bool;
+extern "C" fn SDL_GL_SetAttribute(int attr, int value) -> bool;
+extern "C" fn SDL_CreateWindow(u8 *title, int w, int h, u64 flags) -> void *;
+extern "C" fn SDL_DestroyWindow(void *win);
+extern "C" fn SDL_SwapWindow(void *win) -> bool;
+extern "C" fn SDL_GL_CreateContext(void *win) -> void *;
+extern "C" fn SDL_GL_SwapWindow(void *win) -> bool;
+extern "C" fn SDL_GL_DestroyContext(void *ctx) -> bool;
+extern "C" fn SDL_Delay(u32 ms);
+
+// Shim's public surface - plain extern functions, no casts in sight.
+extern "C" fn nitid_glad_load() -> int;
+extern "C" fn glClear(u32 mask);
+extern "C" fn glClearColor(f32 r, f32 g, f32 b, f32 a);
+
+// GL function pointer types
+type GLClearFn = fn (u32) -> void;
+type GLViewportFn = fn (int, int, int, int) -> void;
+type GLClearColorFn = fn (f32, f32, f32, f32) -> void;
+
+
+fn main() -> int {
+  SDL_Init(0x00000020); // SDL_INIT_VIDEO
+
+  // Attributes FIRST — the window picks its GL visual at creation
+  SDL_GL_SetAttribute(0x11, 2);    // SDL_GL_CONTEXT_MAJOR_VERSION = 17 (0x11), value 2
+  SDL_GL_SetAttribute(0x12, 1);    // SDL_GL_CONTEXT_MINOR_VERSION = 18 (0x12), value 1
+  // GLSL #version 120 (lessons 29-31) needs GL 2.1 — no profile mask (that is 3.2+ only)
+
+  void *win = SDL_CreateWindow("GL", 800, 600, 0x02);  // 0x02 = SDL_WINDOW_OPENGL
+  if (win == nil) {
+      println("no window");
+      return 1;
+  }
+
+  void *ctx = SDL_GL_CreateContext(win);
+  if (ctx == nil) { return 1; }
+
+  if (nitid_glad_load() == 0) {
+      println("glad load failed");
+      return 1;
+  }
+
+  for(f32 i = 0; i < 250; i++) {
+    glClearColor(i/250.0, 0.3, 0.5, 1.0);
+    glClear(0x00004000); // GL_COLOR_BUFFER_BIT
+    SDL_GL_SwapWindow(win);
+    SDL_Delay(16);
+  }
+
+  SDL_GL_DestroyContext(ctx);
+  SDL_DestroyWindow(win);
+}
