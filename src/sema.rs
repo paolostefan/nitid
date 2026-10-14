@@ -1,7 +1,7 @@
 use crate::PackageContext;
 use crate::ast::*;
 use crate::diagnostic::{Diagnostic, Phase};
-use crate::types::Type::{TyFnPtr, TyPtr};
+use crate::types::Type::{TyFnPtr, TyPtr, U8};
 use crate::types::{Type, is_string_type};
 /// Semantic analyser for Nitid.
 ///
@@ -1203,7 +1203,18 @@ fn analyze_var_decl_free(
         _ => &left_type,
       };
       if init_type_resolved != left_type_resolved {
-        if is_numeric_type(init_type_resolved) && is_numeric_type(left_type_resolved) {
+
+        // right: string literal, left: u8 * => ok
+        if is_string_type(init_type_resolved) && let TyPtr(inner,_) = left_type_resolved {
+          if inner.as_ref() != &U8 {
+            return Err(Diagnostic::new(
+              Phase::Sema,
+              Span::new(&v.span.file, v.span.line, v.span.col),
+              format!("String literal can only fit u8 *, {:?} given", inner),
+            ));
+          }
+        }
+        else if is_numeric_type(init_type_resolved) && is_numeric_type(left_type_resolved) {
           // Numeric-to-numeric: check if the literal value fits.
           if !literal_fits_target(init, &left_type) {
             return Err(Diagnostic::new(
