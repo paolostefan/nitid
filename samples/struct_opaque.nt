@@ -1,4 +1,4 @@
-link_lib "SDL2";
+link_lib "SDL3";
 
 opaque struct SDL_Window;
 

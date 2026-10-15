@@ -8,7 +8,7 @@ extern "C" fn sqrt(f64 x) -> f64;
 extern "C" fn malloc(u64 size) -> void *;
 extern "C" fn free(void *p);
 
-// SDL2 structs
+// SDL3 structs
 struct SDL_Event {
     type_field: u32;
     reserved: u32;
@@ -16,7 +16,7 @@ struct SDL_Event {
     padding: fixed u8[112];  // SDL_Event is a 128-byte union
 }
 
-// SDL2 functions
+// SDL3 functions
 extern "C" fn SDL_Init(u32 flags) -> bool;
 extern "C" fn SDL_Quit();
 extern "C" fn SDL_GetError() -> u8 *;

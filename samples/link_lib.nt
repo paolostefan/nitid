@@ -1,5 +1,5 @@
 // Link this file against SDL for the transpiled C to build
-link_lib "SDL2";
+link_lib "SDL3";
 
 extern "C" fn SDL_Init(u32 flags) -> int;  // FFI — an ordinary call; only `*p` needs unsafe
 
