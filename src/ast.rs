@@ -11,6 +11,7 @@
 /// Most nodes carry a `Span` for error reporting, but the parser
 /// frequently fills it with dummy values (`Span::new("", 0, 0)`).
 /// Real source-location tracking is only partially implemented.
+use std::collections::HashSet;
 use crate::types::Type;
 
 /// Source location: file name, line number, and column.
@@ -47,7 +48,7 @@ pub struct Program {
   pub package: String,
   pub imports: Vec<Import>,
   pub decls: Vec<Decl>,
-  pub link_libs: Vec<String>,
+  pub link_libs: HashSet<String>,
   pub file: String,
   pub has_dangling: bool,
 }

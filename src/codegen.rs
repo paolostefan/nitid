@@ -21,7 +21,6 @@
 ///   will produce C code that references unknown types.
 /// * The runtime string library (`nitid_string`) is minimal.
 use crate::ast::*;
-use crate::types::Type::TyPtr;
 use crate::types::{Type, is_string_type};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -724,7 +723,7 @@ impl Codegen {
       Expr::CharLit(..) => Type::U8,
       Expr::BoolLit(..) => Type::Bool,
       Expr::UnaryOp { op, expr: elem, .. } => match op {
-        UnOp::Ref => TyPtr(Box::new(self.infer_init_type(elem)), false),
+        UnOp::Ref => Type::TyPtr(Box::new(self.infer_init_type(elem)), false),
         _ => self.infer_init_type(elem),
       },
       Expr::BinaryOp { left, .. } => {
@@ -875,8 +874,8 @@ impl Codegen {
         }
       } else {
         let mut init_type = self.infer_init_type(init);
-        if let TyPtr(elem, _) = init_type {
-          init_type = TyPtr(elem, v.is_mutable);
+        if let Type::TyPtr(elem, _) = init_type {
+          init_type = Type::TyPtr(elem, v.is_mutable);
         }
         let inferred = init_type.c_str();
         self.declare_var(&v.names[0], init_type.clone());
@@ -1047,13 +1046,10 @@ impl Codegen {
       }
       Expr::DeclAssign { names, right, .. } => {
         if names.len() > 1 {
-          match self.emit_multi_assign(names, right, current_fn) {
-            Ok(multi) => multi,
-            Err(error) => {
-              println!("Error: {}", error);
-              format!("/* Error: {} */", error)
-            }
-          }
+          self.emit_multi_assign(names, right, current_fn).unwrap_or_else(|error| {
+            println!("Error: {}", error);
+            format!("/* Error: {} */", error)
+          })
         } else {
           let init_type = self.infer_init_type(right);
           let inferred = init_type.c_str();
@@ -1371,10 +1367,10 @@ impl Codegen {
         let typ = self.typeof_expr(sub_expr);
         match op {
           UnOp::Deref => match typ {
-            Some(TyPtr(elem, _)) => Some(*elem),
+            Some(Type::TyPtr(elem, _)) => Some(*elem),
             _ => typ,
           },
-          UnOp::Ref => Some(TyPtr(Box::new(typ.unwrap_or(Type::I32)), false)),
+          UnOp::Ref => Some(Type::TyPtr(Box::new(typ.unwrap_or(Type::I32)), false)),
           _ => typ,
         }
       }

@@ -170,7 +170,7 @@ impl Parser {
     let mut package = "main".to_string();
     let mut imports = Vec::new();
     let mut decls = Vec::new();
-    let mut link_libs = Vec::new();
+    let mut link_libs = HashSet::new();
     let mut dangling_stmts = Vec::new();
 
     // Optional package declaration.
@@ -185,7 +185,7 @@ impl Parser {
     // Optional link lib statements. They must follow the package declaration.
     while self.check(&TokenKind::LinkLib) {
       let lk_lib = self.parse_link_lib()?;
-      link_libs.push(lk_lib);
+      link_libs.insert(lk_lib);
     }
 
     // Import statements.

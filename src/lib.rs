@@ -424,6 +424,13 @@ pub fn compile(
   // Load and parse imports.
   let imports = load_imports(&program)?;
 
+  // Link against all imports' link_libs
+  for (_, pk_programs) in &imports {
+    for pk_prog in pk_programs {
+      program.link_libs = program.link_libs.union(&pk_prog.link_libs).cloned().collect();
+    }
+  }
+
   // Build a per-package context map.
   let pkg_contexts: HashMap<String, PackageContext> = imports
       .iter()
