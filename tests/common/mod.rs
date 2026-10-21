@@ -145,13 +145,14 @@ pub fn discover_valid_samples() -> Vec<String> {
 // Package test helpers
 // ---------------------------------------------------------------------------
 
-/// Discover all immediate subdirectories under `samples/package/` that
+/// Discover all immediate subdirectories under `samples/<suite>/` that
 /// contain a `main.nt` entry point. Returns `(dir_name, main_path)` pairs
-/// sorted by directory name.
-pub fn discover_package_dirs() -> Vec<(String, String)> {
+/// sorted by directory name. Nested directories are not searched: a case is
+/// identified by its own `main.nt`.
+fn discover_main_dirs(suite: &str) -> Vec<(String, String)> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("samples")
-        .join("package");
+        .join(suite);
     let mut dirs = Vec::new();
     for entry in std::fs::read_dir(&root).unwrap() {
         let entry = entry.unwrap();
@@ -167,6 +168,44 @@ pub fn discover_package_dirs() -> Vec<(String, String)> {
     }
     dirs.sort_by(|a, b| a.0.cmp(&b.0));
     dirs
+}
+
+/// Discover all immediate subdirectories under `samples/package/` that
+/// contain a `main.nt` entry point. Returns `(dir_name, main_path)` pairs
+/// sorted by directory name.
+pub fn discover_package_dirs() -> Vec<(String, String)> {
+    discover_main_dirs("package")
+}
+
+/// Discover all immediate subdirectories under `samples/package-errors/`
+/// that contain a `main.nt` entry point. Returns `(dir_name, main_path)`
+/// pairs sorted by directory name.
+pub fn discover_package_error_dirs() -> Vec<(String, String)> {
+    discover_main_dirs("package-errors")
+}
+
+/// Run every package-error case under `samples/package-errors/` (one
+/// `main.nt` per case directory), checking that the compilation error matches
+/// the `// expect:` / `// expect-contains:` header in that `main.nt`.
+/// Returns `(dir_name, failure)` pairs; empty means every case matched.
+pub fn run_package_error_batch() -> Vec<(String, String)> {
+    let mut failures = Vec::new();
+    for (name, main_path) in discover_package_error_dirs() {
+        if let Err(e) = run_error_file(&main_path) {
+            failures.push((name, e));
+        }
+    }
+    failures
+}
+
+/// Helper: get the full path to a subdirectory under `samples/package-errors/`.
+pub fn package_error_path(subdir: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join("package-errors")
+        .join(subdir)
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Compile the `main.nt` of a package directory.

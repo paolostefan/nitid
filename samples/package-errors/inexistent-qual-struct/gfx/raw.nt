@@ -1,0 +1,14 @@
+package gfx;
+
+link_lib "SDL3";
+
+extern "C" fn SDL_CreateWindow(u8 *title, int width, int height, u32 flags) -> void *;
+extern "C" fn SDL_DestroyWindow(void *window);
+
+fn window_open(u8 *title, int width, int height, u32 flags) -> void * {
+  return SDL_CreateWindow(title, width, height, flags);
+}
+
+fn window_close(void *window) {
+  SDL_DestroyWindow(window);
+}
