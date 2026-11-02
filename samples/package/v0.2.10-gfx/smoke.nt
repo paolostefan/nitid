@@ -1,0 +1,6 @@
+import gfx as g;
+
+void * win = g.window_open("Nitid Gfx sample #1", 800, 600, 0x00000002); // SDL_WINDOW_OPENGL
+g.window_close(win);
+
+println("Smoke: %d", g.smoke_test("Nitid Gfx sample #2"));

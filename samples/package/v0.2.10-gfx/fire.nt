@@ -1,0 +1,5 @@
+import gfx as g;
+
+g.Canvas c;
+
+c.init(800,600);

@@ -1,0 +1,52 @@
+package gfx;
+
+link_lib "SDL3";
+
+extern "C" fn SDL_CreateWindow(u8 *title, int width, int height, u32 flags) -> void *;
+extern "C" fn SDL_DestroyWindow(void *window);
+
+struct Window {
+  raw_win: void *;
+}
+
+impl Window {
+  fn open(u8 *title, int width, int height, u32 flags) {
+    self.raw_win = SDL_CreateWindow(title, width, height, flags);
+  }
+
+  fn close() {
+    unsafe {
+      if (self.raw_win != nil) {
+        SDL_DestroyWindow(self.raw_win);
+      }
+    }
+
+    self.raw_win = nil;
+  }
+
+  fn raw -> void * {
+    return self.raw_win;
+  }
+
+  fn is_open -> bool {
+    return self.raw_win != nil;
+  }
+}
+
+fn smoke_test(u8 *title) -> bool {
+  Window win;
+  win.open(title, 800, 600, 0x00000002); // SDL_WINDOW_OPENGL
+  if (!win.is_open()) {
+    return false;
+  }
+
+  void *h = win.raw();
+
+  win.close();
+  if (win.is_open()) {
+    return false;
+  }
+
+  return true;
+  
+}

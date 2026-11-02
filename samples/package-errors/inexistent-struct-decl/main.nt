@@ -1,0 +1,5 @@
+// expect-contains: Expected Semicolon, found Ident
+// Qualified struct names must belong to a recognized package
+import gfx as g_;
+
+g_.Nope a{b:1, c: 2};

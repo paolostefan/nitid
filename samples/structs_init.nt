@@ -1,4 +1,4 @@
-// This sample shows the allowed initialization techniques for structs
+// This sample shows the allowed initialization techniques for structs.
 
 struct Point {
   x: i32;
