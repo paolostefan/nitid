@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::path::Path;
+use crate::{types, PackageContext};
 
 /// A C source file ready to be written to disk.
 pub struct CFile {
@@ -94,8 +95,9 @@ impl Codegen {
     c_src_dir: &str,
     package_names: HashMap<String, String>,
     foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
+    pkg_contexts: &HashMap<String, PackageContext>,
   ) -> Result<(Vec<CFile>, String), String> {
-    let c_code = self.generate_c(program, package_names, foreign_sigs);
+    let c_code = self.generate_c(program, package_names, foreign_sigs, pkg_contexts);
 
     let base_name = Path::new(&program.file)
         .file_stem()
@@ -128,6 +130,7 @@ impl Codegen {
     program: &Program,
     package_names: HashMap<String, String>,
     foreign_sigs: &HashMap<String, (String, Vec<Type>, Vec<Type>)>,
+    pkg_contexts: &HashMap<String, PackageContext>,
   ) -> String {
     self.current_package = program.package.clone();
     self.package_names = package_names;
@@ -137,6 +140,14 @@ impl Codegen {
     self.fn_params.clear();
     self.struct_names.clear();
     self.struct_defs.clear();
+
+    // Glue package context structs together.
+    let mut struct_defs: HashMap<String, Vec<(String, types::Type)>> = HashMap::new();
+    for (_pkg_name, pkg_ctx) in pkg_contexts {
+      for (struct_name, fields) in &pkg_ctx.structs {
+        struct_defs.insert(struct_name.clone(), fields.clone());
+      }
+    }
 
     // Pass 0: collect struct and enum definitions.
     for decl in &program.decls {
@@ -156,6 +167,29 @@ impl Codegen {
         }
         _ => {}
       }
+    }
+
+    for (struct_name, fields) in struct_defs {
+      self.struct_names.insert(struct_name.clone());
+
+      let mut s_fields: Vec<StructField> = Vec::new();
+
+      for f in fields {
+        let (f_name, f_type) = f;
+        s_fields.push(StructField {
+          name: f_name.clone(),
+          typ: f_type.clone(),
+          span: Span::new("unknown", 0, 0), // FIXME this is not so nice
+        });
+      }
+
+      self.struct_defs.push((
+        struct_name.clone(),
+        s_fields,
+        false, // TODO: packed?
+        None, // TODO: align?
+        false, // TODO: is opaque?
+      ));
     }
 
     // Pass 1: collect all function and method signatures.
@@ -200,31 +234,6 @@ impl Codegen {
     c_code.push_str("#include \"nitid/string16.h\"\n");
     c_code.push_str("#include \"nitid/string32.h\"\n");
     c_code.push_str("#include \"nitid/array.h\"\n");
-    c_code.push('\n');
-
-    // Prototypes for functions defined in other files.
-    let mut for_sign: Vec<(&String, &(String, Vec<Type>, Vec<Type>))> =
-        foreign_sigs.iter().collect();
-    for_sign.sort(); // deterministic order
-
-    for (name, (mangled, params, returns)) in for_sign {
-      // Skip prototype if function is defined in this file
-      if self.fn_returns.contains_key(name) {
-        continue;
-      }
-      let ret = if returns.len() == 1 && returns[0] != Type::Void {
-        returns[0].c_str()
-      } else {
-        Cow::from("void")
-      };
-
-      let plist = params
-          .iter()
-          .map(|t| t.c_str())
-          .collect::<Vec<_>>()
-          .join(", ");
-      c_code.push_str(&format!("{} {}({});\n", ret, mangled, plist));
-    }
     c_code.push('\n');
 
     // Enum type definitions.
@@ -283,6 +292,48 @@ impl Codegen {
       c_code.push_str(&format!("{};\n\n", name));
     }
 
+    // Prototypes for functions defined in other files.
+    let mut for_sign: Vec<(&String, &(String, Vec<Type>, Vec<Type>))> =
+        foreign_sigs.iter().collect();
+    for_sign.sort(); // deterministic order
+
+    for (name, (mangled, params, returns)) in for_sign {
+      // Skip prototype if function is defined in this file
+      if self.fn_returns.contains_key(name) {
+        continue;
+      }
+
+      let ret = if returns.len() == 1 && returns[0] != Type::Void {
+        returns[0].c_str()
+      } else {
+        Cow::from("void")
+      };
+
+      let plist = params
+          .iter()
+          .map(|t| t.c_str())
+          .collect::<Vec<_>>()
+          .join(", ");
+      c_code.push_str(&format!("{} {}({});\n", ret, mangled, plist));
+    }
+    c_code.push('\n');
+
+    // // Prototypes for struct methods defined in other packages.
+    // for (pkg_name, ctx) in pkg_contexts {
+    //   for (struct_name, methods) in &ctx.methods {
+    //     let i = ImplBlock {
+    //       struct_name: struct_name.clone(),
+    //       methods: methods.clone(),
+    //       span: Span::new("", 0, 0),
+    //     };
+    //
+    //     for m in methods {
+    //       c_code.push_str(&self.emit_method_decl(&i, m, true));
+    //       c_code.push_str(";\n");
+    //     }
+    //   }
+    // }
+
     // Forward declarations. `extern "C"` prototypes come first: they name real C
     // symbols that the rest of the file calls, and a call before the prototype
     // would be an implicit declaration in C99 (and a hard error with
@@ -320,8 +371,7 @@ impl Codegen {
         Decl::FnDecl(f) => {
           // Use mangled name for all functions, except extern fn's (FFI),
           // which are declared up front with the other forward declarations.
-          if f.is_external {
-          } else {
+          if f.is_external {} else {
             let c_name = format!("{}_{}", self.current_package, f.name);
             c_code.push_str(&self.emit_fn_decl(f, &c_name));
             c_code.push_str(" {\n");
@@ -376,7 +426,7 @@ impl Codegen {
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/nitid/string32.c\n");
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/glad/gl.c\n");
     cmake.push_str("            ${CMAKE_CURRENT_SOURCE_DIR}/glad/gl_shim.c\n");
-    
+
     cmake.push_str(")\n");
 
     cmake.push_str(
@@ -1407,17 +1457,17 @@ impl Codegen {
         if let Expr::Ident(pkg_name, _) = target.as_ref() {
           if self.package_names.contains_key(pkg_name) {
             return self
-              .foreign_sigs
-              .get(method)
-              .and_then(|(_, _, returns)| returns.first().cloned());
+                .foreign_sigs
+                .get(method)
+                .and_then(|(_, _, returns)| returns.first().cloned());
           }
         }
         // Struct method call (`w.is_open()`): whatever the method returns.
         match self.typeof_expr(target) {
           Some(Type::Struct(name)) => self
-            .fn_returns
-            .get(&format!("{}_{}", name, method))
-            .and_then(|ret| ret.first().cloned()),
+              .fn_returns
+              .get(&format!("{}_{}", name, method))
+              .and_then(|ret| ret.first().cloned()),
           _ => None,
         }
       }

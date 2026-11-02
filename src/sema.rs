@@ -22,7 +22,7 @@ use crate::types::{Type, is_string_type};
 ///   issued for `:=` declarations with inferred types.
 /// * Overflow / underflow protection.
 /// * Dead code detection.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Info about a struct definition: its fields and layout attributes.
 #[derive(Debug, Clone)]
@@ -72,6 +72,8 @@ pub struct Sema {
   fn_sigs_map: HashMap<String, (Vec<Type>, Vec<Type>)>,
   /// Imported struct definitions
   imported_struct_defs: HashMap<String, StructInfo>,
+  /// Package struct names keyed by package name
+  package_structs: HashMap<String, HashSet<String>>,
   /// Per-package functions for qualified access (eg. Math.multiply()).
   /// Key: imported package name. Value: that package's functions
   package_functions: PackageFunctions,
@@ -148,16 +150,16 @@ impl Sema {
       fn_ptr_defs: HashMap::new(),
       fn_sigs_map: HashMap::new(),
       imported_struct_defs: HashMap::new(),
+      package_structs: HashMap::new(),
       package_functions: HashMap::new(),
       unsafe_depth: 0,
     }
   }
 
   /// Run semantic analysis on the entire program.
-  pub fn analyze(
-    &mut self,
-    program: &mut Program,
-    packages: Option<&HashMap<String, PackageContext>>,
+  pub fn analyze(&mut self,
+                 program: &mut Program,
+                 packages: Option<&HashMap<String, PackageContext>>,
   ) -> Result<(), Diagnostic> {
     // Pre-populate from imported package context.
     if let Some(pkgs) = packages {
@@ -186,6 +188,14 @@ impl Sema {
               align: None,
             },
           );
+        }
+
+        for (name, methods) in &ctx.methods {
+          self.struct_methods.insert(name.clone(), methods.clone());
+        }
+
+        for (name, methods) in &ctx.methods {
+          self.struct_methods.insert(name.clone(), methods.clone());
         }
       }
 
@@ -648,11 +658,10 @@ impl Sema {
 
   // ── Expressions ──────────────────────────────────────────
 
-  fn analyze_expr(
-    &mut self,
-    expr: &mut Expr,
-    scope: &mut Scope,
-    fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+  fn analyze_expr(&mut self,
+                  expr: &mut Expr,
+                  scope: &mut Scope,
+                  fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
   ) -> Result<Type, Diagnostic> {
     let typ = self.infer_expr_type(expr, scope, fn_sigs)?;
     // Track assignments to initialize variables.
@@ -661,11 +670,15 @@ impl Sema {
         self.mark_initialized(name);
       }
     }
-    if let Expr::PostIncrement { target, .. } | Expr::PostDecrement { target, .. } = expr {
+    if let Expr::PostIncrement { target, .. } |
+    Expr::PostDecrement { target, .. } |
+    Expr::MethodCall { target, .. } |
+    Expr::FieldAccess { target, .. } = expr {
       if let Expr::Ident(name, _) = target.as_ref() {
         self.mark_initialized(name);
       }
     }
+
     Ok(typ)
   }
 
@@ -922,7 +935,7 @@ impl Sema {
       } => {
         // Imports: qualified package call, e.g. Math.multiply(25, 14).
         // The receiver is an Ident naming an imported package.
-        if let Expr::Ident(pkg_name, _) = target.as_ref() {
+        if let Expr::Ident(pkg_name, tgt_span) = target.as_ref() {
           if let Some(pkg_fns) = self.package_functions.get(pkg_name) {
             // Validate argument types first.
             for arg in args {
@@ -941,7 +954,7 @@ impl Sema {
                 .ok_or_else(|| {
                   Diagnostic::new(
                     Phase::Sema,
-                    span.clone(),
+                    tgt_span.clone(),
                     format!("Package '{}' has no function '{}'", pkg_name, method),
                   )
                 });
@@ -1132,31 +1145,42 @@ impl Sema {
   }
 }
 
+fn check_struct_type_known(t: &Type, span: &Span, struct_defs: &HashMap<String, StructInfo>) -> Result<(), Diagnostic> {
+  match t {
+    Type::Struct(name) if !struct_defs.contains_key(name) => Err(Diagnostic::new(
+      Phase::Sema,
+      span.clone(),
+      format!("Unknown struct '{}'", name),
+    )),
+    TyPtr(inner, _) |
+    Type::TyArray(inner, _) | Type::TyFixedArray(inner, _) =>
+      check_struct_type_known(inner, span, struct_defs),
+    _ => Ok(()),
+  }
+}
+
 // ── Free functions (used from both Sema and standalone context) ──
 
 /// Analyze a variable declaration, inferring types and checking
 /// initializer compatibility.
 ///
 /// This function is called both for global and local variable declarations.
-fn analyze_var_decl_free(
-  v: &mut VarDecl,
-  scope: &mut Scope,
-  fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
-  warnings: &mut Vec<String>,
-  struct_defs: &HashMap<String, StructInfo>,
-  enum_members: &HashMap<String, (Type, i128)>,
-  package_functions: &PackageFunctions,
+fn analyze_var_decl_free(v: &mut VarDecl,
+                         scope: &mut Scope,
+                         fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+                         warnings: &mut Vec<String>,
+                         struct_defs: &HashMap<String, StructInfo>,
+                         enum_members: &HashMap<String, (Type, i128)>,
+                         package_functions: &PackageFunctions,
 ) -> Result<(), Diagnostic> {
   let inferred_type = if let Some(ref init) = v.init {
-    Some(infer_expr_type_free(
-      init,
-      scope,
-      fn_sigs,
-      struct_defs,
-      enum_members,
-      &Box::new(v.clone()),
-      package_functions,
-    )?)
+    Some(infer_expr_type_free(init,
+                              scope,
+                              fn_sigs,
+                              struct_defs,
+                              enum_members,
+                              &Box::new(v.clone()),
+                              package_functions)?)
   } else {
     None
   };
@@ -1205,7 +1229,7 @@ fn analyze_var_decl_free(
       if init_type_resolved != left_type_resolved {
 
         // right: string literal, left: u8 * => ok
-        if is_string_type(init_type_resolved) && let TyPtr(inner,_) = left_type_resolved {
+        if is_string_type(init_type_resolved) && let TyPtr(inner, _) = left_type_resolved {
           if inner.as_ref() != &U8 {
             return Err(Diagnostic::new(
               Phase::Sema,
@@ -1213,8 +1237,7 @@ fn analyze_var_decl_free(
               format!("String literal can only fit u8 *, {:?} given", inner),
             ));
           }
-        }
-        else if is_numeric_type(init_type_resolved) && is_numeric_type(left_type_resolved) {
+        } else if is_numeric_type(init_type_resolved) && is_numeric_type(left_type_resolved) {
           // Numeric-to-numeric: check if the literal value fits.
           if !literal_fits_target(init, &left_type) {
             return Err(Diagnostic::new(
@@ -1284,6 +1307,8 @@ fn analyze_var_decl_free(
         }
       }
     }
+
+    check_struct_type_known(&left_type, &v.span, struct_defs)?;
 
     scope.declare(name, left_type, &v.span)?;
   }
@@ -1757,21 +1782,21 @@ fn infer_expr_type_free(
             )?;
           }
           return pkg_fns
-            .get(method)
-            .map(|(_, returns)| {
-              if returns.len() == 1 {
-                returns[0].clone()
-              } else {
-                Type::Void
-              }
-            })
-            .ok_or_else(|| {
-              Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                format!("Package '{}' has no function '{}'", pkg_name, method),
-              )
-            });
+              .get(method)
+              .map(|(_, returns)| {
+                if returns.len() == 1 {
+                  returns[0].clone()
+                } else {
+                  Type::Void
+                }
+              })
+              .ok_or_else(|| {
+                Diagnostic::new(
+                  Phase::Sema,
+                  span.clone(),
+                  format!("Package '{}' has no function '{}'", pkg_name, method),
+                )
+              });
         }
       }
       let target_type = infer_expr_type_free(

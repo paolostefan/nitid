@@ -63,6 +63,7 @@ pub struct Parser {
   enum_names: HashSet<String>,
   struct_names: HashSet<String>,
   fn_ptr_names: HashMap<String, (Vec<Type>, Vec<Type>)>,
+  import_names: HashSet<String>,
 }
 
 impl Parser {
@@ -77,6 +78,7 @@ impl Parser {
       enum_names: HashSet::new(),
       struct_names: HashSet::new(),
       fn_ptr_names: HashMap::new(),
+      import_names: HashSet::new(),
     }
   }
 
@@ -191,6 +193,7 @@ impl Parser {
     // Import statements.
     while self.check(&TokenKind::Import) {
       let imp = self.parse_import()?;
+      self.import_names.insert(imp.alias.clone().unwrap_or(imp.name.clone()));
       imports.push(imp);
     }
 
@@ -856,6 +859,11 @@ impl Parser {
           Type::Enum(s)
         } else if self.struct_names.contains(&s) {
           Type::Struct(s)
+        } else if self.import_names.contains(&s) {
+          // Package.StructName case
+          self.expect(&TokenKind::Dot)?;
+          let struct_name = self.expect_ident()?;
+          Type::Struct(struct_name)
         } else if let Some(tuple) = self.fn_ptr_names.get(&s) {
           Type::TyFnPtr(s, tuple.0.clone(), tuple.1.clone())
         } else {
@@ -999,25 +1007,20 @@ impl Parser {
     }
 
     // Look-ahead to distinguish declarations from expression statements.
-    if matches!(self.peek_kind(), Some(TokenKind::Type(_)))
-        || matches!(self.peek_kind(), Some(TokenKind::Ident(_)))
+    let tok0 = self.peek_kind().unwrap().clone();
+    if matches!(tok0, TokenKind::Type(_)) || matches!(tok0, TokenKind::Ident(_))
     {
       let saved = self.pos;
-      let _tok1 = self.peek().unwrap().kind.clone();
-      self.advance();
-      let tok2 = self.peek().unwrap().kind.clone();
+      let tok1 = self.peek_nth_kind(1).unwrap();
 
-      if matches!(&tok2, TokenKind::Ident(_)) {
+      if let TokenKind::Ident(_) = tok1 {
         // `type name ...` or `ident name ...` — could be a declaration.
-        let _name = match &tok2 {
-          TokenKind::Ident(n) => n.clone(),
-          _ => unreachable!(),
-        };
-        self.advance();
-        let tok3 = self.peek_kind().cloned();
+        self.advance(); // consume tok0
+        self.advance(); // consume tok1
+        let tok2 = self.peek_kind().cloned();
         self.pos = saved;
 
-        match tok3 {
+        match tok2 {
           Some(TokenKind::LBrace) => return self.parse_direct_struct_decl_stmt(),
           Some(TokenKind::ColonEq) => return self.parse_decl_assign_stmt(),
           Some(TokenKind::Eq) => return self.parse_var_decl_stmt(),
@@ -1028,6 +1031,29 @@ impl Parser {
             let expr = self.parse_expr()?;
             self.expect(&TokenKind::Semicolon)?;
             return Ok(Stmt::Expr(expr));
+          }
+        }
+      } else if let TokenKind::Ident(pkg) = tok0 && let TokenKind::Dot = tok1 {
+        // Qualified struct type?
+        if self.import_names.contains(&pkg) {
+          // Plain identifier or ptr, i.e. what's after the identifier and the dot?
+          let after_dot_token_kind = self.peek_nth_kind(2).unwrap().clone();
+          if let TokenKind::Ident(_) = after_dot_token_kind {
+            let after_ident_token_kind = self.peek_nth_kind(3).unwrap().clone();
+            match after_ident_token_kind {
+              TokenKind::Ident(_) => return self.parse_var_decl_stmt(),
+              TokenKind::Star => return self.parse_ptr_var_decl_stmt(),
+              _ => {}
+            }
+          } else {
+            self.advance();
+            self.advance();
+            let wrong_token = self.advance().unwrap();
+            return Err(Diagnostic::new(
+              Phase::Parse,
+              wrong_token.span.clone(),
+              format!("Expected identifier after dot, found {:?}", wrong_token.kind),
+            ));
           }
         }
       } else {
@@ -1148,7 +1174,7 @@ impl Parser {
     let span = type_tok
         .as_ref()
         .map(|t| t.span.clone())
-        .unwrap_or_else(|| Span::new(&self.file, 0, 0));
+        .unwrap_or_else(|| Span::new(&self.file, 0, 0)); // TODO: line 0, col 0 is a bug!
 
     let type_tok = type_tok.ok_or_else(|| {
       Diagnostic::new(
@@ -1158,13 +1184,13 @@ impl Parser {
       )
     })?;
 
-    // Next token can either be a type, a struct name, or a variable name.
-    // If it's a type or a struct name, the behavior must be the same.
+    // Next token can either be a type, a struct name,
+    // a qualified struct name (e.g. `pkg.StructName`), or a variable name.
+    // If it's a type or a (qualified) struct name, the behavior must be the same.
 
     let is_type_pfx = matches!(&type_tok.kind, TokenKind::Type(_))
-        || matches!(&type_tok.kind, TokenKind::Ident(n)
-        if self.struct_names.contains(n)
-      && matches!(self.peek_nth_kind(1), Some(TokenKind::Star)));
+        || matches!(&type_tok.kind, TokenKind::Ident(n) if self.struct_names.contains(n) && matches!(self.peek_nth_kind(1), Some(TokenKind::Star)))
+        || matches!(&type_tok.kind, TokenKind::Ident(n) if self.import_names.contains(n) && matches!(self.peek_nth_kind(1), Some(TokenKind::Dot)) && matches!(self.peek_nth_kind(2), Some(TokenKind::Ident(_))));
 
     if is_type_pfx {
       // type identifier found, try `mutable? type "*" name (= expr)? ;`
@@ -1289,18 +1315,24 @@ impl Parser {
     //   - `fixed? type …` or `[N type]` is an explicit type annotation
     //     (e.g. `a := int[35]`, `b := fixed int[300]{…}`, `c := fixed [35 int]`).
     let is_fixed_annot = self.consume(&TokenKind::Fixed);
-    let is_struct_lit = matches!(self.peek_kind(), Some(TokenKind::Ident(_)))
-        && matches!(self.peek_nth_kind(1), Some(TokenKind::LBrace));
+    let mut is_struct_lit = false;
+    if let Some(TokenKind::Ident(base_id)) = self.peek_kind() {
+      if matches!(self.peek_nth_kind(1), Some(TokenKind::LBrace)) {
+        is_struct_lit = true;
+      } else if matches!(self.peek_nth_kind(1), Some(TokenKind::Dot)) &&
+          matches!(self.peek_nth_kind(2), Some(TokenKind::Ident(_))) {
+        is_struct_lit = self.import_names.contains(base_id);
+      }
+    }
+
     let is_bracket_array = matches!(self.peek_kind(), Some(TokenKind::LBracket))
-        && matches!(self.peek_nth_kind(1), Some(TokenKind::IntLit(_)))
-        && self
+        & &matches!( self.peek_nth_kind(1), Some(TokenKind::IntLit(_)))
+        & &self
         .peek_nth_kind(2)
         .map(|k| self.recognize_type(k))
         .unwrap_or(false);
 
-    if is_fixed_annot
-        || (!is_struct_lit
-        && self
+    if is_fixed_annot || (!is_struct_lit & &self
         .peek_kind()
         .map(|k| self.recognize_type(k))
         .unwrap_or(false))
@@ -1948,7 +1980,7 @@ impl Parser {
     let tok = self.advance().ok_or_else(|| {
       Diagnostic::new(Phase::Parse, Span::new(&self.file, 0, 0), "Unexpected EOF")
     })?;
-    let span = tok.span.clone();
+    let mut span = tok.span.clone();
 
     let mut expr = match tok.kind {
       TokenKind::IntLit(s) => {
@@ -2010,7 +2042,14 @@ impl Parser {
           Expr::Ident(name, span)
         }
       }
-      TokenKind::Ident(name) => {
+      TokenKind::Ident(mut name) => {
+        // Check whether the identifier is "plain" or qualified (e.g. Package.StructName)
+        if self.import_names.contains(&name) && self.peek_kind().unwrap() == &TokenKind::Dot {
+          self.advance();
+          name = self.expect_ident()?;
+          span = self.tokens[self.pos].span.clone();
+        }
+
         if self.check(&TokenKind::LBrace) {
           self.parse_struct_literal(name, span)?
         } else if self.check(&TokenKind::LParen) {

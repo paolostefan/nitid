@@ -20,7 +20,7 @@
 //!   (it issues warnings but does not reject the program).
 //! * Memory management, race-condition prevention, and buffer-overflow
 //!   protection are **not** implemented.
-use crate::ast::{Program, Span};
+use crate::ast::{FnDecl, Program, Span};
 use crate::diagnostic::{Diagnostic, Phase};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -70,6 +70,8 @@ pub struct PackageContext {
   pub functions: HashMap<String, FunctionSig>,
   /// Struct definitions: name -> list of (field name, field type)
   pub structs: HashMap<String, Vec<(String, types::Type)>>,
+  /// Struct methods map: struct name -> list of methods
+  pub methods: HashMap<String, Vec<FnDecl>>,
   /// Enum definitions: name -> list of (variant name, optional value)
   pub enums: HashMap<String, Vec<(String, Option<i128>)>>,
 }
@@ -324,6 +326,7 @@ pub fn build_package_context(programs: &[Program]) -> PackageContext {
   let mut ctx = PackageContext {
     functions: HashMap::new(),
     structs: HashMap::new(),
+    methods: HashMap::new(),
     enums: HashMap::new(),
   };
 
@@ -356,6 +359,10 @@ pub fn build_package_context(programs: &[Program]) -> PackageContext {
               .collect();
           ctx.structs.insert(s.name.clone(), fields);
         }
+        ast::Decl::ImplBlock(imp) => {
+          ctx.methods.insert(imp.struct_name.clone(),
+                             imp.methods.clone());
+        }
         ast::Decl::EnumDecl(e) => {
           let variants: Vec<(String, Option<i128>)> = e
               .variants
@@ -386,6 +393,7 @@ pub fn merge_contexts(contexts: &[PackageContext]) -> PackageContext {
   let mut merged = PackageContext {
     functions: HashMap::new(),
     structs: HashMap::new(),
+    methods: HashMap::new(),
     enums: HashMap::new(),
   };
 
@@ -481,8 +489,9 @@ pub fn compile(
         .unwrap_or_else(|| import_key.clone());
     package_names.insert(import_key.clone(), declared);
   }
+
   let (mut c_files, _) = cg
-      .generate(&program, c_src_dir, package_names.clone(), &foreign_sigs)
+      .generate(&program, c_src_dir, package_names.clone(), &foreign_sigs, &pkg_contexts)
       .expect("codegen does not fail");
 
   // Emit a .c file for every file in every imported package.
@@ -499,12 +508,19 @@ pub fn compile(
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
+    let only_this_pkg: HashMap<String, PackageContext> = HashMap::from([
+      (pkg_name.clone(), pkg_contexts.get(pkg_name).unwrap().clone())
+    ]);
+
     for prog in programs {
       let base_name = Path::new(&prog.file)
           .file_stem()
           .and_then(|s| s.to_str())
           .unwrap_or("pkg");
-      let c_text = cg.generate_c(prog, package_names.clone(), &pkg_foreign);
+      let c_text = cg.generate_c(prog,
+                                 package_names.clone(),
+                                 &pkg_foreign,
+                                 &only_this_pkg);
       c_files.push(codegen::CFile {
         path: format!("{}/{}.c", c_src_dir, base_name),
         content: c_text,
