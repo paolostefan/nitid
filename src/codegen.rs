@@ -319,20 +319,20 @@ impl Codegen {
     c_code.push('\n');
 
     // // Prototypes for struct methods defined in other packages.
-    // for (pkg_name, ctx) in pkg_contexts {
-    //   for (struct_name, methods) in &ctx.methods {
-    //     let i = ImplBlock {
-    //       struct_name: struct_name.clone(),
-    //       methods: methods.clone(),
-    //       span: Span::new("", 0, 0),
-    //     };
-    //
-    //     for m in methods {
-    //       c_code.push_str(&self.emit_method_decl(&i, m, true));
-    //       c_code.push_str(";\n");
-    //     }
-    //   }
-    // }
+    for (pkg_name, ctx) in pkg_contexts {
+      for (struct_name, methods) in &ctx.methods {
+        let i = ImplBlock {
+          struct_name: struct_name.clone(),
+          methods: methods.clone(),
+          span: Span::new("", 0, 0),
+        };
+
+        for m in methods {
+          c_code.push_str(&self.emit_method_decl(&i, m, true));
+          c_code.push_str(";\n");
+        }
+      }
+    }
 
     // Forward declarations. `extern "C"` prototypes come first: they name real C
     // symbols that the rest of the file calls, and a call before the prototype
