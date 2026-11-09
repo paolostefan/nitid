@@ -158,6 +158,40 @@ Spec chapters: `1` syntax + EBNF, `2` functions, `3` arrays, `4` structs, `5` en
 `20` packages, `21` module layout rules, `30` builtins. Sections marked 📝 are drafts — do not implement against them
 as if they were settled.
 
+## Teaching workspace (`tmp/`)
+
+A self-contained course lives in the gitignored `tmp/` directory. It is **uncommitted by design**: never stage,
+commit, or clean it, and never treat its absence as an error. When the user invokes the `teach` skill, read these
+first instead of asking for context:
+
+| Path | Role |
+|------|------|
+| `tmp/MISSION.md` | Course goal, success criteria, learner constraints. |
+| `tmp/NOTES.md` | Running state: what is done, what is next, verified facts, environment quirks. Read the newest bullets first. |
+| `tmp/RESOURCES.md` | Primary sources per topic. |
+| `tmp/lessons/` | Numbered, self-contained HTML lessons: `NNNN-slug.html`. |
+| `tmp/reference/` | HTML reference cards linked from lessons. |
+| `tmp/learning-records/` | Short `NNNN-slug.md` records of demonstrated knowledge, per the teach skill format. |
+| `tmp/assets/` | Shared `style.css` and helper scripts. |
+| `tmp/labs/` | Starter projects the user extends. |
+
+Rules for authoring lessons:
+
+- Next lesson number = highest existing `tmp/lessons/NNNN-*.html` + 1. Lessons currently run to **45**
+  (`0045-fire-effect.html`), so the next one is **46**.
+- Every lesson links `../assets/style.css`, opens with `<span class="lesson-number">Lesson N of M · Track</span>`,
+  and ends with: checkpoint callout, quiz, primary source, nav to previous/next lesson and a reference card, plus
+  `<em>Stuck? Ask the agent — your teacher knows the codebase.</em>`.
+- When adding lessons, update `M` in every lesson header (`of 45` → `of 46`), and add the next-lesson link to the
+  previous lesson's nav. Keep the chain contiguous.
+- Update `tmp/NOTES.md` after each authored lesson, and write a learning record when the user demonstrates a new
+  capability.
+- Verify every code snippet before teaching it: copy the repo to a detached worktree under `/tmp/opencode/` and
+  build there. Do not leave teaching experiments in the user's tree.
+- During teaching the **user writes the code**. Author lesson material only; do not edit `src/` or `samples/`
+  unless the user explicitly asks you to implement a feature. Code shown in lessons may target files the user
+  will change, but the change itself belongs to them.
+
 ## Conventions
 
 - **Rust style is mixed and intentional**: 4-space (rustfmt default) in `ast.rs`, `lexer.rs`, `lib.rs`, `main.rs`,
