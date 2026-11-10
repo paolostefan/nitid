@@ -177,12 +177,12 @@ first instead of asking for context:
 
 Rules for authoring lessons:
 
-- Next lesson number = highest existing `tmp/lessons/NNNN-*.html` + 1. Lessons currently run to **45**
-  (`0045-fire-effect.html`), so the next one is **46**.
+- Next lesson number = highest existing `tmp/lessons/NNNN-*.html` + 1. Lessons currently run to **46**
+  (`0046-mixed-width-arithmetic.html`), so the next one is **47**.
 - Every lesson links `../assets/style.css`, opens with `<span class="lesson-number">Lesson N of M · Track</span>`,
   and ends with: checkpoint callout, quiz, primary source, nav to previous/next lesson and a reference card, plus
   `<em>Stuck? Ask the agent — your teacher knows the codebase.</em>`.
-- When adding lessons, update `M` in every lesson header (`of 45` → `of 46`), and add the next-lesson link to the
+- When adding lessons, update `M` in every lesson header (`of 46` → `of 47`), and add the next-lesson link to the
   previous lesson's nav. Keep the chain contiguous.
 - Update `tmp/NOTES.md` after each authored lesson, and write a learning record when the user demonstrates a new
   capability.

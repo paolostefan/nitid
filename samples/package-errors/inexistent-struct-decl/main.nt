@@ -1,4 +1,4 @@
-// expect-contains: Expected Semicolon, found Ident
+// expect-contains: Expected Semicolon, found LBrace
 // Qualified struct names must belong to a recognized package
 import gfx as g_;
 

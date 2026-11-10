@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 /// Abstract Syntax Tree (AST) node definitions for the Nitid language.
 ///
 /// This module defines every node type that the parser produces and
@@ -12,6 +13,7 @@
 /// frequently fills it with dummy values (`Span::new("", 0, 0)`).
 /// Real source-location tracking is only partially implemented.
 use std::collections::HashSet;
+use std::fmt;
 use crate::types::Type;
 
 /// Source location: file name, line number, and column.
@@ -401,4 +403,35 @@ pub enum BinOp {
   BitXor,
   Shl,
   Shr,
+}
+
+impl BinOp {
+  pub fn c_str(&self) -> Cow<'static, str> {
+    match self {
+      Self::Add => Cow::Borrowed("add"),
+      Self::Sub => Cow::Borrowed("sub"),
+      Self::Mul => Cow::Borrowed("multiply"),
+      Self::Div => Cow::Borrowed("divide"),
+      Self::Mod => Cow::Borrowed("modulo"),
+      Self::Eq => Cow::Borrowed("equal"),
+      Self::Ne => Cow::Borrowed("not equal"),
+      Self::Lt => Cow::Borrowed("less than"),
+      Self::Gt => Cow::Borrowed("greater than"),
+      Self::Le => Cow::Borrowed("less than or equal"),
+      Self::Ge => Cow::Borrowed("greater than or equal"),
+      Self::And => Cow::Borrowed("logical and"),
+      Self::Or => Cow::Borrowed("logical or"),
+      Self::BitAnd => Cow::Borrowed("bitwise and"),
+      Self::BitOr => Cow::Borrowed("bitwise or"),
+      Self::BitXor => Cow::Borrowed("bitwise xor"),
+      Self::Shl => Cow::Borrowed("biwtise shift left"),
+      Self::Shr => Cow::Borrowed("bitwise shift right"),
+    }
+  }
+}
+
+impl fmt::Display for BinOp {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.c_str())
+  }
 }

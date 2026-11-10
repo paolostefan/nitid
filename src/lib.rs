@@ -494,6 +494,25 @@ pub fn compile(
       .generate(&program, c_src_dir, package_names.clone(), &foreign_sigs, &pkg_contexts)
       .expect("codegen does not fail");
 
+  // Emit one header per declared package- dedup by declared name
+  let mut emitted_headers: HashSet<String> = HashSet::new();
+
+  for (pkg_name, programs) in &imports {
+    let declared = programs
+        .first()
+        .map(|p| p.package.clone())
+        .unwrap_or_else(|| pkg_name.clone());
+
+    if !emitted_headers.insert(declared.clone()) {
+      continue;
+    }
+
+    c_files.push(codegen::CFile {
+      path: format!("{}/{}.h", c_src_dir, declared),
+      content: cg.emit_header(programs, &declared, &package_names),
+    });
+  }
+
   // Emit a .c file for every file in every imported package.
   for (pkg_name, programs) in &imports {
     // Prevent self-functions from appearing as "foreign". The prefix to filter
@@ -531,6 +550,7 @@ pub fn compile(
   // Stems for add_executable, derived from every emitted .c.
   let stems: Vec<String> = c_files
       .iter()
+      .filter(|cf| cf.path.ends_with(".c"))
       .map(|cf| {
         Path::new(&cf.path)
             .file_stem()

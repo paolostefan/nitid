@@ -2,4 +2,23 @@ import gfx as g;
 
 g.Canvas c;
 
-c.init(800,600);
+if (!c.init(800,600)) {
+  printf("Failed to initialize canvas\n");
+  return 1;
+}
+
+while (c.handle_events()) {
+  // Fill the framebuffer with a color gradient
+  // for (u16 y = 0; y < c.height; y++) {
+  //   for (u16 x = 0; x < c.width; x++) {
+  //     u16 r = (x * 255) / c.width;
+  //     u16 g = (y * 255) / c.height;
+  //     u16 b = ((x + y) * 255) / (c.width + c.height);
+  //     u32 pixel = (r << 16) | (g << 8) | b | 0xFF000000; // ARGB format
+  //     c.set_pixel(x, y, pixel);
+  //   }
+  // }
+
+  c.clear();
+  c.present();
+}

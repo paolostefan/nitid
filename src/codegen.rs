@@ -1,3 +1,4 @@
+use std::string::String;
 /// C code generator (transpiler backend).
 ///
 /// Phase 4 of the transpilation pipeline: walks the analyzed AST and
@@ -27,7 +28,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::path::Path;
-use crate::{types, PackageContext};
+use crate::PackageContext;
 
 /// A C source file ready to be written to disk.
 pub struct CFile {
@@ -54,6 +55,8 @@ pub struct Codegen {
   struct_names: HashSet<String>,
   /// Struct definitions (name, fields, packed, align, is_opaque) for emission.
   struct_defs: Vec<(String, Vec<StructField>, bool, Option<u64>, bool)>,
+  /// Struct definitions from imported packages, for type queries only.
+  imported_struct_defs: Vec<(String, Vec<StructField>)>,
   /// Enum definitions (name, variants) for emission.
   enum_defs: Vec<(String, Vec<EnumVariant>)>,
   /// Imported package names, for resolving qualified calls like Math.foo()
@@ -74,6 +77,7 @@ impl Codegen {
       scopes: vec![HashMap::new()],
       struct_names: HashSet::new(),
       struct_defs: Vec::new(),
+      imported_struct_defs: Vec::new(),
       enum_defs: Vec::new(),
       package_names: HashMap::new(),
       foreign_sigs: HashMap::new(),
@@ -140,57 +144,57 @@ impl Codegen {
     self.fn_params.clear();
     self.struct_names.clear();
     self.struct_defs.clear();
+    self.imported_struct_defs.clear();
 
-    // Glue package context structs together.
-    let mut struct_defs: HashMap<String, Vec<(String, types::Type)>> = HashMap::new();
+    // let struct_defs: HashMap<String, Vec<(String, types::Type)>> = HashMap::new();
     for (_pkg_name, pkg_ctx) in pkg_contexts {
       for (struct_name, fields) in &pkg_ctx.structs {
-        struct_defs.insert(struct_name.clone(), fields.clone());
+        self.struct_names.insert(struct_name.clone());
+
+        let s_fields: Vec<StructField> = fields
+            .iter()
+            .map(|(f_name, f_type)| StructField {
+              name: f_name.clone(),
+              typ: f_type.clone(),
+              span: Span::new("unknown", 0, 0), // FIXME this is sh***y code
+            })
+            .collect();
+        self.imported_struct_defs.push((struct_name.clone(), s_fields));
       }
     }
 
     // Pass 0: collect struct and enum definitions.
     for decl in &program.decls {
       match decl {
-        Decl::StructDecl(s) => {
-          self.struct_names.insert(s.name.clone());
-          self.struct_defs.push((
-            s.name.clone(),
-            s.fields.clone(),
-            s.packed,
-            s.align,
-            s.is_opaque,
-          ));
-        }
         Decl::EnumDecl(e) => {
           self.enum_defs.push((e.name.clone(), e.variants.clone()));
         }
         _ => {}
       }
     }
-
-    for (struct_name, fields) in struct_defs {
-      self.struct_names.insert(struct_name.clone());
-
-      let mut s_fields: Vec<StructField> = Vec::new();
-
-      for f in fields {
-        let (f_name, f_type) = f;
-        s_fields.push(StructField {
-          name: f_name.clone(),
-          typ: f_type.clone(),
-          span: Span::new("unknown", 0, 0), // FIXME this is not so nice
-        });
-      }
-
-      self.struct_defs.push((
-        struct_name.clone(),
-        s_fields,
-        false, // TODO: packed?
-        None, // TODO: align?
-        false, // TODO: is opaque?
-      ));
-    }
+    //
+    // for (struct_name, fields) in struct_defs {
+    //   self.struct_names.insert(struct_name.clone());
+    //
+    //   let mut s_fields: Vec<StructField> = Vec::new();
+    //
+    //   for f in fields {
+    //     let (f_name, f_type) = f;
+    //     s_fields.push(StructField {
+    //       name: f_name.clone(),
+    //       typ: f_type.clone(),
+    //       span: Span::new("unknown", 0, 0), // FIXME this is not so nice
+    //     });
+    //   }
+    //
+    //   self.struct_defs.push((
+    //     struct_name.clone(),
+    //     s_fields,
+    //     false, // TODO: packed?
+    //     None, // TODO: align?
+    //     false, // TODO: is opaque?
+    //   ));
+    // }
 
     // Pass 1: collect all function and method signatures.
     for decl in &program.decls {
@@ -236,100 +240,39 @@ impl Codegen {
     c_code.push_str("#include \"nitid/array.h\"\n");
     c_code.push('\n');
 
-    // Enum type definitions.
-    let enum_emissions: Vec<(String, String)> = self
-        .enum_defs
-        .iter()
-        .map(|(name, variants)| {
-          let mut body = String::new();
-          for v in variants {
-            if let Some(ref val) = v.value {
-              // We can't call self.emit_expr here due to borrow rules,
-              // so we use a simple structural emission for enum values.
-              let val_str = enum_value_to_c(val);
-              body.push_str(&format!(" {} = {},", v.name, val_str));
-            } else {
-              body.push_str(&format!(" {},", v.name));
-            }
-          }
-          (name.clone(), body)
-        })
-        .collect();
-    for (name, body) in &enum_emissions {
-      c_code.push_str(&format!("typedef enum {{{} }} {};\n\n", body, name));
+    let mut headers: Vec<String> = self.package_names.values().cloned().collect();
+    if program.package != "main" {
+      headers.push(program.package.clone());
     }
 
-    // Forward declarations for struct types.
-    for (name, fields, packed, align, is_opaque) in &self.struct_defs {
-      let attr = match (packed, align) {
-        (true, Some(a)) => format!(" __attribute__((packed, aligned({})))", a),
-        (true, None) => " __attribute__((packed))".to_string(),
-        (false, Some(a)) => format!(" __attribute__((aligned({})))", a),
-        (false, None) => String::new(),
-      };
-      c_code.push_str(&format!("typedef struct{} {} ", attr, name));
-      if !is_opaque {
-        c_code.push_str("{\n");
-        for f in fields {
-          match &f.typ {
-            Type::TyFixedArray(elem, n) => {
-              c_code.push_str(&format!(" {} {}[{}];\n", elem.c_str(), f.name, n));
-            }
-            // A field is storage, so the top-level pointee qualifier that a `T *`
-            // declaration carries must not be reproduced here: C would make the
-            // member itself read-only (`void *const fb`) and every later assignment
-            // to `s.fb` would fail to compile.
-            Type::TyPtr(elem, _) => {
-              c_code.push_str(&format!(" {} *{};\n", elem.c_str(), f.name));
-            }
-            _ => {
-              c_code.push_str(&format!(" {} {};\n", f.typ.c_str(), f.name));
-            }
-          }
-        }
-        c_code.push_str("} ");
-      }
-      c_code.push_str(&format!("{};\n\n", name));
+    headers.sort();
+    headers.dedup();
+
+    for header in headers {
+      c_code.push_str(&format!("#include \"{}.h\"\n", header));
     }
 
-    // Prototypes for functions defined in other files.
-    let mut for_sign: Vec<(&String, &(String, Vec<Type>, Vec<Type>))> =
-        foreign_sigs.iter().collect();
-    for_sign.sort(); // deterministic order
-
-    for (name, (mangled, params, returns)) in for_sign {
-      // Skip prototype if function is defined in this file
-      if self.fn_returns.contains_key(name) {
-        continue;
-      }
-
-      let ret = if returns.len() == 1 && returns[0] != Type::Void {
-        returns[0].c_str()
-      } else {
-        Cow::from("void")
-      };
-
-      let plist = params
-          .iter()
-          .map(|t| t.c_str())
-          .collect::<Vec<_>>()
-          .join(", ");
-      c_code.push_str(&format!("{} {}({});\n", ret, mangled, plist));
-    }
     c_code.push('\n');
 
-    // // Prototypes for struct methods defined in other packages.
-    for (pkg_name, ctx) in pkg_contexts {
-      for (struct_name, methods) in &ctx.methods {
-        let i = ImplBlock {
-          struct_name: struct_name.clone(),
-          methods: methods.clone(),
-          span: Span::new("", 0, 0),
-        };
+    // Emit enums, struct typedefs and forward declarations only in main.
+    if program.package == "main" {
+      c_code.push_str(&self.emit_enum_typedefs());
+      c_code.push_str(&self.emit_struct_typedefs());
 
-        for m in methods {
-          c_code.push_str(&self.emit_method_decl(&i, m, true));
-          c_code.push_str(";\n");
+      // Forward declarations for functions that return values
+      for decl in &program.decls {
+        match decl {
+          Decl::ImplBlock(imp) => {
+            for method in &imp.methods {
+              if method.returns.len() > 1
+                  || (method.returns.len() == 1 && method.returns[0] != Type::Void)
+              {
+                c_code.push_str(&self.emit_method_decl(imp, method, false));
+                c_code.push_str(";\n");
+              }
+            }
+          }
+          _ => {}
         }
       }
     }
@@ -345,23 +288,6 @@ impl Codegen {
           c_code.push_str(&self.emit_extern_fn_decl(f));
           c_code.push_str(";\n");
         }
-      }
-    }
-
-    // Forward declarations for functions that return values
-    for decl in &program.decls {
-      match decl {
-        Decl::ImplBlock(imp) => {
-          for method in &imp.methods {
-            if method.returns.len() > 1
-                || (method.returns.len() == 1 && method.returns[0] != Type::Void)
-            {
-              c_code.push_str(&self.emit_method_decl(imp, method, false));
-              c_code.push_str(";\n");
-            }
-          }
-        }
-        _ => {}
       }
     }
 
@@ -402,6 +328,77 @@ impl Codegen {
     }
 
     c_code
+  }
+
+  fn emit_enum_typedefs(&mut self) -> String {
+    let mut out = String::new();
+
+    // Enum type definitions.
+    let enum_emissions: Vec<(String, String)> = self
+        .enum_defs
+        .iter()
+        .map(|(name, variants)| {
+          let mut body = String::new();
+          for v in variants {
+            if let Some(ref val) = v.value {
+              // We can't call self.emit_expr here due to borrow rules,
+              // so we use a simple structural emission for enum values.
+              let val_str = enum_value_to_c(val);
+              body.push_str(&format!(" {} = {},", v.name, val_str));
+            } else {
+              body.push_str(&format!(" {},", v.name));
+            }
+          }
+          (name.clone(), body)
+        })
+        .collect();
+    for (name, body) in &enum_emissions {
+      out.push_str(&format!("typedef enum {{{} }} {};\n\n", body, name));
+    }
+
+    out
+  }
+
+  fn emit_struct_typedefs(&mut self) -> String {
+    let mut out = String::new();
+
+    // Forward declarations for struct types.
+    for (name, fields, packed, align, is_opaque) in &self.struct_defs {
+      let attr = match (packed, align) {
+        (true, Some(a)) => format!(" __attribute__((packed, aligned({})))", a),
+        (true, None) => " __attribute__((packed))".to_string(),
+        (false, Some(a)) => format!(" __attribute__((aligned({})))", a),
+        (false, None) => String::new(),
+      };
+
+      out.push_str(&format!("typedef struct{} {} ", attr, name));
+
+      if !is_opaque {
+        out.push_str("{\n");
+        for f in fields {
+          match &f.typ {
+            Type::TyFixedArray(elem, n) => {
+              out.push_str(
+                &format!(" {} {}[{}];\n", elem.c_str(), f.name, n));
+            }
+            // A field is storage, so the top-level pointee qualifier that a `T *`
+            // declaration carries must not be reproduced here: C would make the
+            // member itself read-only (`void *const fb`) and every later assignment
+            // to `s.fb` would fail to compile.
+            Type::TyPtr(elem, _) => {
+              out.push_str(&format!(" {} *{};\n", elem.c_str(), f.name));
+            }
+            _ => {
+              out.push_str(&format!(" {} {};\n", f.typ.c_str(), f.name));
+            }
+          }
+        }
+        out.push_str("} ");
+      }
+      out.push_str(&format!("{};\n\n", name));
+    }
+
+    out
   }
 
   /// Generate a `CMakeLists.txt` that compiles the emitted C code
@@ -1814,6 +1811,16 @@ impl Codegen {
             .map(|f| f.typ.clone());
       }
     }
+
+    for (name, fields) in &self.imported_struct_defs {
+      if name == struct_name {
+        return fields
+            .iter()
+            .find(|f| f.name == field_name)
+            .map(|f| f.typ.clone());
+      }
+    }
+
     None
   }
 
@@ -1890,6 +1897,108 @@ impl Codegen {
     let param_list_str = param_list.join(", ");
 
     format!("typedef {} (* {})({});\n", return_list, f.name, param_list_str)
+  }
+
+  pub(crate) fn emit_header(
+    &mut self,
+    programs: &[Program],
+    package_name: &str,
+    package_names: &HashMap<String, String>,
+  ) -> String {
+    self.current_package = package_name.to_string();
+    self.fn_returns.clear();
+    self.fn_params.clear();
+    self.struct_names.clear();
+    self.struct_defs.clear();
+    self.enum_defs.clear();
+
+    for program in programs {
+      for decl in &program.decls {
+        match decl {
+          Decl::StructDecl(s) => {
+            self.struct_names.insert(s.name.clone());
+            self.struct_defs.push((
+              s.name.clone(), s.fields.clone(), s.packed, s.align, s.is_opaque,
+            ));
+          }
+          Decl::EnumDecl(e) => {
+            self.enum_defs.push((e.name.clone(), e.variants.clone()));
+          }
+          _ => {}
+        }
+      }
+    }
+
+    let guard = format!("NITID_{}_H",
+                        package_name.chars()
+                            .map(|c| if c.is_ascii_alphanumeric() {
+                              c.to_ascii_uppercase()
+                            } else {
+                              '_'
+                            })
+                            .collect::<String>());
+
+    let mut header = String::new();
+    header.push_str(&format!("#ifndef {}\n#define {}\n\n", guard, guard));
+    header.push_str("#include <stdbool.h>\n");
+    header.push_str("#include <stddef.h>\n");
+    header.push_str("#include \"nitid/types.h\"\n");
+    header.push_str("#include \"nitid/string.h\"\n");
+    header.push_str("#include \"nitid/string16.h\"\n");
+    header.push_str("#include \"nitid/string32.h\"\n");
+    header.push_str("#include \"nitid/array.h\"\n");
+
+    // Direct nitid imports, so a header that names another package's structs is self-contained.
+    // The import graph is acyclic.
+    let mut deps: Vec<String> = Vec::new();
+    for program in programs {
+      for import in &program.imports {
+        let key = import.alias.as_deref().unwrap_or(&import.name);
+        let declared = package_names
+            .get(key)
+            .or_else(|| package_names.get(&import.name))
+            .cloned()
+            .unwrap_or_else(|| import.name.clone());
+
+        if declared != package_name {
+          deps.push(declared);
+        }
+      }
+    }
+
+    deps.sort();
+    deps.dedup();
+    for dep in &deps {
+      header.push_str(&format!("#include \"{}.h\"\n", dep))
+    }
+
+    header.push('\n');
+    header.push_str(&self.emit_enum_typedefs());
+    header.push_str(&self.emit_struct_typedefs());
+
+    // Package functions keep package prefix; methods keep the struct prefix (so far).
+    for program in programs {
+      for decl in &program.decls {
+        match decl {
+          Decl::FnDecl(f) if !f.is_external && f.name != "main" => {
+            let c_name = format!("{}_{}", package_name, f.name);
+            header.push_str(&self.emit_fn_decl(f, &c_name));
+            header.push_str(";\n");
+          }
+          Decl::ImplBlock(imp) => {
+            for method in &imp.methods {
+              header.push_str(&self.emit_method_decl(&imp, method, true));
+              header.push_str(";\n");
+            }
+          }
+          _ => {}
+        }
+      }
+    }
+
+    header.push_str("\n#endif\n");
+
+    header
   }
 }
 

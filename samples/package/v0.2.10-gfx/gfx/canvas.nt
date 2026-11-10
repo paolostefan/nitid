@@ -3,6 +3,14 @@ package gfx;
 link_lib "m";
 link_lib "SDL3";
 
+// SDL3 structs
+struct SDL_Event {
+  type_field: u32;
+  reserved: u32;
+  timestamp: u64;
+  padding: fixed u8[112];  // SDL_Event is a 128-byte union
+};
+
 extern "C" fn SDL_GetError() -> u8 *;
 extern "C" fn SDL_CreateWindowAndRenderer(u8 *title, int w, int h, u64 flags, void *window_ptr, void *renderer_ptr) -> bool;
 extern "C" fn SDL_CreateTexture(void *renderer, u32 fmt, int access, int w, int h) -> void *;
@@ -10,7 +18,10 @@ extern "C" fn SDL_DestroyWindow(void *win);
 extern "C" fn SDL_UpdateTexture(void *texture, void *rect, void *pixels, int pitch);
 extern "C" fn SDL_RenderTexture(void *renderer, void *texture, void *srcrect, void *dstrect) -> bool;
 extern "C" fn SDL_RenderPresent(void *renderer);
+extern "C" fn SDL_PollEvent(SDL_Event *event) -> bool;
 
+
+// Canvas struct and methods
 struct Canvas {
   window: void *; // SDL_Window
   renderer: void *; // SDL_Renderer
@@ -18,6 +29,7 @@ struct Canvas {
   framebuffer: u32 *;
   width: u16;
   height: u16;
+  event: SDL_Event;
 };
 
 impl Canvas {
@@ -39,7 +51,7 @@ impl Canvas {
     self.texture = SDL_CreateTexture(self.renderer,
                                      0x16362004, // SDL_PIXELFORMAT_ARGB8888
                                      2, // SDL_TEXTUREACCESS_TARGET
-                                     width, height); // SDL_PIXELFORMAT_RGBA8888
+                                     width, height);
     if (self.texture == nil) {
       printf("Failed to create texture: %s\n", SDL_GetError());
       return false;
@@ -66,5 +78,15 @@ impl Canvas {
     SDL_UpdateTexture(self.texture, nil, self.framebuffer, self.width * 4);
     SDL_RenderTexture(self.renderer, self.texture, nil, nil);
     SDL_RenderPresent(self.renderer);
+  }
+
+  // Handle SDL events, return false if the window should close
+  fn handle_events() -> bool {
+    while (SDL_PollEvent(&self.event)) {
+      if (self.event.type_field == 0x100) { // SDL_QUIT
+        return false;
+      }
+    }
+    return true;
   }
 }

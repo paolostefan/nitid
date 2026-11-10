@@ -795,7 +795,7 @@ impl Sema {
               Err(Diagnostic::new(
                 Phase::Sema,
                 span.clone(),
-                "Type mismatch in arithmetic",
+                &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
               ))
             }
           }
@@ -806,7 +806,7 @@ impl Sema {
               Err(Diagnostic::new(
                 Phase::Sema,
                 span.clone(),
-                "Type mismatch in arithmetic",
+                &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
               ))
             }
           }
@@ -821,7 +821,7 @@ impl Sema {
               Err(Diagnostic::new(
                 Phase::Sema,
                 span.clone(),
-                "Type mismatch in bitwise op",
+                &format!("Type mismatch in bitwise op: left {}, right {}", lt_r, rt_r),
               ))
             }
           }
@@ -1569,7 +1569,7 @@ fn infer_expr_type_free(
             Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),
-              "Type mismatch in arithmetic",
+              &format!("Type mismatch in arithmetic {}: left {}, right {}", op, lt_r, rt_r),
             ))
           }
         }
@@ -1580,7 +1580,7 @@ fn infer_expr_type_free(
             Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),
-              "Type mismatch in arithmetic",
+              &format!("Type mismatch in arithmetic {}: left {}, right {}", op, lt_r, rt_r),
             ))
           }
         }
@@ -1595,7 +1595,7 @@ fn infer_expr_type_free(
             Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),
-              "Type mismatch in bitwise op",
+              &format!("Type mismatch in bitwise op: left {}, right {}", lt_r, rt_r),
             ))
           }
         }
