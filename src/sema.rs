@@ -39,6 +39,18 @@ struct EnumInfo {
   variants: Vec<EnumVariant>,
 }
 
+/// Used by infer_expr_type_free
+#[derive(Debug, Clone)]
+struct InferCtx<'a> {
+  fn_sigs_map: &'a HashMap<String, (Vec<Type>, Vec<Type>)>,
+  struct_defs: &'a HashMap<String, StructInfo>,
+  struct_methods: &'a HashMap<String, Vec<FnDecl>>,
+  enum_defs: &'a HashMap<String, EnumInfo>,
+  enum_members: &'a HashMap<String, (Type, i128)>,
+  package_functions: &'a PackageFunctions,
+  unsafe_depth: u8,
+}
+
 /// The semantic analyzer context.
 ///
 /// Holds the global scope, a reference to the current function's
@@ -156,6 +168,19 @@ impl Sema {
     }
   }
 
+  /// Create a new InferCtx from self.
+  fn ctx(&self) -> InferCtx<'_> {
+    InferCtx {
+      fn_sigs_map: &self.fn_sigs_map,
+      struct_defs: &self.struct_defs,
+      struct_methods: &self.struct_methods,
+      enum_defs: &self.enum_defs,
+      enum_members: &self.enum_members,
+      package_functions: &self.package_functions,
+      unsafe_depth: self.unsafe_depth,
+    }
+  }
+
   /// Run semantic analysis on the entire program.
   pub fn analyze(&mut self,
                  program: &mut Program,
@@ -188,10 +213,6 @@ impl Sema {
               align: None,
             },
           );
-        }
-
-        for (name, methods) in &ctx.methods {
-          self.struct_methods.insert(name.clone(), methods.clone());
         }
 
         for (name, methods) in &ctx.methods {
@@ -416,15 +437,18 @@ impl Sema {
           self.current_struct_type = None;
         }
         Decl::VarDecl(v) => {
-          analyze_var_decl_free(
-            v,
-            &mut self.globals,
-            &fn_sigs,
-            &mut self.warnings,
-            &self.struct_defs,
-            &self.enum_members,
-            &self.package_functions,
-          )?;
+
+          let ctx = InferCtx{
+            fn_sigs_map: &self.fn_sigs_map,
+            struct_defs: &self.struct_defs,
+            struct_methods: &self.struct_methods,
+            enum_defs: &self.enum_defs,
+            enum_members: &self.enum_members,
+            package_functions: &self.package_functions,
+            unsafe_depth: self.unsafe_depth,
+          };
+
+          analyze_var_decl(v, &mut self.globals, &fn_sigs, &mut self.warnings, &ctx)?;
           let can_zero_init = v
               .typ
               .as_ref()
@@ -473,15 +497,18 @@ impl Sema {
   ) -> Result<(), Diagnostic> {
     match stmt {
       Stmt::VarDecl(v) => {
-        analyze_var_decl_free(
-          v,
-          scope,
-          fn_sigs,
-          &mut self.warnings,
-          &self.struct_defs,
-          &self.enum_members,
-          &self.package_functions,
-        )?;
+
+        let ctx = InferCtx{
+          fn_sigs_map: &self.fn_sigs_map,
+          struct_defs: &self.struct_defs,
+          struct_methods: &self.struct_methods,
+          enum_defs: &self.enum_defs,
+          enum_members: &self.enum_members,
+          package_functions: &self.package_functions,
+          unsafe_depth: self.unsafe_depth,
+        };
+
+        analyze_var_decl(v, scope, fn_sigs, &mut self.warnings, &ctx)?;
         // Deferred init check: vars without init are tracked
         // per scope and checked at scope exit.
         // Array types can be zero-initialized so skip uninit tracking.
@@ -696,416 +723,7 @@ impl Sema {
     scope: &Scope,
     fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
   ) -> Result<Type, Diagnostic> {
-    match expr {
-      Expr::IntLit(..) => Ok(Type::I32),
-      Expr::FloatLit(..) => Ok(Type::F64),
-      Expr::StringLit(..) => Ok(Type::String),
-      Expr::CharLit(..) => Ok(Type::U8),
-      Expr::BoolLit(..) => Ok(Type::Bool),
-      Expr::NullPtr(..) => Ok(Type::TyPtr(Box::new(Type::Void), true)),
-      Expr::Ident(name, span) => scope
-          .lookup(name)
-          .or_else(|| self.enum_members.get(name).map(|(t, _)| t.clone()))
-          .ok_or_else(|| {
-            Diagnostic::new(
-              Phase::Sema,
-              span.clone(),
-              format!("Undefined variable '{}'", name),
-            )
-          }),
-      Expr::Call { name, args, span } => {
-        for arg in args {
-          self.infer_expr_type(arg, scope, fn_sigs)?;
-        }
-        // Built-in functions.
-        if name == "println" || name == "printf" {
-          Ok(Type::Void)
-        } else if let Some(typ) = Type::from_str(name) {
-          // Type conversion: `i64(expr)` returns the target type
-          Ok(typ)
-        } else if let Some(TyFnPtr(_, _, returns)) = scope.lookup(name) {
-          // An in-scope variable of function-pointer type: this is a call
-          // *through* that variable, so the call yields the signature's return
-          // type, not the pointer type itself.
-          if returns.len() == 1 {
-            Ok(returns[0].clone())
-          } else {
-            // Multi-return signatures come back through out-parameters.
-            Ok(Type::Void)
-          }
-        } else {
-          fn_sigs
-              .get(name)
-              .map(|(_, returns)| {
-                if returns.len() == 1 {
-                  returns[0].clone()
-                } else {
-                  // Multi-return functions have void type in expression
-                  // context; the return values are written through
-                  // output pointer arguments.
-                  Type::Void
-                }
-              })
-              .ok_or_else(|| {
-                Diagnostic::new(
-                  Phase::Sema,
-                  span.clone(),
-                  format!("Undefined function '{}'", name),
-                )
-              })
-        }
-      }
-      Expr::UnaryOp { op, expr, span } => {
-        let expr_type = self.infer_expr_type(expr, scope, fn_sigs)?;
-        match op {
-          UnOp::Deref => match expr_type {
-            TyPtr(elem, _) => {
-              if self.unsafe_depth > 0 {
-                Ok(*elem)
-              } else {
-                Err(Diagnostic::new(
-                  Phase::Sema,
-                  span.clone(),
-                  "deref operation is allowed only in unsafe blocks",
-                ))
-              }
-            }
-            _ => Err(Diagnostic::new(
-              Phase::Sema,
-              span.clone(),
-              format!("deref operation on non-ptr ({})", expr_type),
-            )),
-          },
-          UnOp::Ref => Ok(TyPtr(Box::new(expr_type), false)),
-          _ => Ok(expr_type),
-        }
-      }
-      Expr::BinaryOp { left, right, op, span } => {
-        let lt = self.infer_expr_type(left, scope, fn_sigs)?;
-        let rt = self.infer_expr_type(right, scope, fn_sigs)?;
-        let lt_r = resolve_enum_type(&lt, &self.enum_defs).clone();
-        let rt_r = resolve_enum_type(&rt, &self.enum_defs).clone();
-        match op {
-          BinOp::Add | BinOp::Sub => {
-            if matches!(lt_r, TyPtr(_, _)) && is_integral_type(&rt_r) {
-              Ok(lt_r)
-            } else if let Some(t) = arith_result(&lt_r, &rt_r) {
-              Ok(t)
-            } else {
-              Err(Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
-              ))
-            }
-          }
-          BinOp::Mul | BinOp::Div | BinOp::Mod => {
-            if let Some(t) = arith_result(&lt_r, &rt_r) {
-              Ok(t)
-            } else {
-              Err(Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
-              ))
-            }
-          }
-          BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
-            Ok(Type::Bool)
-          }
-          BinOp::And | BinOp::Or => Ok(Type::Bool),
-          BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-            if let Some(t) = arith_result(&lt_r, &rt_r) {
-              Ok(t)
-            } else {
-              Err(Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                &format!("Type mismatch in bitwise op: left {}, right {}", lt_r, rt_r),
-              ))
-            }
-          }
-        }
-      }
-      Expr::Assign { left, .. } => self.infer_expr_type(left, scope, fn_sigs),
-      Expr::DeclAssign { right, .. } => self.infer_expr_type(right, scope, fn_sigs),
-      Expr::ArrayLit(elems, span) => {
-        if elems.is_empty() {
-          return Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "Empty array literals not supported yet",
-          ));
-        }
-        let elem_type = self.infer_expr_type(&elems[0], scope, fn_sigs)?;
-        for e in elems[1..].iter() {
-          let et = self.infer_expr_type(e, scope, fn_sigs)?;
-          if et != elem_type {
-            return Err(Diagnostic::new(
-              Phase::Sema,
-              span.clone(),
-              "Array element type mismatch",
-            ));
-          }
-        }
-        Ok(Type::TyArray(Box::new(elem_type), None))
-      }
-      Expr::Index {
-        target,
-        index,
-        span,
-      } => {
-        let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
-        let index_type = self.infer_expr_type(index, scope, fn_sigs)?;
-        if !is_numeric_type(&index_type) {
-          return Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "Array index must be numeric",
-          ));
-        }
-        match target_type {
-          // Fixed-size arrays: check compile-time known index bounds.
-          // Negative indices wrap from end (-1 → last element, -n → index 0)
-          Type::TyFixedArray(elem, sz) => {
-            check_index_bounds(&elem, Some(sz), index, span)
-          }
-          // Dynamically-sized arrays can be resized at runtime, so
-          // the declared size is not a compile-time bound; illegal
-          // accesses are caught at runtime instead.
-          Type::TyArray(elem, _) => Ok(*elem),
-          Type::String | Type::String16 | Type::String32 => Ok(Type::U32),
-          _ => Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "Cannot index non-array type",
-          )),
-        }
-      }
-      Expr::PostIncrement { target, span } | Expr::PostDecrement { target, span } => {
-        let t = self.infer_expr_type(target, scope, fn_sigs)?;
-        if !is_numeric_type(&t) {
-          return Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            format!("Cannot apply ++ or -- to non-numeric type {:?}", t),
-          ));
-        }
-        Ok(t)
-      }
-      Expr::FieldAccess {
-        target,
-        field,
-        span,
-      } => {
-        let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
-        match target_type {
-          Type::Struct(ref struct_name) => {
-            let info = self.struct_defs.get(struct_name).ok_or_else(|| {
-              Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                format!("Unknown struct type '{}'", struct_name),
-              )
-            })?;
-            info.fields
-                .iter()
-                .find(|f| f.name == *field)
-                .map(|f| f.typ.clone())
-                .ok_or_else(|| {
-                  Diagnostic::new(
-                    Phase::Sema,
-                    span.clone(),
-                    format!("Struct '{}' has no field '{}'", struct_name, field),
-                  )
-                })
-          }
-          _ => Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "Cannot access field on non-struct type",
-          )),
-        }
-      }
-      Expr::MethodCall {
-        target,
-        method,
-        args,
-        span,
-      } => {
-        // Imports: qualified package call, e.g. Math.multiply(25, 14).
-        // The receiver is an Ident naming an imported package.
-        if let Expr::Ident(pkg_name, tgt_span) = target.as_ref() {
-          if let Some(pkg_fns) = self.package_functions.get(pkg_name) {
-            // Validate argument types first.
-            for arg in args {
-              self.infer_expr_type(arg, scope, fn_sigs)?;
-            }
-
-            return pkg_fns
-                .get(method)
-                .map(|(_, returns)| {
-                  if returns.len() == 1 {
-                    returns[0].clone()
-                  } else {
-                    Type::Void
-                  }
-                })
-                .ok_or_else(|| {
-                  Diagnostic::new(
-                    Phase::Sema,
-                    tgt_span.clone(),
-                    format!("Package '{}' has no function '{}'", pkg_name, method),
-                  )
-                });
-          }
-        }
-
-        // The receiver is not an imported package's name.
-        let target_type = self.infer_expr_type(target, scope, fn_sigs)?;
-        match target_type {
-          Type::Struct(ref struct_name) => {
-            let methods = self.struct_methods.get(struct_name).ok_or_else(|| {
-              Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                format!("Struct '{}' has no methods", struct_name),
-              )
-            })?;
-            let method_decl =
-                methods.iter().find(|m| m.name == *method).ok_or_else(|| {
-                  Diagnostic::new(
-                    Phase::Sema,
-                    span.clone(),
-                    format!("Struct '{}' has no method '{}'", struct_name, method),
-                  )
-                })?;
-            // Check method arity
-            let expected_params: Vec<&Type> = method_decl
-                .params
-                .iter()
-                .flat_map(|p| std::iter::repeat(&p.typ).take(p.names.len()))
-                .collect();
-            if args.len() != expected_params.len() {
-              return Err(Diagnostic::new(
-                Phase::Sema,
-                span.clone(),
-                format!(
-                  "Method '{}' expects {} arguments, got {}",
-                  method,
-                  expected_params.len(),
-                  args.len()
-                ),
-              ));
-            }
-            // Check argument types (for now just validate they exist)
-            for arg in args {
-              self.infer_expr_type(arg, scope, fn_sigs)?;
-            }
-            // Return the method's return type
-            if method_decl.returns.len() == 1 {
-              Ok(method_decl.returns[0].clone())
-            } else if method_decl.returns.is_empty()
-                || method_decl.returns[0] == Type::Void
-            {
-              Ok(Type::Void)
-            } else {
-              Ok(Type::Void) // multi-return in expression context
-            }
-          }
-          Type::TyArray(..) | Type::TyFixedArray(..) => {
-            check_array_method(method, args, span, &target_type, |e| {
-              self.infer_expr_type(e, scope, fn_sigs)
-            })
-          }
-          _ => Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "Cannot call method on non-struct type",
-          )),
-        }
-      }
-      Expr::StructLit {
-        struct_name,
-        fields,
-        span,
-      } => {
-        let info = self.struct_defs.get(struct_name).ok_or_else(|| {
-          Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            format!("Unknown struct type '{}'", struct_name),
-          )
-        })?;
-        // Check field count matches
-        if fields.len() != info.fields.len() {
-          return Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            format!(
-              "Struct '{}' has {} fields but literal provides {}",
-              struct_name,
-              info.fields.len(),
-              fields.len()
-            ),
-          ));
-        }
-        // Check each field exists and validate types
-        for (field_name, field_expr) in fields {
-          let decl_field = info
-              .fields
-              .iter()
-              .find(|f| f.name == *field_name)
-              .ok_or_else(|| {
-                Diagnostic::new(
-                  Phase::Sema,
-                  span.clone(),
-                  format!("Struct '{}' has no field '{}'", struct_name, field_name),
-                )
-              })?;
-          let init_type = self.infer_expr_type(field_expr, scope, fn_sigs)?;
-          let ptr_ok = ptr_assignable(&init_type, &decl_field.typ).unwrap_or(false);
-          if init_type != decl_field.typ && !ptr_ok {
-            let ok = is_numeric_type(&init_type)
-                && is_numeric_type(&decl_field.typ)
-                && literal_fits_target(field_expr, &decl_field.typ);
-            let ok = ok || {
-              // Array of numerics: check each element fits target element type.
-              if let (Some((init_elem, _)), Some((decl_elem, _))) =
-                  (as_array(&init_type), as_array(&decl_field.typ))
-              {
-                if is_numeric_type(init_elem)
-                    && is_numeric_type(decl_elem)
-                    && init_elem != decl_elem
-                {
-                  if let Expr::ArrayLit(elems, _) = field_expr {
-                    elems.iter().all(|e| literal_fits_target(e, decl_elem))
-                  } else {
-                    false
-                  }
-                } else {
-                  init_elem == decl_elem
-                }
-              } else {
-                false
-              }
-            };
-            if !ok {
-              let sp = field_expr.span();
-              return Err(Diagnostic::new(
-                Phase::Sema,
-                Span::new(&sp.file, sp.line, sp.col),
-                format!(
-                  "Type mismatch for field '{}': expected {:?}, got {:?}",
-                  field_name, decl_field.typ, init_type
-                ),
-              ));
-            }
-          }
-        }
-        Ok(Type::Struct(struct_name.clone()))
-      }
-    }
+    infer_expr_type(&self.ctx(), expr, scope, fn_sigs)
   }
 
   // ── Uninitialized variable tracking ─────────────────────
@@ -1165,22 +783,14 @@ fn check_struct_type_known(t: &Type, span: &Span, struct_defs: &HashMap<String, 
 /// initializer compatibility.
 ///
 /// This function is called both for global and local variable declarations.
-fn analyze_var_decl_free(v: &mut VarDecl,
-                         scope: &mut Scope,
-                         fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
-                         warnings: &mut Vec<String>,
-                         struct_defs: &HashMap<String, StructInfo>,
-                         enum_members: &HashMap<String, (Type, i128)>,
-                         package_functions: &PackageFunctions,
+fn analyze_var_decl(v: &mut VarDecl,
+                    scope: &mut Scope,
+                    fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
+                    warnings: &mut Vec<String>,
+                    ctx: &InferCtx,
 ) -> Result<(), Diagnostic> {
   let inferred_type = if let Some(ref init) = v.init {
-    Some(infer_expr_type_free(init,
-                              scope,
-                              fn_sigs,
-                              struct_defs,
-                              enum_members,
-                              &Box::new(v.clone()),
-                              package_functions)?)
+    Some(infer_expr_type(ctx, init, scope, fn_sigs)?)
   } else {
     None
   };
@@ -1189,15 +799,18 @@ fn analyze_var_decl_free(v: &mut VarDecl,
     let left_type = if let Some(ref t) = v.typ {
       t.clone()
     } else if let Some(ref t) = inferred_type {
-      let t = match t {
+      let inferred = match t {
         TyPtr(elem, _) => TyPtr(elem.clone(), v.is_mutable),
         other => other.clone(),
       };
+
+      v.typ = Some(inferred.clone());
+
       warnings.push(format!(
         "{}:{}:{}: Variable '{}' declared with ':=', inferred type {:?}",
-        v.span.file, v.span.line, v.span.col, name, t
+        v.span.file, v.span.line, v.span.col, name, inferred
       ));
-      t
+      inferred
     } else {
       return Err(Diagnostic::new(
         Phase::Sema,
@@ -1208,15 +821,8 @@ fn analyze_var_decl_free(v: &mut VarDecl,
 
     // Type-check the initializer against the declared type.
     if let Some(ref init) = v.init {
-      let init_type = &infer_expr_type_free(
-        init,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        &Box::new(v.clone()),
-        package_functions,
-      )?;
+      let init_type = infer_expr_type(ctx, init, scope, fn_sigs)?;
+
       // Resolve enum types to underlying type for comparison.
       let init_type_resolved = match &init_type {
         Type::Enum(_) => &Type::I32,
@@ -1308,7 +914,7 @@ fn analyze_var_decl_free(v: &mut VarDecl,
       }
     }
 
-    check_struct_type_known(&left_type, &v.span, struct_defs)?;
+    check_struct_type_known(&left_type, &v.span, ctx.struct_defs)?;
 
     scope.declare(name, left_type, &v.span)?;
   }
@@ -1406,14 +1012,19 @@ where
   }
 }
 
-fn infer_expr_type_free(
+/// Infer the type of an expression.
+///
+/// This is the core type-checking function.  It recursively walks
+/// the expression tree and:
+/// - Assigns fixed types to literals (int → `I32`, float → `F64`, etc.).
+/// - Resolves identifiers against the scope chain.
+/// - Validates function call arguments and looks up the return type.
+/// - Checks binary-operator type compatibility.
+fn infer_expr_type(
+  ctx: &InferCtx,
   expr: &Expr,
   scope: &Scope,
   fn_sigs: &HashMap<String, (Vec<Type>, Vec<Type>)>,
-  struct_defs: &HashMap<String, StructInfo>,
-  enum_members: &HashMap<String, (Type, i128)>,
-  var_decl: &Box<VarDecl>,
-  package_functions: &PackageFunctions,
 ) -> Result<Type, Diagnostic> {
   match expr {
     Expr::IntLit(..) => Ok(Type::I32),
@@ -1424,7 +1035,7 @@ fn infer_expr_type_free(
     Expr::NullPtr(..) => Ok(Type::TyPtr(Box::new(Type::Void), true)),
     Expr::Ident(name, span) => scope
         .lookup(name)
-        .or_else(|| enum_members.get(name).map(|(t, _)| t.clone()))
+        .or_else(|| ctx.enum_members.get(name).map(|(t, _)| t.clone()))
         .ok_or_else(|| {
           Diagnostic::new(
             Phase::Sema,
@@ -1434,26 +1045,22 @@ fn infer_expr_type_free(
         }),
     Expr::Call { name, args, span } => {
       for arg in args {
-        infer_expr_type_free(
-          arg,
-          scope,
-          fn_sigs,
-          struct_defs,
-          enum_members,
-          var_decl,
-          package_functions,
-        )?;
+        infer_expr_type(ctx, arg, scope, fn_sigs)?;
       }
+      // Built-in functions.
       if name == "println" || name == "printf" {
         Ok(Type::Void)
       } else if let Some(typ) = Type::from_str(name) {
+        // Type conversion: `i64(expr)` returns the target type
         Ok(typ)
       } else if let Some(TyFnPtr(_, _, returns)) = scope.lookup(name) {
-        // A call through a function-pointer variable yields the signature's
-        // return type, not the pointer type.
+        // An in-scope variable of function-pointer type: this is a call
+        // *through* that variable, so the call yields the signature's return
+        // type, not the pointer type itself .
         if returns.len() == 1 {
           Ok(returns[0].clone())
         } else {
+          // Multi-return signatures come back through out-parameters.
           Ok(Type::Void)
         }
       } else {
@@ -1463,6 +1070,9 @@ fn infer_expr_type_free(
               if returns.len() == 1 {
                 returns[0].clone()
               } else {
+                // Multi-return functions have void type in expression
+                // context; the return values are written through
+                // output pointer arguments.
                 Type::Void
               }
             })
@@ -1475,112 +1085,58 @@ fn infer_expr_type_free(
             })
       }
     }
-
     Expr::UnaryOp { op, expr, span } => {
-      let expr_type = infer_expr_type_free(
-        expr,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
+      let expr_type = infer_expr_type(ctx, expr, scope, fn_sigs)?;
       match op {
-        UnOp::Neg => match expr_type {
-          Type::I8
-          | Type::I16
-          | Type::I32
-          | Type::I64
-          | Type::I128
-          | Type::F32
-          | Type::F64 => Ok(expr_type),
-          _ => Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "unary minus type mismatch",
-          )),
-        },
-        UnOp::Not => match expr_type {
-          Type::Bool => Ok(Type::Bool),
-          _ => Err(Diagnostic::new(
-            Phase::Sema,
-            span.clone(),
-            "boolean not type mismatch",
-          )),
-        },
-        UnOp::BinNot => {
-          if is_integral_type(&expr_type) {
-            Ok(expr_type)
-          } else {
-            Err(Diagnostic::new(
-              Phase::Sema,
-              span.clone(),
-              "binary not type mismatch",
-            ))
-          }
-        }
         UnOp::Deref => match expr_type {
-          TyPtr(elem, _) => Ok(*elem),
+          TyPtr(elem, _) => {
+            if ctx.unsafe_depth > 0 {
+              Ok(*elem)
+            } else {
+              Err(Diagnostic::new(
+                Phase::Sema,
+                span.clone(),
+                "deref operation is allowed only in unsafe blocks",
+              ))
+            }
+          }
           _ => Err(Diagnostic::new(
             Phase::Sema,
             span.clone(),
-            "pointer type mismatch",
+            format!("deref operation on non-ptr ({})", expr_type),
           )),
         },
-        UnOp::Ref => Ok(TyPtr(Box::new(expr_type), var_decl.is_mutable)),
+        UnOp::Ref => Ok(TyPtr(Box::new(expr_type), true)), // locals are mutable: &x is writable
+        _ => Ok(expr_type),
       }
     }
     Expr::BinaryOp { left, right, op, span } => {
-      let lt = infer_expr_type_free(
-        left,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
-      let rt = infer_expr_type_free(
-        right,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
-      // Resolve enum types to their underlying type for comparison.
-      let lt_r = match &lt {
-        Type::Enum(_) => Type::I32,
-        _ => lt.clone(),
-      };
-      let rt_r = match &rt {
-        Type::Enum(_) => Type::I32,
-        _ => rt.clone(),
-      };
+      let lt = infer_expr_type(ctx, left, scope, fn_sigs)?;
+      let rt = infer_expr_type(ctx, right, scope, fn_sigs)?;
+      let lt_r = resolve_enum_type(&lt, &ctx.enum_defs).clone();
+      let rt_r = resolve_enum_type(&rt, &ctx.enum_defs).clone();
       match op {
         BinOp::Add | BinOp::Sub => {
-          if lt_r == rt_r {
+          if matches!(lt_r, TyPtr(_, _)) && is_integral_type(&rt_r) {
             Ok(lt_r)
-          } else if matches!(lt_r, TyPtr(_, _)) && is_integral_type(&rt_r) {
-            Ok(lt_r)
+          } else if let Some(t) = arith_result(&lt_r, &rt_r) {
+            Ok(t)
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),
-              &format!("Type mismatch in arithmetic {}: left {}, right {}", op, lt_r, rt_r),
+              &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
             ))
           }
         }
         BinOp::Mul | BinOp::Div | BinOp::Mod => {
-          if lt_r == rt_r {
-            Ok(lt_r)
+          if let Some(t) = arith_result(&lt_r, &rt_r) {
+            Ok(t)
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
               span.clone(),
-              &format!("Type mismatch in arithmetic {}: left {}, right {}", op, lt_r, rt_r),
+              &format!("Type mismatch in arithmetic: left {}, right {}", lt_r, rt_r),
             ))
           }
         }
@@ -1589,8 +1145,8 @@ fn infer_expr_type_free(
         }
         BinOp::And | BinOp::Or => Ok(Type::Bool),
         BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor | BinOp::Shl | BinOp::Shr => {
-          if lt_r == rt_r {
-            Ok(lt_r)
+          if let Some(t) = arith_result(&lt_r, &rt_r) {
+            Ok(t)
           } else {
             Err(Diagnostic::new(
               Phase::Sema,
@@ -1601,28 +1157,8 @@ fn infer_expr_type_free(
         }
       }
     }
-    Expr::Assign { left, .. } => {
-      infer_expr_type_free(
-        left,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )
-    }
-    Expr::DeclAssign { right, .. } => {
-      infer_expr_type_free(
-        right,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )
-    }
+    Expr::Assign { left, .. } => infer_expr_type(ctx, left, scope, fn_sigs),
+    Expr::DeclAssign { right, .. } => infer_expr_type(ctx, right, scope, fn_sigs),
     Expr::ArrayLit(elems, span) => {
       if elems.is_empty() {
         return Err(Diagnostic::new(
@@ -1631,25 +1167,9 @@ fn infer_expr_type_free(
           "Empty array literals not supported yet",
         ));
       }
-      let elem_type = infer_expr_type_free(
-        &elems[0],
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
+      let elem_type = infer_expr_type(ctx, &elems[0], scope, fn_sigs)?;
       for e in elems[1..].iter() {
-        let et = infer_expr_type_free(
-          e,
-          scope,
-          fn_sigs,
-          struct_defs,
-          enum_members,
-          var_decl,
-          package_functions,
-        )?;
+        let et = infer_expr_type(ctx, e, scope, fn_sigs)?;
         if et != elem_type {
           return Err(Diagnostic::new(
             Phase::Sema,
@@ -1665,24 +1185,8 @@ fn infer_expr_type_free(
       index,
       span,
     } => {
-      let target_type = infer_expr_type_free(
-        target,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
-      let index_type = infer_expr_type_free(
-        index,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
+      let target_type = infer_expr_type(ctx, target, scope, fn_sigs)?;
+      let index_type = infer_expr_type(ctx, index, scope, fn_sigs)?;
       if !is_numeric_type(&index_type) {
         return Err(Diagnostic::new(
           Phase::Sema,
@@ -1693,7 +1197,9 @@ fn infer_expr_type_free(
       match target_type {
         // Fixed-size arrays: check compile-time known index bounds.
         // Negative indices wrap from end (-1 → last element, -n → index 0)
-        Type::TyFixedArray(elem, sz) => check_index_bounds(&elem, Some(sz), index, span),
+        Type::TyFixedArray(elem, sz) => {
+          check_index_bounds(&elem, Some(sz), index, span)
+        }
         // Dynamically-sized arrays can be resized at runtime, so
         // the declared size is not a compile-time bound; illegal
         // accesses are caught at runtime instead.
@@ -1706,34 +1212,26 @@ fn infer_expr_type_free(
         )),
       }
     }
-    Expr::PostIncrement { target, .. } | Expr::PostDecrement { target, .. } => {
-      infer_expr_type_free(
-        target,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )
+    Expr::PostIncrement { target, span } | Expr::PostDecrement { target, span } => {
+      let t = infer_expr_type(ctx, target, scope, fn_sigs)?;
+      if !is_numeric_type(&t) {
+        return Err(Diagnostic::new(
+          Phase::Sema,
+          span.clone(),
+          format!("Cannot apply ++ or -- to non-numeric type {:?}", t),
+        ));
+      }
+      Ok(t)
     }
     Expr::FieldAccess {
       target,
       field,
       span,
     } => {
-      let target_type = infer_expr_type_free(
-        target,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
+      let target_type = infer_expr_type(ctx, target, scope, fn_sigs)?;
       match target_type {
         Type::Struct(ref struct_name) => {
-          let info = struct_defs.get(struct_name).ok_or_else(|| {
+          let info = ctx.struct_defs.get(struct_name).ok_or_else(|| {
             Diagnostic::new(
               Phase::Sema,
               span.clone(),
@@ -1765,22 +1263,15 @@ fn infer_expr_type_free(
       args,
       span,
     } => {
-      // Imports: qualified package call, e.g. `gfx.Window_create(w, 2, 2)`.
-      // The receiver is an Ident naming an imported package, so it resolves
-      // through `package_functions` rather than the local scope.
-      if let Expr::Ident(pkg_name, _) = target.as_ref() {
-        if let Some(pkg_fns) = package_functions.get(pkg_name) {
+      // Imports: qualified package call, e.g. Math.multiply(25, 14).
+      // The receiver is an Ident naming an imported package.
+      if let Expr::Ident(pkg_name, tgt_span) = target.as_ref() {
+        if let Some(pkg_fns) = ctx.package_functions.get(pkg_name) {
+          // Validate argument types first.
           for arg in args {
-            infer_expr_type_free(
-              arg,
-              scope,
-              fn_sigs,
-              struct_defs,
-              enum_members,
-              var_decl,
-              package_functions,
-            )?;
+            infer_expr_type(ctx, arg, scope, fn_sigs)?;
           }
+
           return pkg_fns
               .get(method)
               .map(|(_, returns)| {
@@ -1793,47 +1284,68 @@ fn infer_expr_type_free(
               .ok_or_else(|| {
                 Diagnostic::new(
                   Phase::Sema,
-                  span.clone(),
+                  tgt_span.clone(),
                   format!("Package '{}' has no function '{}'", pkg_name, method),
                 )
               });
         }
       }
-      let target_type = infer_expr_type_free(
-        target,
-        scope,
-        fn_sigs,
-        struct_defs,
-        enum_members,
-        var_decl,
-        package_functions,
-      )?;
+
+      // The receiver is not an imported package's name.
+      let target_type = infer_expr_type(ctx, target, scope, fn_sigs)?;
       match target_type {
-        Type::Struct(_) => {
-          for arg in args {
-            infer_expr_type_free(
-              arg,
-              scope,
-              fn_sigs,
-              struct_defs,
-              enum_members,
-              var_decl,
-              package_functions,
-            )?;
+        Type::Struct(ref struct_name) => {
+          let methods = ctx.struct_methods.get(struct_name).ok_or_else(|| {
+            Diagnostic::new(
+              Phase::Sema,
+              span.clone(),
+              format!("Struct '{}' has no methods", struct_name),
+            )
+          })?;
+          let method_decl =
+              methods.iter().find(|m| m.name == *method).ok_or_else(|| {
+                Diagnostic::new(
+                  Phase::Sema,
+                  span.clone(),
+                  format!("Struct '{}' has no method '{}'", struct_name, method),
+                )
+              })?;
+          // Check method arity
+          let expected_params: Vec<&Type> = method_decl
+              .params
+              .iter()
+              .flat_map(|p| std::iter::repeat(&p.typ).take(p.names.len()))
+              .collect();
+          if args.len() != expected_params.len() {
+            return Err(Diagnostic::new(
+              Phase::Sema,
+              span.clone(),
+              format!(
+                "Method '{}' expects {} arguments, got {}",
+                method,
+                expected_params.len(),
+                args.len()
+              ),
+            ));
           }
-          Ok(Type::Void)
+          // Check argument types (for now just validate they exist)
+          for arg in args {
+            infer_expr_type(ctx, arg, scope, fn_sigs)?;
+          }
+          // Return the method's return type
+          if method_decl.returns.len() == 1 {
+            Ok(method_decl.returns[0].clone())
+          } else if method_decl.returns.is_empty()
+              || method_decl.returns[0] == Type::Void
+          {
+            Ok(Type::Void)
+          } else {
+            Ok(Type::Void) // multi-return in expression context
+          }
         }
         Type::TyArray(..) | Type::TyFixedArray(..) => {
           check_array_method(method, args, span, &target_type, |e| {
-            infer_expr_type_free(
-              e,
-              scope,
-              fn_sigs,
-              struct_defs,
-              enum_members,
-              var_decl,
-              package_functions,
-            )
+            infer_expr_type(ctx, e, scope, fn_sigs)
           })
         }
         _ => Err(Diagnostic::new(
@@ -1848,13 +1360,14 @@ fn infer_expr_type_free(
       fields,
       span,
     } => {
-      let info = struct_defs.get(struct_name).ok_or_else(|| {
+      let info = ctx.struct_defs.get(struct_name).ok_or_else(|| {
         Diagnostic::new(
           Phase::Sema,
           span.clone(),
           format!("Unknown struct type '{}'", struct_name),
         )
       })?;
+      // Check field count matches
       if fields.len() != info.fields.len() {
         return Err(Diagnostic::new(
           Phase::Sema,
@@ -1867,6 +1380,7 @@ fn infer_expr_type_free(
           ),
         ));
       }
+      // Check each field exists and validate types
       for (field_name, field_expr) in fields {
         let decl_field = info
             .fields
@@ -1879,21 +1393,14 @@ fn infer_expr_type_free(
                 format!("Struct '{}' has no field '{}'", struct_name, field_name),
               )
             })?;
-        let init_type = infer_expr_type_free(
-          field_expr,
-          scope,
-          fn_sigs,
-          struct_defs,
-          enum_members,
-          &var_decl.clone(),
-          package_functions,
-        )?;
+        let init_type = infer_expr_type(ctx, field_expr, scope, fn_sigs)?;
         let ptr_ok = ptr_assignable(&init_type, &decl_field.typ).unwrap_or(false);
         if init_type != decl_field.typ && !ptr_ok {
           let ok = is_numeric_type(&init_type)
               && is_numeric_type(&decl_field.typ)
               && literal_fits_target(field_expr, &decl_field.typ);
           let ok = ok || {
+            // Array of numerics: check each element fits target element type.
             if let (Some((init_elem, _)), Some((decl_elem, _))) =
                 (as_array(&init_type), as_array(&decl_field.typ))
             {

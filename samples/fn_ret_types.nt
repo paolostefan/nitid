@@ -1,0 +1,25 @@
+package fn_ret_types;
+
+fn ret_u32(i32 a, b) -> u32 {
+  return 42;
+}
+
+u32 chk = ret_u32(100, 0xf0000);
+
+struct RetU32 {
+  a: i32;
+  b: i32;
+};
+
+impl RetU32 {
+  fn get(int a1, b1) -> u32 {
+    self.a = a1;
+    self.b = b1;
+
+    return 42000000;
+  }
+}
+
+RetU32 r { a:1, b:-1 };
+
+u32 chkStruct = r.get(12,15);

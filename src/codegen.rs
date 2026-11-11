@@ -920,7 +920,9 @@ impl Codegen {
           }
         }
       } else {
-        let mut init_type = self.infer_init_type(init);
+        let mut init_type = v.typ
+            .clone()
+            .expect("sema assigns a type to ':=' declarations"); // self.infer_init_type(init);
         if let Type::TyPtr(elem, _) = init_type {
           init_type = Type::TyPtr(elem, v.is_mutable);
         }

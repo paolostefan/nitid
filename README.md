@@ -197,8 +197,8 @@ fn main() {
 | `if` / `while`           | Full support                                               |
 | Comments (`//`, `/* */`) |                                                            |
 | Hex literals             |                                                            |
-| Package declarations     | Parsed, used for CMake project name                        |
-| `import` syntax          | Parsed but **not resolved** — no module loader             |
+| Package declarations     | Declared name drives C symbol mangling and the CMake project name |
+| `import` syntax          | Resolved by `load_imports`; a package is a directory of `.nt` files |
 
 ## Features missing / incomplete
 
@@ -206,9 +206,8 @@ The following README goals are **not yet implemented** or only partially impleme
 
 | Feature                                                     | Status     | What's missing                                                                                                                                           |
 |-------------------------------------------------------------|------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Module/package resolution**                               | ❌ Missing | `import` is parsed but does nothing. No module loader, no symbol resolution across files.                                                                |
 | **Memory management**                                       | ❌ Missing | No RAII, no garbage collector, no scoped allocation. Falls back to manual `malloc`/`free` via C.                                                         |
-| **Uninitialised variable enforcement**                      | ⚠️ Partial | `Sema` issues a warning for `:=` with inferred type but does not reject uninitialised declarations.                                                      |
+| **Uninitialised variable enforcement**                      | ✅ Done    | A variable that reaches scope exit unassigned is rejected (`Variable 'x' must be initialized`); declare-then-assign is legal.                           |
 | **No implicit type casts**                                  | ⚠️ Partial | Type mismatch is checked for binary ops, but numeric types are compared with `==` without range checking. `:=` inference allows silent numeric widening. |
 | **Null/invalid pointer protection**                         | ❌ Missing | No concept of safe pointers in the language; raw C pointers are emitted.                                                                                 |
 | **Buffer overflow protection**                              | ❌ Missing | No bounds checking on arrays or strings. The `nitid_string` runtime does not perform bounds checks.                                                      |

@@ -74,6 +74,20 @@ impl Canvas {
     }
   }
 
+  fn get_pixel(int x, int y) -> u32 {
+    if (x < 0 || x >= self.width || y < 0 || y >= self.height) {
+      return 0;
+    }
+
+    u32 px = 0;
+
+    unsafe {
+      px = *(self.framebuffer + y * self.width + x);
+    }
+
+    return px;
+  }
+
   fn present() {
     SDL_UpdateTexture(self.texture, nil, self.framebuffer, self.width * 4);
     SDL_RenderTexture(self.renderer, self.texture, nil, nil);

@@ -1,24 +1,57 @@
 import gfx as g;
 
+fn heat_color(i32 heat) -> u32 {
+  i32 r = heat;
+  i32 g = heat/2;
+  i32 b = heat/6;
+
+  return 0xff000000 | (r<<16) | (g<<8) | b;
+}
+
 g.Canvas c;
 
-if (!c.init(800,600)) {
+if (!c.init(320,200)) {
   printf("Failed to initialize canvas\n");
   return 1;
 }
 
-while (c.handle_events()) {
-  // Fill the framebuffer with a color gradient
-  // for (u16 y = 0; y < c.height; y++) {
-  //   for (u16 x = 0; x < c.width; x++) {
-  //     u16 r = (x * 255) / c.width;
-  //     u16 g = (y * 255) / c.height;
-  //     u16 b = ((x + y) * 255) / (c.width + c.height);
-  //     u32 pixel = (r << 16) | (g << 8) | b | 0xFF000000; // ARGB format
-  //     c.set_pixel(x, y, pixel);
-  //   }
-  // }
+frame := 0;
 
-  c.clear();
+while (c.handle_events()) {
+  // Source row: change the heat every frame
+  for (x:=0; x < c.width; x++) {
+    i32 seed = (x*37 + frame*71) & 0xff;
+    c.set_pixel(x, c.height-1, heat_color(seed));
+  }
+
+  // Propagate heat upwards
+  for (y:=0; y < c.height-1; y++) {
+    i32 y2 = y + 2;
+    if (y2 > c.height-1) { y2 = c.height-1; }
+
+    for (x:=0; x < c.width; x++) {
+      i32 xl = x - 1;
+      if (xl < 0) { xl = 0; }
+      i32 xr = x + 1;
+      if (xr > c.width-1) { xr = c.width-1; }
+
+      u32 below = c.get_pixel(x, y+1);
+      u32 left = c.get_pixel(xl, y+1);
+      u32 right = c.get_pixel(xr, y+1);
+      u32 below2 = c.get_pixel(x, y2);
+
+      u32 h = (((below >> 16) + (left >> 16) +
+              (right >> 16)  + (below2 >> 16)) &0xff) >> 2;
+
+      // if (h > 2) {
+      //   h = h - 2;
+      // }
+
+      c.set_pixel(x, y, heat_color(h));
+    }
+  }
+
+  frame++;
+
   c.present();
 }

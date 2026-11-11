@@ -46,7 +46,7 @@ because rustdoc renames its search-index chunks on every run.
 | `src/parser.rs` | Tokens → AST. Recursive descent; one function per grammar level. |
 | `src/ast.rs` | `Program`, `Decl`, `Stmt`, `Expr`, `Span`, … shared by phases 2–4. |
 | `src/types.rs` | `Type` enum + C type mapping (`c_str()`), array/pointer wrappers. |
-| `src/sema.rs` | Scopes, type inference (`infer_expr_type`), type checks, diagnostics. |
+| `src/sema.rs` | Scopes, type inference (`infer_expr_type` + `InferCtx`), type checks, diagnostics. |
 | `src/codegen.rs` | AST → C. `generate`, `generate_c`, `emit_cmake`. |
 | `src/diagnostic.rs` | `Diagnostic { phase, span, message }` + `Phase` — **the** error currency. |
 | `src/lib.rs` | Public API: `compile()`, `parse_file`, `parse_package_dir`, `load_imports`, `PackageContext`. Import resolution, symbol merging, C name mangling. |
@@ -77,8 +77,11 @@ because rustdoc renames its search-index chunks on every run.
   `Pkg_func` (`lib.rs:435`). Codegen learns about imports through `package_names` + `foreign_sigs`.
 - **Multi-return** is desugared in codegen to trailing `*res0, *res1` out-params; only works in `a, b := f()` form,
   not as a sub-expression (known gap).
-- **Type inference is duplicated**: `sema::infer_expr_type` (checks) and `codegen::infer_init_type` / heuristics
-  (emit). If you change one, look at the other — they are not wired together.
+- **Type inference lives in `sema.rs` only.** `infer_expr_type` is a free function fed by `InferCtx` (immutable
+  tables: `struct_defs`, `struct_methods`, `enum_defs`, `enum_members`, `fn_sigs_map`, `package_functions`);
+  `Sema::infer_expr_type` is a thin wrapper over it. For `:=` it writes the inferred type back into `VarDecl.typ`, so
+  codegen emits declarations from the annotated AST instead of guessing. `codegen::infer_init_type` survives only for
+  array-literal element sizing and `Expr::DeclAssign` in expression position — do not extend it; fix the AST instead.
 - **`main` is special**: the parser wraps dangling top-level statements in an implicit `fn main`; codegen forces the
   C `int main(void)` signature; `main.rs` rejects dangling code in more than one input file.
 - Struct layout is already C-ABI (declaration order preserved); `packed` / `align(N)` emit accordingly.
@@ -91,9 +94,11 @@ Touch these, in order — the feature is not done until the sample compiles:
 2. `src/ast.rs` — node in `Expr` / `Stmt` / `Decl`, carrying a real `Span`.
 3. `src/parser.rs` — parse function; wire it into the `parse_or → … → parse_primary` chain so precedence is correct,
    and into `parse_stmt` lookahead if it changes statement shape.
-4. `src/sema.rs` — type inference for the new expression, scope/name checks, new `Diagnostic` on misuse.
+4. `src/sema.rs` — type inference for the new expression in `infer_expr_type` (thread anything new through
+   `InferCtx`), scope/name checks, new `Diagnostic` on misuse.
 5. `src/codegen.rs` — emit C; extend `types.rs` `c_str()` if a new C mapping is needed; update `emit_cmake` only if a
-   new runtime source file must be compiled in.
+   new runtime source file must be compiled in. Declarations arrive already typed in `VarDecl.typ` — do not add a
+   second inference path.
 6. `runtime/` — add the C type/functions if the feature needs runtime support; export it in `runtime/CMakeLists.txt`
    and copy it in `main.rs`; add `runtime/tests/test_nitid_*.c` coverage.
 7. `editors/nitid-syntax/…/nitid.tmLanguage.json` — highlighting for new keywords/types/builtins.
@@ -115,10 +120,8 @@ Nothing in `samples/` is hardcoded — the suites **discover** files by scanning
 - `samples/package/<version-feature>/main.nt` — multi-file cases; the directory name should match the roadmap item
   it covers (`v0.1.1-basic-import/`, …). Some package tests are inline in `tests/packages.rs` and need no sample.
 
-**Known pre-existing failure**: `samples/unsafe.nt` does not parse
-(`mut *p = &x;` → *expected type or identifier, found star*), so `cargo test --test valid` fails on a clean
-checkout. Every other suite passes (12 grammar, 22 package, 2 error). Do not assume you broke it; do not "fix" the
-sample unless the task is about that syntax.
+**No known pre-existing failures.** Every suite passes: valid (2 tests over all samples), 12 grammar, 25 package, 2
+error. If `cargo test` fails, assume you broke it.
 
 ## Nitid language cheat sheet
 
